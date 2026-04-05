@@ -32,7 +32,7 @@ export interface Move {
 export type CombatLogActor =
   | 'player'
   | 'guarda'
-  | 'muralha'
+  | 'wall'
   | 'enemy'
   | 'system';
 
@@ -47,7 +47,7 @@ export interface CombatLogEntry {
 
 export type DefenseSide = 'norte' | 'sul' | 'leste' | 'oeste' | 'centro';
 
-export type DefenseParticipantKind = 'player' | 'guarda_muralha';
+export type DefenseParticipantKind = 'player' | 'wall_guard';
 
 export interface DefenseParticipant {
   id: string;

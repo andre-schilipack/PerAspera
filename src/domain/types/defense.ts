@@ -4,7 +4,7 @@ import type {
   EnemyInstance,
 } from './combat.ts';
 
-export type MuralhaCardinal = 'norte' | 'sul' | 'leste' | 'oeste';
+export type WallCardinal = 'north' | 'south' | 'east' | 'west';
 
 export interface SectionIntegrity {
   current: number;
@@ -12,11 +12,11 @@ export interface SectionIntegrity {
   breached: boolean;
 }
 
-export interface MuralhaState {
+export interface WallState {
   level: number;
   layers: number;
-  sections: Record<MuralhaCardinal, SectionIntegrity>;
-  lastAttackedSection?: MuralhaCardinal;
+  sections: Record<WallCardinal, SectionIntegrity>;
+  lastAttackedSection?: WallCardinal;
   /** YYYY-MM-DD — narrative / anti-spam for repairs. */
   lastRepairedDate?: string;
 }
@@ -34,7 +34,7 @@ export interface DailyDefenseState {
   playerContribution: Record<string, number>;
   isCompleted: boolean;
   startHour: number;
-  attackedSection: MuralhaCardinal;
+  attackedSection: WallCardinal;
   participants: DefenseParticipant[];
   /** Anchor for scaling (e.g. days since founding). */
   gameDayIndex: number;

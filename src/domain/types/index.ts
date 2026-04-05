@@ -14,9 +14,9 @@ export type {
 export type { Business, BusinessKind } from './economy.ts';
 export type {
   DailyDefenseState,
-  MuralhaCardinal,
-  MuralhaState,
   SectionIntegrity,
+  WallCardinal,
+  WallState,
 } from './defense.ts';
 export type { Item, ItemRarity, ItemType } from './items.ts';
 export type { Hex, HexMap, PlaceSlot, PlaceSlotType } from './map.ts';
