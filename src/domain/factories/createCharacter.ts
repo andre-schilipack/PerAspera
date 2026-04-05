@@ -1,0 +1,49 @@
+import {
+  STAMINA_INITIAL,
+  STAMINA_MAX_BASE,
+  STARTING_CREDS,
+} from '../constants.ts';
+import type { Character } from '../types/index.ts';
+
+export interface CreateCharacterParams {
+  id: string;
+  name: string;
+  homeHexId: string;
+  nowMs: number;
+  /** Override starter creds (defaults to {@link STARTING_CREDS}). */
+  startingCreds?: number;
+}
+
+/**
+ * New playable character: age 16, level 1, baseline stamina (200/240) and one move.
+ */
+export function createCharacter(params: CreateCharacterParams): Character {
+  const {
+    id,
+    name,
+    homeHexId,
+    nowMs,
+    startingCreds = STARTING_CREDS,
+  } = params;
+
+  return {
+    id,
+    name,
+    age: 16,
+    level: 1,
+    exp: 0,
+    creds: startingCreds,
+    stamina: {
+      current: STAMINA_INITIAL,
+      max: STAMINA_MAX_BASE,
+      lastUpdated: nowMs,
+    },
+    score: 0,
+    reputation: 0,
+    homeHexId,
+    availableMoves: ['basic_attack'],
+    currentDefenseContribution: 0,
+    inventory: [],
+    createdAt: nowMs,
+  };
+}

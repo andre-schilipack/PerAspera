@@ -45,3 +45,16 @@ export function axialDistance(a: AxialCoord, b: AxialCoord): number {
 export function isAxialNeighbor(a: AxialCoord, b: AxialCoord): boolean {
   return axialDistance(a, b) === 1;
 }
+
+/** All axial coordinates within `radius` steps of the origin (inclusive). */
+export function listAxialInDisk(radius: number): AxialCoord[] {
+  const out: AxialCoord[] = [];
+  for (let q = -radius; q <= radius; q++) {
+    const rMin = Math.max(-radius, -q - radius);
+    const rMax = Math.min(radius, -q + radius);
+    for (let r = rMin; r <= rMax; r++) {
+      out.push({ q, r });
+    }
+  }
+  return out;
+}

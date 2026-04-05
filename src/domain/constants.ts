@@ -44,3 +44,10 @@ export const ID_PREFIX_BUSINESS = 'biz';
 
 /** Place slot id prefix. */
 export const ID_PREFIX_SLOT = 'slot';
+
+/** NPC owner keys for fixed city tiles (not character ids). */
+export const NPC_OWNER_MERCADO = 'npc:mercado_municipal' as const;
+export const NPC_OWNER_PREFEITURA = 'npc:prefeitura' as const;
+
+/** Starting city credits for a new character (Alpha balance). */
+export const STARTING_CREDS = 50;
