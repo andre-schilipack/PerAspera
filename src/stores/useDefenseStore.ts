@@ -9,6 +9,7 @@ import type { DailyDefenseState, WallState } from '../domain/types/index.ts';
 
 interface DefenseActions {
   setDailyDefense: (dailyDefense: DailyDefenseState) => void;
+  patchDailyDefense: (patch: Partial<DailyDefenseState>) => void;
   setWall: (wall: WallState) => void;
   reset: () => void;
 }
@@ -32,6 +33,8 @@ export const useDefenseStore = create<DefenseStore>()(
     (set) => ({
       ...initialDefenseState(),
       setDailyDefense: (dailyDefense) => set({ dailyDefense }),
+      patchDailyDefense: (patch) =>
+        set((s) => ({ dailyDefense: { ...s.dailyDefense, ...patch } })),
       setWall: (wall) => set({ wall }),
       reset: () => set(initialDefenseState()),
     }),

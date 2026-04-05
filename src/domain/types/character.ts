@@ -18,6 +18,8 @@ export interface Character {
   score: number;
   reputation: number;
   homeHexId: string;
+  /** Current position on the hex map (axial key `q,r`). */
+  currentHexId: string;
   availableMoves: string[];
   /** Resets with daily defense bookkeeping. */
   currentDefenseContribution: number;

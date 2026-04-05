@@ -1,0 +1,154 @@
+.game-shell {
+  text-align: left;
+  padding: 12px 16px 32px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.game-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.game-header h1 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.game-stat {
+  font-size: 0.95rem;
+  color: var(--text-h);
+}
+
+.game-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.game-nav button {
+  font: inherit;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.game-nav button[data-active='true'] {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.game-hex-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+}
+
+.game-hex {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--code-bg);
+  font-size: 0.85rem;
+  cursor: default;
+  text-align: left;
+}
+
+.game-hex[data-current='true'] {
+  outline: 2px solid var(--accent);
+}
+
+.game-hex[data-neighbor='true'] {
+  cursor: pointer;
+}
+
+.game-hex[data-neighbor='true']:hover {
+  border-color: var(--accent-border);
+}
+
+.game-hex[data-locked='true'] {
+  opacity: 0.45;
+}
+
+.game-panel h2 {
+  font-size: 1rem;
+  margin: 0 0 8px;
+}
+
+.game-log {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 0.85rem;
+  background: var(--code-bg);
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.game-wall-bar {
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+}
+
+.game-wall-bar meter {
+  width: 100%;
+  max-width: 280px;
+}
+
+.game-start {
+  max-width: 360px;
+  margin: 48px auto;
+  text-align: left;
+}
+
+.game-start input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  margin: 8px 0 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+}
+
+.game-start button {
+  font: inherit;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.game-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.game-table th,
+.game-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.game-muted {
+  color: var(--text);
+  font-size: 0.85rem;
+}

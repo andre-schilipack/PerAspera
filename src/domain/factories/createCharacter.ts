@@ -10,6 +10,8 @@ export interface CreateCharacterParams {
   name: string;
   homeHexId: string;
   nowMs: number;
+  /** Defaults to {@link homeHexId}. */
+  currentHexId?: string;
   /** Override starter creds (defaults to {@link STARTING_CREDS}). */
   startingCreds?: number;
 }
@@ -22,6 +24,7 @@ export function createCharacter(params: CreateCharacterParams): Character {
     id,
     name,
     homeHexId,
+    currentHexId,
     nowMs,
     startingCreds = STARTING_CREDS,
   } = params;
@@ -41,6 +44,7 @@ export function createCharacter(params: CreateCharacterParams): Character {
     score: 0,
     reputation: 0,
     homeHexId,
+    currentHexId: currentHexId ?? homeHexId,
     availableMoves: ['basic_attack'],
     currentDefenseContribution: 0,
     inventory: [],

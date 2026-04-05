@@ -78,6 +78,18 @@ function fixInvalidCurrentCharacter(): void {
   setCurrentCharacterId(ids[0] ?? null);
 }
 
+/** Older saves may omit `currentHexId` (defaults to home hex). */
+function ensureCharacterCurrentHex(): void {
+  const { characters, updateCharacter } = useCharactersStore.getState();
+  for (const id of Object.keys(characters)) {
+    const ch = characters[id];
+    const hexId = ch.currentHexId ?? ch.homeHexId;
+    if (ch.currentHexId !== hexId) {
+      updateCharacter(id, { currentHexId: hexId });
+    }
+  }
+}
+
 /**
  * Rehydrate persisted slices, migrate meta, regen stamina, roll daily defense,
  * and fix stale `currentCharacterId`.
@@ -89,4 +101,5 @@ export async function bootstrapGame(): Promise<void> {
   applyStaminaRegenToAllCharacters(now);
   rollDailyDefenseIfNeeded(now);
   fixInvalidCurrentCharacter();
+  ensureCharacterCurrentHex();
 }

@@ -21,6 +21,9 @@ export const PATROL_STA_COST = 1;
 /** STA spent to lock participation in nightly defense. */
 export const DEFENSE_LOCK_STA_COST = 50;
 
+/** STA spent to work / accelerate a business (daily tick). */
+export const WORK_STA_COST = 5;
+
 /** Passive stamina regenerated over a full 24h window (offline-friendly). */
 export const STAMINA_REGEN_PER_24H = 120;
 
@@ -48,6 +51,12 @@ export const ID_PREFIX_SLOT = 'slot';
 /** NPC owner keys for fixed city tiles (not character ids). */
 export const NPC_OWNER_MERCADO = 'npc:mercado_municipal' as const;
 export const NPC_OWNER_PREFEITURA = 'npc:prefeitura' as const;
+
+/** City-owned empty lots before a character purchases. */
+export const NPC_OWNER_CITY = 'npc:city' as const;
+
+/** Default price for an empty peripheral lot (creds). */
+export const EMPTY_LOT_PRICE = 100;
 
 /** Starting city credits for a new character (Alpha balance). */
 export const STARTING_CREDS = 50;
