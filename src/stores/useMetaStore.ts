@@ -28,6 +28,8 @@ interface MetaActions {
   setCreatedAt: (createdAt: number) => void;
   replaceGlobalScoreboard: (globalScoreboard: ScoreEntry[]) => void;
   patchNextIds: (patch: Partial<NextIdCounters>) => void;
+  /** Replace persisted fields after {@link migrateGameMetaState}. */
+  applyMetaSnapshot: (snapshot: GameMetaState) => void;
   reset: () => void;
 }
 
@@ -42,6 +44,14 @@ export const useMetaStore = create<MetaStore>()(
       replaceGlobalScoreboard: (globalScoreboard) => set({ globalScoreboard }),
       patchNextIds: (patch) =>
         set((s) => ({ nextIds: { ...s.nextIds, ...patch } })),
+      applyMetaSnapshot: (snapshot) =>
+        set({
+          version: snapshot.version,
+          schemaVersion: snapshot.schemaVersion,
+          createdAt: snapshot.createdAt,
+          globalScoreboard: snapshot.globalScoreboard,
+          nextIds: snapshot.nextIds,
+        }),
       reset: () => set(initialMetaState()),
     }),
     {
