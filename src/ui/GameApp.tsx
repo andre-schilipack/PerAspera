@@ -17,8 +17,13 @@ import { makeBusinessId } from '../domain/ids.ts';
 import type { BusinessKind } from '../domain/types/index.ts';
 import type { CombatLogEntry } from '../domain/types/index.ts';
 import type { Item } from '../domain/types/index.ts';
+import {
+  scoreEntriesFromCharacters,
+  topScoreboard,
+} from '../domain/leaderboard.ts';
 import { MARKET_CATALOG } from '../game/marketCatalog.ts';
 import { startNewGame } from '../game/startNewGame.ts';
+import { syncGlobalScoreboardFromCharacters } from '../game/syncScoreboard.ts';
 import { useCharactersStore } from '../stores/useCharactersStore.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
@@ -26,7 +31,26 @@ import { useWorldStore } from '../stores/useWorldStore.ts';
 
 import './game.css';
 
-type Screen = 'map' | 'profile' | 'market' | 'defense' | 'lots';
+type Screen =
+  | 'map'
+  | 'profile'
+  | 'market'
+  | 'defense'
+  | 'lots'
+  | 'leaderboard';
+
+const SCREEN_NAV: readonly {
+  id: Screen;
+  label: string;
+  fab: string;
+}[] = [
+  { id: 'map', label: 'Map', fab: 'Map' },
+  { id: 'profile', label: 'Profile', fab: 'Me' },
+  { id: 'market', label: 'Market', fab: '$' },
+  { id: 'defense', label: 'Defense', fab: 'Def' },
+  { id: 'lots', label: 'Lots', fab: 'Lot' },
+  { id: 'leaderboard', label: 'Scores', fab: 'Top' },
+] as const;
 
 function useNowTick(ms: number): number {
   const [t, setT] = useState(() => Date.now());
@@ -66,6 +90,16 @@ export default function GameApp() {
   const patchNextIds = useMetaStore((s) => s.patchNextIds);
 
   const now = useNowTick(1000);
+
+  const topScores = useMemo(
+    () => topScoreboard(scoreEntriesFromCharacters(characters), 10),
+    [characters],
+  );
+
+  useEffect(() => {
+    if (Object.keys(characters).length === 0) return;
+    syncGlobalScoreboardFromCharacters(characters);
+  }, [characters]);
   const purchaseSeq = useRef(0);
 
   const firstCharacterId = Object.keys(characters)[0] ?? null;
@@ -161,13 +195,19 @@ export default function GameApp() {
     const nextEnemies = dd.enemies
       .map((e) => ({ ...e, currentHealth: e.currentHealth - 8 }))
       .filter((e) => e.currentHealth > 0);
+    const waveCleared = dd.enemies.length > 0 && nextEnemies.length === 0;
+    if (waveCleared && character) {
+      const live = useCharactersStore.getState().characters[character.id];
+      if (live) {
+        updateCharacter(character.id, { score: live.score + 25 });
+      }
+    }
     patchNextIds({ combatLogEntry: logNum });
     patchDailyDefense({
       currentTurn: dd.currentTurn + 1,
       combatLog: [...dd.combatLog, line],
       enemies: nextEnemies,
-      isCompleted:
-        dd.enemies.length > 0 && nextEnemies.length === 0,
+      isCompleted: waveCleared,
     });
   }
 
@@ -314,7 +354,7 @@ export default function GameApp() {
   const slotsHere = currentHex?.placeSlots ?? [];
 
   return (
-    <div className="game-shell">
+    <div className="game-shell game-shell--with-fab">
       <header className="game-header">
         <div>
           <h1>{character.name}</h1>
@@ -328,20 +368,12 @@ export default function GameApp() {
       </header>
 
       <nav className="game-nav" aria-label="Screens">
-        {(
-          [
-            ['map', 'Map'],
-            ['profile', 'Profile'],
-            ['market', 'Market'],
-            ['defense', 'Defense'],
-            ['lots', 'Lots'],
-          ] as const
-        ).map(([key, label]) => (
+        {SCREEN_NAV.map(({ id, label }) => (
           <button
-            key={key}
+            key={id}
             type="button"
-            data-active={screen === key}
-            onClick={() => setScreen(key)}
+            data-active={screen === id}
+            onClick={() => setScreen(id)}
           >
             {label}
           </button>
@@ -514,6 +546,40 @@ export default function GameApp() {
         </section>
       )}
 
+      {screen === 'leaderboard' && (
+        <section className="game-panel">
+          <h2>Local scoreboard (Top 10)</h2>
+          <p className="game-muted">
+            Sorted by defense score, then recency. Stored with your save.
+          </p>
+          {topScores.length === 0 ? (
+            <p className="game-muted">No entries yet.</p>
+          ) : (
+            <table className="game-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Name</th>
+                  <th>Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topScores.map((row, i) => (
+                  <tr key={row.characterId}>
+                    <td>{i + 1}</td>
+                    <td>
+                      {row.name}
+                      {row.characterId === character.id ? ' (you)' : ''}
+                    </td>
+                    <td>{row.score}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      )}
+
       {screen === 'lots' && (
         <section className="game-panel">
           <h2>Lots @ {character.currentHexId}</h2>
@@ -581,6 +647,25 @@ export default function GameApp() {
           </p>
         </section>
       )}
+
+      <div
+        className="game-fab"
+        role="toolbar"
+        aria-label="Quick navigation"
+      >
+        {SCREEN_NAV.map(({ id, fab, label }) => (
+          <button
+            key={id}
+            type="button"
+            className="game-fab-btn"
+            data-active={screen === id}
+            aria-label={label}
+            onClick={() => setScreen(id)}
+          >
+            {fab}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
