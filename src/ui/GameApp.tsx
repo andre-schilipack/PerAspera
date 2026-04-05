@@ -21,6 +21,14 @@ import {
   scoreEntriesFromCharacters,
   topScoreboard,
 } from '../domain/leaderboard.ts';
+import {
+  coreLoopBullets,
+  GAME_TITLE,
+  glossary,
+  settingParagraphs,
+  startPitchLines,
+  startSublineParents,
+} from '../content/lore.ts';
 import { MARKET_CATALOG } from '../game/marketCatalog.ts';
 import { startNewGame } from '../game/startNewGame.ts';
 import { syncGlobalScoreboardFromCharacters } from '../game/syncScoreboard.ts';
@@ -37,7 +45,8 @@ type Screen =
   | 'market'
   | 'defense'
   | 'lots'
-  | 'leaderboard';
+  | 'leaderboard'
+  | 'lore';
 
 const SCREEN_NAV: readonly {
   id: Screen;
@@ -50,6 +59,7 @@ const SCREEN_NAV: readonly {
   { id: 'defense', label: 'Defense', fab: 'Def' },
   { id: 'lots', label: 'Lots', fab: 'Lot' },
   { id: 'leaderboard', label: 'Scores', fab: 'Top' },
+  { id: 'lore', label: 'Lore', fab: 'Lore' },
 ] as const;
 
 function useNowTick(ms: number): number {
@@ -327,8 +337,13 @@ export default function GameApp() {
   if (!hasSave || !character || !hexMap) {
     return (
       <div className="game-start">
-        <h1>Robusto</h1>
-        <p className="game-muted">Alpha 0.1 — new local save</p>
+        <h1>{GAME_TITLE}</h1>
+        <p className="game-tagline">{startPitchLines[0]}</p>
+        {startPitchLines.length > 1 ? (
+          <p className="game-muted">{startPitchLines[1]}</p>
+        ) : null}
+        <p className="game-muted game-start-flavor">{startSublineParents}</p>
+        <p className="game-muted">Alpha 0.1 — local save only</p>
         <label htmlFor="char-name">Character name</label>
         <input
           id="char-name"
@@ -543,6 +558,32 @@ export default function GameApp() {
                   .map((l) => `[${l.type}] ${l.text}`)
                   .join('\n')}
           </pre>
+        </section>
+      )}
+
+      {screen === 'lore' && (
+        <section className="game-panel game-lore" aria-labelledby="lore-heading">
+          <h2 id="lore-heading">City &amp; canon</h2>
+          {settingParagraphs.map((p, i) => (
+            <p key={i} className="game-lore-prose">
+              {p}
+            </p>
+          ))}
+          <h3>Core loop</h3>
+          <ul className="game-lore-list">
+            {coreLoopBullets.map((b) => (
+              <li key={b}>{b}</li>
+            ))}
+          </ul>
+          <h3>Glossary</h3>
+          <dl className="game-lore-glossary">
+            {glossary.map(({ term, description }) => (
+              <div key={term} className="game-lore-glossary-row">
+                <dt>{term}</dt>
+                <dd>{description}</dd>
+              </div>
+            ))}
+          </dl>
         </section>
       )}
 

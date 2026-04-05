@@ -119,6 +119,17 @@
   text-align: left;
 }
 
+.game-start .game-tagline {
+  font-size: 1.05rem;
+  color: var(--text-h);
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+
+.game-start-flavor {
+  margin-bottom: 16px;
+}
+
 .game-start input {
   width: 100%;
   box-sizing: border-box;
@@ -157,6 +168,54 @@
 .game-muted {
   color: var(--text);
   font-size: 0.85rem;
+}
+
+.game-lore h3 {
+  font-size: 0.95rem;
+  margin: 16px 0 8px;
+}
+
+.game-lore-prose {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-h);
+}
+
+.game-lore-list {
+  margin: 0 0 12px;
+  padding-left: 1.2rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.game-lore-glossary {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.game-lore-glossary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.game-lore-glossary-row:last-child {
+  border-bottom: none;
+}
+
+.game-lore-glossary dt {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.game-lore-glossary dd {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.45;
 }
 
 /* Mobile-first quick nav (FAB) — hidden on wide layouts where top nav fits. */
