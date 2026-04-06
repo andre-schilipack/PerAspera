@@ -61,6 +61,11 @@ import { CombatLogList } from './CombatLogList.tsx';
 import { GameFabBar } from './GameFabBar.tsx';
 import { GAME_NAV_ITEMS, type GameScreen } from './gameNavigation.ts';
 import { HexMapView } from './HexMapView.tsx';
+import {
+  isScreenAvailableAtHex,
+  navItemsForHex,
+} from './screenHexAccess.ts';
+import { GAME_NAV_WIDE_MEDIA, useMediaQuery } from './useMediaQuery.ts';
 import './game.css';
 
 function useNowTick(ms: number): number {
@@ -84,6 +89,7 @@ export default function GameApp() {
   const [screen, setScreen] = useState<GameScreen>('map');
   const [newName, setNewName] = useState('');
   const [workFeedback, setWorkFeedback] = useState<string | null>(null);
+  const isWideNavLayout = useMediaQuery(GAME_NAV_WIDE_MEDIA);
 
   const skirmishSession = useSkirmishStore((s) => s.session);
   const startSkirmishFromPatrol = useSkirmishStore((s) => s.startFromPatrol);
@@ -130,6 +136,26 @@ export default function GameApp() {
   const activeId = currentId ?? firstCharacterId;
   const hasSave = hexMap !== null && firstCharacterId !== null;
   const character = activeId ? characters[activeId] : null;
+
+  const navItems = useMemo(() => {
+    if (!character) return GAME_NAV_ITEMS;
+    return navItemsForHex(character.currentHexId, character.homeHexId);
+  }, [character]);
+
+  /** If the player leaves the hex, NPC screens fall back to Map without mutating last intent. */
+  const resolvedScreen = useMemo((): GameScreen => {
+    if (!character) return screen;
+    if (
+      isScreenAvailableAtHex(
+        screen,
+        character.currentHexId,
+        character.homeHexId,
+      )
+    ) {
+      return screen;
+    }
+    return 'map';
+  }, [character, screen]);
 
   const sortedHexes = useMemo(() => {
     if (!hexMap) return [];
@@ -448,7 +474,11 @@ export default function GameApp() {
   const atHome = character.currentHexId === character.homeHexId;
 
   return (
-    <div className="game-shell game-shell--with-fab">
+    <div
+      className={
+        isWideNavLayout ? 'game-shell' : 'game-shell game-shell--with-fab'
+      }
+    >
       <header className="game-header">
         <div>
           <h1>{character.name}</h1>
@@ -461,20 +491,22 @@ export default function GameApp() {
         </div>
       </header>
 
-      <nav className="game-nav" aria-label="Screens">
-        {GAME_NAV_ITEMS.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            data-active={screen === id}
-            onClick={() => setScreen(id)}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
+      {isWideNavLayout ? (
+        <nav className="game-nav" aria-label="Screens">
+          {navItems.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              data-active={resolvedScreen === id}
+              onClick={() => setScreen(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      ) : null}
 
-      {screen === 'map' && (
+      {resolvedScreen === 'map' && (
         <section className="game-panel">
           <h2>Hex map</h2>
           <p className="game-muted">
@@ -502,7 +534,7 @@ export default function GameApp() {
         </section>
       )}
 
-      {screen === 'profile' && (
+      {resolvedScreen === 'profile' && (
         <section className="game-panel">
           <h2>Profile</h2>
           <p>EXP {character.exp}</p>
@@ -537,7 +569,7 @@ export default function GameApp() {
         </section>
       )}
 
-      {screen === 'market' && (
+      {resolvedScreen === 'market' && (
         <section className="game-panel">
           <h2>Municipal market</h2>
           {!atCenter ? (
@@ -598,22 +630,35 @@ export default function GameApp() {
         </section>
       )}
 
-      {screen === 'defense' && (
+      {resolvedScreen === 'defense' && (
         <section className="game-panel">
           <h2>Nightly defense</h2>
           {!atCenter ? (
             <p className="game-muted">
               Enlist at the <strong>Quartel General</strong> in{' '}
               <strong>Centro</strong> ({CENTER_HEX_ID}). You are at{' '}
-              <strong>{character.currentHexId}</strong> — open{' '}
-              <button
-                type="button"
-                className="game-inline-nav"
-                onClick={() => setScreen('map')}
-              >
-                Map
-              </button>{' '}
-              and patrol there, then open <strong>Defense</strong>.
+              <strong>{character.currentHexId}</strong>
+              {isWideNavLayout ? (
+                <>
+                  {' '}
+                  — open{' '}
+                  <button
+                    type="button"
+                    className="game-inline-nav"
+                    onClick={() => setScreen('map')}
+                  >
+                    Map
+                  </button>{' '}
+                  and patrol there, then open <strong>Defense</strong>.
+                </>
+              ) : (
+                <>
+                  {' '}
+                  — use the <strong>Map</strong> tab in the bottom bar, patrol
+                  to <strong>Centro</strong>, then open{' '}
+                  <strong>Defense</strong>.
+                </>
+              )}
             </p>
           ) : (
             <>
@@ -666,7 +711,7 @@ export default function GameApp() {
         </section>
       )}
 
-      {screen === 'lore' && (
+      {resolvedScreen === 'lore' && (
         <section className="game-panel game-lore" aria-labelledby="lore-heading">
           <h2 id="lore-heading">City &amp; canon</h2>
           {settingParagraphs.map((p, i) => (
@@ -692,22 +737,33 @@ export default function GameApp() {
         </section>
       )}
 
-      {screen === 'leaderboard' && (
+      {resolvedScreen === 'leaderboard' && (
         <section className="game-panel">
           <h2>Local scoreboard (Top 10)</h2>
           {!atHome ? (
             <p className="game-muted">
               <strong>Velho Rabiscão</strong> keeps the list at your home hex (
               {character.homeHexId}). You are at{' '}
-              <strong>{character.currentHexId}</strong> — patrol home, then
-              open <strong>Scores</strong>.{' '}
-              <button
-                type="button"
-                className="game-inline-nav"
-                onClick={() => setScreen('map')}
-              >
-                Map
-              </button>
+              <strong>{character.currentHexId}</strong>
+              {isWideNavLayout ? (
+                <>
+                  {' '}
+                  — patrol home, then open <strong>Scores</strong>.{' '}
+                  <button
+                    type="button"
+                    className="game-inline-nav"
+                    onClick={() => setScreen('map')}
+                  >
+                    Map
+                  </button>
+                </>
+              ) : (
+                <>
+                  {' '}
+                  — use the <strong>Map</strong> tab in the bottom bar, patrol
+                  home, then open <strong>Scores</strong>.
+                </>
+              )}
             </p>
           ) : (
             <>
@@ -748,7 +804,7 @@ export default function GameApp() {
         </section>
       )}
 
-      {screen === 'lots' && (
+      {resolvedScreen === 'lots' && (
         <section className="game-panel">
           <h2>Lots @ {character.currentHexId}</h2>
           {slotsHere.length === 0 ? (
@@ -895,7 +951,13 @@ export default function GameApp() {
         </div>
       ) : null}
 
-      <GameFabBar activeScreen={screen} onSelect={setScreen} />
+      {!isWideNavLayout ? (
+        <GameFabBar
+          activeScreen={resolvedScreen}
+          onSelect={setScreen}
+          items={navItems}
+        />
+      ) : null}
     </div>
   );
 }

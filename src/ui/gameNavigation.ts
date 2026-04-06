@@ -9,7 +9,8 @@ import {
 } from 'lucide-react';
 
 /**
- * Primary navigation: top bar + mobile FAB share this config.
+ * Primary navigation config: wide layout renders a top bar; narrow layout
+ * mounts only the FAB (same items — no duplicate nav in the DOM).
  * Map & Profile keep visible text labels on the FAB (per design).
  */
 export const GAME_NAV_ITEMS = [
@@ -32,4 +33,6 @@ export const GAME_NAV_ITEMS = [
   { id: 'lore' as const, label: 'Lore', Icon: BookOpen, fabShowLabel: false },
 ] as const;
 
-export type GameScreen = (typeof GAME_NAV_ITEMS)[number]['id'];
+export type GameNavItem = (typeof GAME_NAV_ITEMS)[number];
+
+export type GameScreen = GameNavItem['id'];

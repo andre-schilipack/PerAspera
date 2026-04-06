@@ -1,18 +1,19 @@
-import type { GameScreen } from './gameNavigation.ts';
-import { GAME_NAV_ITEMS } from './gameNavigation.ts';
+import type { GameNavItem, GameScreen } from './gameNavigation.ts';
 
 export interface GameFabBarProps {
   activeScreen: GameScreen;
   onSelect: (screen: GameScreen) => void;
+  /** Filtered by current hex — NPC screens only when standing on their tile. */
+  items: readonly GameNavItem[];
 }
 
 /**
  * Mobile floating action bar with Lucide icons. Map & Profile show text labels.
  */
-export function GameFabBar({ activeScreen, onSelect }: GameFabBarProps) {
+export function GameFabBar({ activeScreen, onSelect, items }: GameFabBarProps) {
   return (
     <div className="game-fab" role="toolbar" aria-label="Quick navigation">
-      {GAME_NAV_ITEMS.map(({ id, label, Icon, fabShowLabel }) => (
+      {items.map(({ id, label, Icon, fabShowLabel }) => (
         <button
           key={id}
           type="button"
