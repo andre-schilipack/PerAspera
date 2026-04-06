@@ -12,6 +12,14 @@ export interface MarketCatalogEntry {
 /** Fixed municipal prices (buy === sell at same value for Alpha). */
 export const MARKET_CATALOG: readonly MarketCatalogEntry[] = [
   {
+    templateId: 'food_ration',
+    name: 'Food',
+    type: 'consumable',
+    rarity: 'comum',
+    value: 6,
+    effects: { staminaBoost: 10 },
+  },
+  {
     templateId: 'neon_stim',
     name: 'Neon Stim',
     type: 'consumable',

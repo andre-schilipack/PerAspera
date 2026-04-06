@@ -51,9 +51,22 @@ export const ID_PREFIX_SLOT = 'slot';
 /** NPC owner keys for fixed city tiles (not character ids). */
 export const NPC_OWNER_MERCADO = 'npc:mercado_municipal' as const;
 export const NPC_OWNER_PREFEITURA = 'npc:prefeitura' as const;
+export const NPC_OWNER_QUARTEL = 'npc:quartel_general' as const;
+export const NPC_OWNER_HISTORIAN = 'npc:velho_rabiscao' as const;
 
 /** City-owned empty lots before a character purchases. */
 export const NPC_OWNER_CITY = 'npc:city' as const;
+
+/**
+ * Axial key for the downtown tile: market, prefeitura, quartel (NPC services).
+ */
+export const CENTER_HEX_ID = '0,0' as const;
+
+/**
+ * Axial key for the starter home hex (parents' house + Velho Rabiscão).
+ * Ring-1 neighbor of {@link CENTER_HEX_ID}.
+ */
+export const HOME_HEX_ID = '1,0' as const;
 
 /** Default price for an empty peripheral lot (creds). */
 export const EMPTY_LOT_PRICE = 100;

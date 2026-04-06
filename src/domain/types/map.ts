@@ -6,6 +6,8 @@ export type PlaceSlotType =
   | 'business'
   | 'market'
   | 'prefeitura'
+  | 'quartel'
+  | 'historian'
   | 'other';
 
 export interface PlaceSlot {

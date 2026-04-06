@@ -1,4 +1,12 @@
-import { DEFAULT_MAP_RADIUS, NPC_OWNER_MERCADO, NPC_OWNER_PREFEITURA } from '../constants.ts';
+import {
+  CENTER_HEX_ID,
+  DEFAULT_MAP_RADIUS,
+  HOME_HEX_ID,
+  NPC_OWNER_HISTORIAN,
+  NPC_OWNER_MERCADO,
+  NPC_OWNER_PREFEITURA,
+  NPC_OWNER_QUARTEL,
+} from '../constants.ts';
 import {
   axialDistance,
   hexKeyFromAxial,
@@ -37,22 +45,15 @@ function defaultDangerIntegrity(distanceFromCenter: number): {
   return { danger, integrity };
 }
 
+/** Downtown: Mercado Municipal, Prefeitura, Quartel General (NPC-only). */
 function buildCenterSlots(params: {
   centerHexId: string;
-  characterId: string;
   slotIdCounter: number;
 }): { slots: PlaceSlot[]; nextSlotId: number } {
   let n = params.slotIdCounter;
   const nextId = () => makeSlotId(n++);
 
   const slots: PlaceSlot[] = [
-    {
-      id: nextId(),
-      hexId: params.centerHexId,
-      ownedBy: params.characterId,
-      type: 'home',
-      priceToBuy: 0,
-    },
     {
       id: nextId(),
       hexId: params.centerHexId,
@@ -67,14 +68,50 @@ function buildCenterSlots(params: {
       type: 'prefeitura',
       priceToBuy: 0,
     },
+    {
+      id: nextId(),
+      hexId: params.centerHexId,
+      ownedBy: NPC_OWNER_QUARTEL,
+      type: 'quartel',
+      priceToBuy: 0,
+    },
+  ];
+
+  return { slots, nextSlotId: n };
+}
+
+/** Home ring hex: player home + Velho Rabiscão (historian / Score List). */
+function buildHomeSlots(params: {
+  homeHexId: string;
+  characterId: string;
+  slotIdCounter: number;
+}): { slots: PlaceSlot[]; nextSlotId: number } {
+  let n = params.slotIdCounter;
+  const nextId = () => makeSlotId(n++);
+
+  const slots: PlaceSlot[] = [
+    {
+      id: nextId(),
+      hexId: params.homeHexId,
+      ownedBy: params.characterId,
+      type: 'home',
+      priceToBuy: 0,
+    },
+    {
+      id: nextId(),
+      hexId: params.homeHexId,
+      ownedBy: NPC_OWNER_HISTORIAN,
+      type: 'historian',
+      priceToBuy: 0,
+    },
   ];
 
   return { slots, nextSlotId: n };
 }
 
 /**
- * Seeds a disk-shaped hex map: center tile holds home + municipal market + city hall.
- * Ring 1 is explorable; outer rings start locked (MVP progression hook).
+ * Seeds a disk-shaped hex map: **Centro** holds municipal NPCs; **home hex** holds
+ * the player's house and Velho Rabiscão. Ring 1 is explorable; outer rings start locked.
  */
 export function createInitialWorld(
   params: CreateInitialWorldParams,
@@ -83,27 +120,40 @@ export function createInitialWorld(
   const coords = listAxialInDisk(radius);
   const hexes: Record<string, Hex> = {};
 
-  const centerHexId = hexKeyFromAxial(0, 0);
-  const { slots: centerSlots, nextSlotId } = buildCenterSlots({
-    centerHexId,
-    characterId: params.characterId,
-    slotIdCounter: params.slotIdCounter,
+  let slotCounter = params.slotIdCounter;
+
+  const centerSlots = buildCenterSlots({
+    centerHexId: CENTER_HEX_ID,
+    slotIdCounter: slotCounter,
   });
+  slotCounter = centerSlots.nextSlotId;
+
+  const homeSlots = buildHomeSlots({
+    homeHexId: HOME_HEX_ID,
+    characterId: params.characterId,
+    slotIdCounter: slotCounter,
+  });
+  slotCounter = homeSlots.nextSlotId;
 
   for (const c of coords) {
     const id = hexKeyFromAxial(c.q, c.r);
     const dist = axialDistance(c, ORIGIN);
     const { danger, integrity } = defaultDangerIntegrity(dist);
 
-    const isCenter = c.q === 0 && c.r === 0;
+    const isCenter = id === CENTER_HEX_ID;
+    const isHome = id === HOME_HEX_ID;
     const isUnlocked = dist <= 1;
+
+    let placeSlots: PlaceSlot[] = [];
+    if (isCenter) placeSlots = centerSlots.slots;
+    else if (isHome) placeSlots = homeSlots.slots;
 
     hexes[id] = {
       id,
       coordinates: { q: c.q, r: c.r },
       danger,
       integrity,
-      placeSlots: isCenter ? centerSlots : [],
+      placeSlots,
       isUnlocked,
     };
   }
@@ -115,7 +165,7 @@ export function createInitialWorld(
       size: widthLabel,
       hexes,
     },
-    nextSlotId,
+    nextSlotId: slotCounter,
     nextBusinessId: params.businessIdCounter ?? 0,
   };
 }

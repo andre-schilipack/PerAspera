@@ -170,6 +170,18 @@
   font-size: 0.85rem;
 }
 
+.game-hex-label {
+  font-weight: 500;
+  color: var(--accent);
+  font-size: 0.75rem;
+}
+
+.game-work-feedback {
+  margin: 10px 0 0;
+  font-size: 0.9rem;
+  color: var(--text-h);
+}
+
 .game-lore h3 {
   font-size: 0.95rem;
   margin: 16px 0 8px;

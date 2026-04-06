@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  CENTER_HEX_ID,
   DEFENSE_LOCK_STA_COST,
   DEFENSE_START_HOUR,
   EMPTY_LOT_PRICE,
@@ -8,6 +9,11 @@ import {
   PATROL_STA_COST,
   WORK_STA_COST,
 } from '../domain/constants.ts';
+import {
+  computeWorkPayout,
+  mergeItemGrants,
+  type ItemGrant,
+} from '../domain/businessPayout.ts';
 import {
   axialNeighbors,
   isAxialNeighbor,
@@ -82,6 +88,7 @@ function formatTime(d: Date): string {
 export default function GameApp() {
   const [screen, setScreen] = useState<Screen>('map');
   const [newName, setNewName] = useState('');
+  const [workFeedback, setWorkFeedback] = useState<string | null>(null);
 
   const hexMap = useWorldStore((s) => s.hexMap);
   const characters = useCharactersStore((s) => s.characters);
@@ -303,35 +310,91 @@ export default function GameApp() {
     const map = useWorldStore.getState().hexMap;
     if (!map) return;
     const t = now;
-    let touched = false;
+
+    let hasBusiness = false;
     for (const hex of Object.values(map.hexes)) {
-      const hasMine = hex.placeSlots.some(
-        (s) =>
-          s.type === 'business' &&
-          s.business &&
-          s.ownedBy === character.id,
-      );
-      if (!hasMine) continue;
-      touched = true;
-      updateHex(hex.id, (h) => ({
-        ...h,
-        placeSlots: h.placeSlots.map((p) =>
+      for (const p of hex.placeSlots) {
+        if (
           p.type === 'business' &&
           p.business &&
           p.ownedBy === character.id
-            ? { ...p, business: { ...p.business, lastProduction: t } }
-            : p,
-        ),
-      }));
+        ) {
+          hasBusiness = true;
+          break;
+        }
+      }
+      if (hasBusiness) break;
     }
-    if (!touched) return;
+    if (!hasBusiness) {
+      setWorkFeedback('No business to work.');
+      return;
+    }
+
+    let totalCreds = 0;
+    const rawGrants: ItemGrant[] = [];
+
+    for (const hex of Object.values(map.hexes)) {
+      let touched = false;
+      const newSlots = hex.placeSlots.map((p) => {
+        if (
+          p.type !== 'business' ||
+          !p.business ||
+          p.ownedBy !== character.id
+        ) {
+          return p;
+        }
+        touched = true;
+        const y = computeWorkPayout(p.business);
+        totalCreds += y.creds;
+        rawGrants.push(...y.itemGrants);
+        return {
+          ...p,
+          business: { ...p.business, lastProduction: t },
+        };
+      });
+      if (touched) {
+        updateHex(hex.id, (h) => ({ ...h, placeSlots: newSlots }));
+      }
+    }
+
+    const merged = mergeItemGrants(rawGrants);
+    let seq = purchaseSeq.current;
+    for (const g of merged) {
+      const item: Item = {
+        id: `${g.templateId}_${t}_${seq++}`,
+        name: g.name,
+        type: g.type,
+        rarity: g.rarity,
+        value: g.value,
+        effects: { ...g.effects },
+        quantity: g.quantity,
+      };
+      addItem(character.id, item);
+    }
+    purchaseSeq.current = seq;
+
+    const live = useCharactersStore.getState().characters[character.id];
+    if (!live) return;
+
     updateCharacter(character.id, {
+      creds: live.creds + totalCreds,
       stamina: {
-        ...character.stamina,
-        current: character.stamina.current - WORK_STA_COST,
+        ...live.stamina,
+        current: live.stamina.current - WORK_STA_COST,
         lastUpdated: t,
       },
     });
+
+    const parts: string[] = [];
+    if (totalCreds > 0) parts.push(`+${totalCreds} creds`);
+    if (merged.length > 0) {
+      parts.push(
+        merged.map((g) => `+${g.quantity}× ${g.name}`).join(', '),
+      );
+    }
+    setWorkFeedback(
+      parts.length > 0 ? parts.join(' · ') : `Paid ${WORK_STA_COST} STA (no payout).`,
+    );
   }
 
   if (!hasSave || !character || !hexMap) {
@@ -367,6 +430,8 @@ export default function GameApp() {
 
   const currentHex = hexMap.hexes[character.currentHexId];
   const slotsHere = currentHex?.placeSlots ?? [];
+  const atCenter = character.currentHexId === CENTER_HEX_ID;
+  const atHome = character.currentHexId === character.homeHexId;
 
   return (
     <div className="game-shell game-shell--with-fab">
@@ -421,6 +486,12 @@ export default function GameApp() {
                 >
                   <div>
                     <strong>{h.id}</strong>
+                    {h.id === CENTER_HEX_ID ? (
+                      <span className="game-hex-label"> Centro</span>
+                    ) : null}
+                    {h.id === character.homeHexId ? (
+                      <span className="game-hex-label"> Home</span>
+                    ) : null}
                   </div>
                   <div>dng {Math.round(h.danger)}</div>
                   <div>int {Math.round(h.integrity)}</div>
@@ -453,18 +524,31 @@ export default function GameApp() {
           )}
           <h3>Work (businesses)</h3>
           <p className="game-muted">
-            Spend {WORK_STA_COST} STA to refresh production timestamps on your
-            businesses.
+            Spend {WORK_STA_COST} STA once to work all your businesses (creds
+            + items by type — e.g. farm yields Food).
           </p>
           <button type="button" onClick={workBusinesses}>
             Work ({WORK_STA_COST} STA)
           </button>
+          {workFeedback ? (
+            <p className="game-work-feedback" role="status">
+              {workFeedback}
+            </p>
+          ) : null}
         </section>
       )}
 
       {screen === 'market' && (
         <section className="game-panel">
           <h2>Municipal market</h2>
+          {!atCenter ? (
+            <p className="game-muted">
+              The market is at <strong>Centro</strong> ({CENTER_HEX_ID}). You
+              are at <strong>{character.currentHexId}</strong> — patrol there to
+              buy or sell.
+            </p>
+          ) : (
+            <>
           <table className="game-table">
             <thead>
               <tr>
@@ -506,12 +590,22 @@ export default function GameApp() {
               ))}
             </ul>
           )}
+            </>
+          )}
         </section>
       )}
 
       {screen === 'defense' && (
         <section className="game-panel">
           <h2>Nightly defense</h2>
+          {!atCenter ? (
+            <p className="game-muted">
+              Enlist at the <strong>Quartel General</strong> in{' '}
+              <strong>Centro</strong> ({CENTER_HEX_ID}). You are at{' '}
+              <strong>{character.currentHexId}</strong>.
+            </p>
+          ) : (
+            <>
           <p>
             Local time <strong>{formatTime(new Date(now))}</strong> · event
             hour {DEFENSE_START_HOUR}:00
@@ -558,6 +652,8 @@ export default function GameApp() {
                   .map((l) => `[${l.type}] ${l.text}`)
                   .join('\n')}
           </pre>
+            </>
+          )}
         </section>
       )}
 
@@ -590,6 +686,14 @@ export default function GameApp() {
       {screen === 'leaderboard' && (
         <section className="game-panel">
           <h2>Local scoreboard (Top 10)</h2>
+          {!atHome ? (
+            <p className="game-muted">
+              <strong>Velho Rabiscão</strong> keeps the list at your home hex (
+              {character.homeHexId}). You are at{' '}
+              <strong>{character.currentHexId}</strong> — go home to view ranks.
+            </p>
+          ) : (
+            <>
           <p className="game-muted">
             Sorted by defense score, then recency. Stored with your save.
           </p>
@@ -617,6 +721,8 @@ export default function GameApp() {
                 ))}
               </tbody>
             </table>
+          )}
+            </>
           )}
         </section>
       )}
@@ -683,8 +789,8 @@ export default function GameApp() {
             </ul>
           )}
           <p className="game-muted">
-            Empty city lots are on ring hexes (not center). Move on the map to
-            buy.
+            Empty lots appear on ring hexes (not Centro or your home hex). Move
+            on the map to buy.
           </p>
         </section>
       )}

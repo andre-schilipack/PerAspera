@@ -29,6 +29,16 @@ export const glossary: readonly { term: string; description: string }[] = [
   },
   { term: 'Muralha', description: 'The wall around Robusto; sectors can breach if neglected.' },
   {
+    term: 'Centro (downtown hex)',
+    description:
+      'City core hex — Municipal Market, Prefeitura, and Quartel General. You must be here to use those services.',
+  },
+  {
+    term: 'Home hex',
+    description:
+      "Your parents' house and Velho Rabiscão (Top 10). Patrol home to read the Score List.",
+  },
+  {
     term: 'Mercado Municipal',
     description: 'NPC market with fixed prices — buy and sell basics.',
   },

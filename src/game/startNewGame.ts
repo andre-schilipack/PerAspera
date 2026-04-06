@@ -1,4 +1,4 @@
-import { GAME_VERSION } from '../domain/constants.ts';
+import { GAME_VERSION, HOME_HEX_ID } from '../domain/constants.ts';
 import { createCharacter } from '../domain/factories/createCharacter.ts';
 import { createInitialWorld } from '../domain/factories/createInitialWorld.ts';
 import { makeCharacterId } from '../domain/ids.ts';
@@ -32,8 +32,8 @@ export function startNewGame(characterName: string): void {
   const character = createCharacter({
     id: charId,
     name: characterName.trim() || 'Wanderer',
-    homeHexId: '0,0',
-    currentHexId: '0,0',
+    homeHexId: HOME_HEX_ID,
+    currentHexId: HOME_HEX_ID,
     nowMs: now,
   });
 
