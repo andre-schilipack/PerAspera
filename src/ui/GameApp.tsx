@@ -52,6 +52,7 @@ import { useSkirmishStore } from '../stores/useSkirmishStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 
 import { CombatLogList } from './CombatLogList.tsx';
+import { HexMapView } from './HexMapView.tsx';
 import './game.css';
 
 type Screen =
@@ -497,42 +498,17 @@ export default function GameApp() {
             encounter; higher <strong>dng</strong> raises the chance (approx %
             per hex).
           </p>
-          <div className="game-hex-grid">
-            {sortedHexes.map((h) => {
-              const isCurrent = h.id === character.currentHexId;
-              const isNb = neighborIds.has(h.id) && !isCurrent;
-              const canPatrol =
-                isNb && h.isUnlocked && character.stamina.current >= PATROL_STA_COST;
-              return (
-                <button
-                  key={h.id}
-                  type="button"
-                  className="game-hex"
-                  data-current={isCurrent}
-                  data-neighbor={canPatrol}
-                  data-locked={!h.isUnlocked}
-                  disabled={!canPatrol}
-                  onClick={() => canPatrol && patrolTo(h.id)}
-                >
-                  <div>
-                    <strong>{h.id}</strong>
-                    {h.id === CENTER_HEX_ID ? (
-                      <span className="game-hex-label"> Centro</span>
-                    ) : null}
-                    {h.id === character.homeHexId ? (
-                      <span className="game-hex-label"> Home</span>
-                    ) : null}
-                  </div>
-                  <div>dng {Math.round(h.danger)}</div>
-                  <div className="game-hex-enc">
-                    enc ~{formatEncounterChancePercent(h.danger)}
-                  </div>
-                  <div>int {Math.round(h.integrity)}</div>
-                  {!h.isUnlocked && <div className="game-muted">locked</div>}
-                </button>
-              );
-            })}
-          </div>
+          <HexMapView
+            hexes={sortedHexes}
+            currentHexId={character.currentHexId}
+            homeHexId={character.homeHexId}
+            centerHexId={CENTER_HEX_ID}
+            neighborIds={neighborIds}
+            patrolStaCost={PATROL_STA_COST}
+            staminaCurrent={character.stamina.current}
+            encounterPctLabel={formatEncounterChancePercent}
+            onPatrolTo={patrolTo}
+          />
         </section>
       )}
 

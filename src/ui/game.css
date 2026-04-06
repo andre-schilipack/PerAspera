@@ -54,36 +54,64 @@
   background: var(--accent-bg);
 }
 
-.game-hex-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-  gap: 8px;
+/* SVG hex map — see HexMapView.tsx + hexLayout.ts */
+.hex-map-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 8px;
 }
 
-.game-hex {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px;
-  background: var(--code-bg);
-  font-size: 0.85rem;
+.hex-map-svg {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  min-height: 220px;
+  margin: 0 auto;
+  user-select: none;
+}
+
+.hex-map-hex {
+  fill: var(--code-bg);
+  stroke: var(--border);
+  stroke-width: 1.5;
   cursor: default;
-  text-align: left;
+  transition:
+    fill 0.12s ease,
+    stroke 0.12s ease;
 }
 
-.game-hex[data-current='true'] {
-  outline: 2px solid var(--accent);
+.hex-map-hex[data-current='true'] {
+  fill: var(--accent-bg);
+  stroke: var(--accent);
+  stroke-width: 2.25;
 }
 
-.game-hex[data-neighbor='true'] {
+.hex-map-hex[data-neighbor='true'] {
   cursor: pointer;
 }
 
-.game-hex[data-neighbor='true']:hover {
-  border-color: var(--accent-border);
+.hex-map-hex[data-neighbor='true']:hover {
+  stroke: var(--accent-border);
+  fill: color-mix(in srgb, var(--accent-bg) 85%, var(--code-bg));
 }
 
-.game-hex[data-locked='true'] {
-  opacity: 0.45;
+.hex-map-hex[data-locked='true'] {
+  opacity: 0.48;
+}
+
+.hex-map-text {
+  pointer-events: none;
+  font-family: var(--sans, system-ui, sans-serif);
+}
+
+.hex-map-text-id {
+  font-weight: 600;
+  fill: var(--text-h);
+}
+
+.hex-map-text-stat {
+  fill: var(--text);
 }
 
 .game-panel h2 {
@@ -278,22 +306,10 @@
   font-size: 0.85rem;
 }
 
-.game-hex-label {
-  font-weight: 500;
-  color: var(--accent);
-  font-size: 0.75rem;
-}
-
 .game-work-feedback {
   margin: 10px 0 0;
   font-size: 0.9rem;
   color: var(--text-h);
-}
-
-.game-hex-enc {
-  font-size: 0.75rem;
-  color: var(--text);
-  opacity: 0.9;
 }
 
 .game-alert {
