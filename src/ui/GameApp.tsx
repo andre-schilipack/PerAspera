@@ -35,6 +35,12 @@ import {
 } from '../domain/leaderboard.ts';
 import { defenseDemoPulseMessage } from '../content/combatLines.ts';
 import {
+  linkedScreenButtonLabel,
+  placeSlotDisplayTitle,
+  placeSlotLinkedScreen,
+  placeSlotNpcBlurb,
+} from '../content/npcPlaces.ts';
+import {
   coreLoopBullets,
   GAME_TITLE,
   glossary,
@@ -477,6 +483,11 @@ export default function GameApp() {
             encounter; higher <strong>dng</strong> raises the chance (approx %
             per hex).
           </p>
+          <p className="game-muted game-map-npc">
+            <strong>Centro</strong> ({CENTER_HEX_ID}): Mercado Municipal,
+            Prefeitura, Quartel General. <strong>Home</strong> (
+            {character.homeHexId}): parents&apos; place &amp; Velho Rabiscão.
+          </p>
           <HexMapView
             hexes={sortedHexes}
             currentHexId={character.currentHexId}
@@ -537,6 +548,10 @@ export default function GameApp() {
             </p>
           ) : (
             <>
+          <p className="game-muted">
+            You are at the <strong>Mercado Municipal</strong> stall — same
+            Centro hex as Prefeitura and Quartel General.
+          </p>
           <table className="game-table">
             <thead>
               <tr>
@@ -590,10 +605,22 @@ export default function GameApp() {
             <p className="game-muted">
               Enlist at the <strong>Quartel General</strong> in{' '}
               <strong>Centro</strong> ({CENTER_HEX_ID}). You are at{' '}
-              <strong>{character.currentHexId}</strong>.
+              <strong>{character.currentHexId}</strong> — open{' '}
+              <button
+                type="button"
+                className="game-inline-nav"
+                onClick={() => setScreen('map')}
+              >
+                Map
+              </button>{' '}
+              and patrol there, then open <strong>Defense</strong>.
             </p>
           ) : (
             <>
+          <p className="game-muted">
+            You are at the <strong>Quartel General</strong> — enlist for the
+            nightly defense below.
+          </p>
           <p>
             Local time <strong>{formatTime(new Date(now))}</strong> · event
             hour {DEFENSE_START_HOUR}:00
@@ -672,10 +699,22 @@ export default function GameApp() {
             <p className="game-muted">
               <strong>Velho Rabiscão</strong> keeps the list at your home hex (
               {character.homeHexId}). You are at{' '}
-              <strong>{character.currentHexId}</strong> — go home to view ranks.
+              <strong>{character.currentHexId}</strong> — patrol home, then
+              open <strong>Scores</strong>.{' '}
+              <button
+                type="button"
+                className="game-inline-nav"
+                onClick={() => setScreen('map')}
+              >
+                Map
+              </button>
             </p>
           ) : (
             <>
+          <p className="game-muted">
+            <strong>Velho Rabiscão</strong> reads the Top 10 from his scraps —
+            you are home.
+          </p>
           <p className="game-muted">
             Sorted by defense score, then recency. Stored with your save.
           </p>
@@ -715,10 +754,29 @@ export default function GameApp() {
           {slotsHere.length === 0 ? (
             <p className="game-muted">No slots here</p>
           ) : (
-            <ul>
-              {slotsHere.map((slot) => (
-                <li key={slot.id}>
-                  <strong>{slot.type}</strong> · {slot.id}
+            <ul className="game-slot-list">
+              {slotsHere.map((slot) => {
+                const slotTitle = placeSlotDisplayTitle(slot);
+                const slotBlurb = placeSlotNpcBlurb(slot);
+                const slotLink = placeSlotLinkedScreen(slot);
+                return (
+                <li key={slot.id} className="game-slot-row">
+                  <div className="game-slot-head">
+                    <strong>{slotTitle}</strong>
+                    <span className="game-muted"> · {slot.id}</span>
+                    {slotBlurb ? (
+                      <p className="game-muted game-slot-blurb">{slotBlurb}</p>
+                    ) : null}
+                    {slotLink ? (
+                      <button
+                        type="button"
+                        className="game-slot-nav"
+                        onClick={() => setScreen(slotLink)}
+                      >
+                        {linkedScreenButtonLabel(slotLink)}
+                      </button>
+                    ) : null}
+                  </div>
                   {slot.type === 'empty' && slot.ownedBy === NPC_OWNER_CITY && (
                     <>
                       {' '}
@@ -767,7 +825,8 @@ export default function GameApp() {
                     </span>
                   )}
                 </li>
-              ))}
+              );
+              })}
             </ul>
           )}
           <p className="game-muted">

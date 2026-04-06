@@ -3,6 +3,8 @@
  * Player-facing text — keep tone grounded cyberpunk / street survival.
  */
 
+import { loreNpcNavigationTip } from './npcPlaces.ts';
+
 export const GAME_TITLE = 'Robusto';
 
 /** Year in-universe (setting anchor). */
@@ -50,6 +52,10 @@ export const glossary: readonly { term: string; description: string }[] = [
   {
     term: 'Velho Rabiscão',
     description: 'The historian — keeps the Score List and street memory (more activities later).',
+  },
+  {
+    term: 'NPCs & screens',
+    description: loreNpcNavigationTip,
   },
 ];
 
