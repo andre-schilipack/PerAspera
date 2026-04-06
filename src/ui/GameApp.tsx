@@ -33,6 +33,7 @@ import {
   scoreEntriesFromCharacters,
   topScoreboard,
 } from '../domain/leaderboard.ts';
+import { defenseDemoPulseMessage } from '../content/combatLines.ts';
 import {
   coreLoopBullets,
   GAME_TITLE,
@@ -50,6 +51,7 @@ import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useSkirmishStore } from '../stores/useSkirmishStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 
+import { CombatLogList } from './CombatLogList.tsx';
 import './game.css';
 
 type Screen =
@@ -232,7 +234,7 @@ export default function GameApp() {
       id: logNum,
       turn: dd.currentTurn + 1,
       timestamp: now,
-      text: `Tick ${dd.currentTurn + 1}: city pulse — wall holds.`,
+      text: defenseDemoPulseMessage(dd.currentTurn + 1),
       type: 'system',
     };
     const nextEnemies = dd.enemies
@@ -676,13 +678,7 @@ export default function GameApp() {
             ),
           )}
           <h3>Combat log</h3>
-          <pre className="game-log">
-            {dailyDefense.combatLog.length === 0
-              ? '—'
-              : dailyDefense.combatLog
-                  .map((l) => `[${l.type}] ${l.text}`)
-                  .join('\n')}
-          </pre>
+          <CombatLogList entries={dailyDefense.combatLog} />
             </>
           )}
         </section>
@@ -856,13 +852,10 @@ export default function GameApp() {
               <p className="game-muted">No hostiles left.</p>
             )}
             <h3>Log</h3>
-            <pre className="game-log game-log--skirmish">
-              {skirmishSession.combatLog.length === 0
-                ? '—'
-                : skirmishSession.combatLog
-                    .map((l) => `[${l.type}] ${l.text}`)
-                    .join('\n')}
-            </pre>
+            <CombatLogList
+              entries={skirmishSession.combatLog}
+              className="game-combat-log--skirmish"
+            />
             {skirmishSession.isCompleted ? (
               <>
                 {skirmishSession.outcome === 'win' ? (
