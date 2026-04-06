@@ -182,6 +182,42 @@
   color: var(--text-h);
 }
 
+.game-hex-enc {
+  font-size: 0.75rem;
+  color: var(--text);
+  opacity: 0.9;
+}
+
+.game-alert {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.game-alert p {
+  margin: 0 0 8px;
+}
+
+.game-alert-dismiss {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.game-alert-dismiss:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .game-lore h3 {
   font-size: 0.95rem;
   margin: 16px 0 8px;

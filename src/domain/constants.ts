@@ -18,6 +18,18 @@ export const STAMINA_MAX_BASE = 240;
 /** STA spent per hex move (patrol / travel). */
 export const PATROL_STA_COST = 1;
 
+/**
+ * Street encounter roll after moving to a neighbor hex (independent of skirmish UI).
+ * Final chance = min(CAP, BASE + (danger/100) * WEIGHT).
+ */
+export const PATROL_ENCOUNTER_BASE_CHANCE = 0.06;
+
+/** Extra chance at danger 100 (before cap). */
+export const PATROL_ENCOUNTER_DANGER_WEIGHT = 0.34;
+
+/** Maximum encounter chance per patrol step (avoid frustration). */
+export const PATROL_ENCOUNTER_CHANCE_CAP = 0.42;
+
 /** STA spent to lock participation in nightly defense. */
 export const DEFENSE_LOCK_STA_COST = 50;
 

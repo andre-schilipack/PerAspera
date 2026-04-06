@@ -15,6 +15,10 @@ import {
   type ItemGrant,
 } from '../domain/businessPayout.ts';
 import {
+  formatEncounterChancePercent,
+  rollPatrolEncounter,
+} from '../domain/patrolEncounter.ts';
+import {
   axialNeighbors,
   isAxialNeighbor,
   parseHexKey,
@@ -89,6 +93,9 @@ export default function GameApp() {
   const [screen, setScreen] = useState<Screen>('map');
   const [newName, setNewName] = useState('');
   const [workFeedback, setWorkFeedback] = useState<string | null>(null);
+  const [patrolEncounterBanner, setPatrolEncounterBanner] = useState<
+    string | null
+  >(null);
 
   const hexMap = useWorldStore((s) => s.hexMap);
   const characters = useCharactersStore((s) => s.characters);
@@ -159,6 +166,7 @@ export default function GameApp() {
     if (!hex?.isUnlocked) return;
     if (character.stamina.current < PATROL_STA_COST) return;
     const t = now;
+    const destDanger = hex.danger;
     updateCharacter(character.id, {
       currentHexId: targetHexId,
       stamina: {
@@ -167,6 +175,18 @@ export default function GameApp() {
         lastUpdated: t,
       },
     });
+    if (
+      rollPatrolEncounter({
+        danger: destDanger,
+        random: Math.random,
+      })
+    ) {
+      setPatrolEncounterBanner(
+        `Street encounter — hostiles spotted in ${targetHexId} (danger ${Math.round(destDanger)}%). Full skirmish UI next.`,
+      );
+    } else {
+      setPatrolEncounterBanner(null);
+    }
   }
 
   function tryLockDefense() {
@@ -465,8 +485,22 @@ export default function GameApp() {
           <h2>Hex map</h2>
           <p className="game-muted">
             You are at <strong>{character.currentHexId}</strong>. Neighbors
-            cost {PATROL_STA_COST} STA.
+            cost {PATROL_STA_COST} STA. Entering a hex may trigger a street
+            encounter; higher <strong>dng</strong> raises the chance (approx %
+            per hex).
           </p>
+          {patrolEncounterBanner ? (
+            <div className="game-alert game-alert--encounter" role="status">
+              <p>{patrolEncounterBanner}</p>
+              <button
+                type="button"
+                className="game-alert-dismiss"
+                onClick={() => setPatrolEncounterBanner(null)}
+              >
+                Dismiss
+              </button>
+            </div>
+          ) : null}
           <div className="game-hex-grid">
             {sortedHexes.map((h) => {
               const isCurrent = h.id === character.currentHexId;
@@ -494,6 +528,9 @@ export default function GameApp() {
                     ) : null}
                   </div>
                   <div>dng {Math.round(h.danger)}</div>
+                  <div className="game-hex-enc">
+                    enc ~{formatEncounterChancePercent(h.danger)}
+                  </div>
                   <div>int {Math.round(h.integrity)}</div>
                   {!h.isUnlocked && <div className="game-muted">locked</div>}
                 </button>
