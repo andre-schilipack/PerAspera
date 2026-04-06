@@ -1,9 +1,13 @@
 import { CENTER_HEX_ID } from '../domain/constants.ts';
 
-import { GAME_NAV_ITEMS, type GameNavItem, type GameScreen } from './gameNavigation.ts';
+import {
+  GAME_FAB_ACTION_ITEMS,
+  type GameFabActionItem,
+  type GameScreen,
+} from './gameNavigation.ts';
 
 /**
- * NPC-tied screens only appear in nav when the player stands on the correct hex.
+ * NPC-tied FAB actions only appear when the player stands on the correct hex.
  * - Market & Defense: Centro (Mercado + Quartel).
  * - Leaderboard: home hex (Velho Rabiscão).
  */
@@ -23,11 +27,11 @@ export function isScreenAvailableAtHex(
   }
 }
 
-export function navItemsForHex(
+export function fabActionItemsForHex(
   currentHexId: string,
   homeHexId: string,
-): GameNavItem[] {
-  return GAME_NAV_ITEMS.filter((item) =>
+): GameFabActionItem[] {
+  return GAME_FAB_ACTION_ITEMS.filter((item) =>
     isScreenAvailableAtHex(item.id, currentHexId, homeHexId),
   );
 }

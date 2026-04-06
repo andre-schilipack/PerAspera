@@ -59,13 +59,16 @@ import { useWorldStore } from '../stores/useWorldStore.ts';
 
 import { CombatLogList } from './CombatLogList.tsx';
 import { GameFabBar } from './GameFabBar.tsx';
-import { GAME_NAV_ITEMS, type GameScreen } from './gameNavigation.ts';
+import {
+  GAME_FAB_ACTION_ITEMS,
+  GAME_TOP_NAV_ITEMS,
+  type GameScreen,
+} from './gameNavigation.ts';
 import { HexMapView } from './HexMapView.tsx';
 import {
+  fabActionItemsForHex,
   isScreenAvailableAtHex,
-  navItemsForHex,
 } from './screenHexAccess.ts';
-import { GAME_NAV_WIDE_MEDIA, useMediaQuery } from './useMediaQuery.ts';
 import './game.css';
 
 function useNowTick(ms: number): number {
@@ -89,7 +92,6 @@ export default function GameApp() {
   const [screen, setScreen] = useState<GameScreen>('map');
   const [newName, setNewName] = useState('');
   const [workFeedback, setWorkFeedback] = useState<string | null>(null);
-  const isWideNavLayout = useMediaQuery(GAME_NAV_WIDE_MEDIA);
 
   const skirmishSession = useSkirmishStore((s) => s.session);
   const startSkirmishFromPatrol = useSkirmishStore((s) => s.startFromPatrol);
@@ -137,9 +139,9 @@ export default function GameApp() {
   const hasSave = hexMap !== null && firstCharacterId !== null;
   const character = activeId ? characters[activeId] : null;
 
-  const navItems = useMemo(() => {
-    if (!character) return GAME_NAV_ITEMS;
-    return navItemsForHex(character.currentHexId, character.homeHexId);
+  const fabActionItems = useMemo(() => {
+    if (!character) return [...GAME_FAB_ACTION_ITEMS];
+    return fabActionItemsForHex(character.currentHexId, character.homeHexId);
   }, [character]);
 
   /** If the player leaves the hex, NPC screens fall back to Map without mutating last intent. */
@@ -474,11 +476,7 @@ export default function GameApp() {
   const atHome = character.currentHexId === character.homeHexId;
 
   return (
-    <div
-      className={
-        isWideNavLayout ? 'game-shell' : 'game-shell game-shell--with-fab'
-      }
-    >
+    <div className="game-shell game-shell--with-fab">
       <header className="game-header">
         <div>
           <h1>{character.name}</h1>
@@ -491,20 +489,18 @@ export default function GameApp() {
         </div>
       </header>
 
-      {isWideNavLayout ? (
-        <nav className="game-nav" aria-label="Screens">
-          {navItems.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              data-active={resolvedScreen === id}
-              onClick={() => setScreen(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
-      ) : null}
+      <nav className="game-nav" aria-label="Main navigation">
+        {GAME_TOP_NAV_ITEMS.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            data-active={resolvedScreen === id}
+            onClick={() => setScreen(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
 
       {resolvedScreen === 'map' && (
         <section className="game-panel">
@@ -541,18 +537,6 @@ export default function GameApp() {
           <p>Score (defense) {character.score}</p>
           <p>Reputation {character.reputation}</p>
           <p>Home {character.homeHexId}</p>
-          <h3>Inventory</h3>
-          {character.inventory.length === 0 ? (
-            <p className="game-muted">Empty</p>
-          ) : (
-            <ul>
-              {character.inventory.map((it) => (
-                <li key={it.id}>
-                  {it.name} ×{it.quantity} ({it.value}c)
-                </li>
-              ))}
-            </ul>
-          )}
           <h3>Work (businesses)</h3>
           <p className="game-muted">
             Spend {WORK_STA_COST} STA once to work all your businesses (creds
@@ -566,6 +550,23 @@ export default function GameApp() {
               {workFeedback}
             </p>
           ) : null}
+        </section>
+      )}
+
+      {resolvedScreen === 'inventory' && (
+        <section className="game-panel">
+          <h2>Inventory</h2>
+          {character.inventory.length === 0 ? (
+            <p className="game-muted">Empty</p>
+          ) : (
+            <ul>
+              {character.inventory.map((it) => (
+                <li key={it.id}>
+                  {it.name} ×{it.quantity} ({it.value}c)
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 
@@ -638,27 +639,17 @@ export default function GameApp() {
               Enlist at the <strong>Quartel General</strong> in{' '}
               <strong>Centro</strong> ({CENTER_HEX_ID}). You are at{' '}
               <strong>{character.currentHexId}</strong>
-              {isWideNavLayout ? (
-                <>
-                  {' '}
-                  — open{' '}
-                  <button
-                    type="button"
-                    className="game-inline-nav"
-                    onClick={() => setScreen('map')}
-                  >
-                    Map
-                  </button>{' '}
-                  and patrol there, then open <strong>Defense</strong>.
-                </>
-              ) : (
-                <>
-                  {' '}
-                  — use the <strong>Map</strong> tab in the bottom bar, patrol
-                  to <strong>Centro</strong>, then open{' '}
-                  <strong>Defense</strong>.
-                </>
-              )}
+              {' '}
+              — open{' '}
+              <button
+                type="button"
+                className="game-inline-nav"
+                onClick={() => setScreen('map')}
+              >
+                Map
+              </button>{' '}
+              in the top bar, patrol to <strong>Centro</strong>, then use{' '}
+              <strong>Defense</strong> in the action bar below.
             </p>
           ) : (
             <>
@@ -745,25 +736,17 @@ export default function GameApp() {
               <strong>Velho Rabiscão</strong> keeps the list at your home hex (
               {character.homeHexId}). You are at{' '}
               <strong>{character.currentHexId}</strong>
-              {isWideNavLayout ? (
-                <>
-                  {' '}
-                  — patrol home, then open <strong>Scores</strong>.{' '}
-                  <button
-                    type="button"
-                    className="game-inline-nav"
-                    onClick={() => setScreen('map')}
-                  >
-                    Map
-                  </button>
-                </>
-              ) : (
-                <>
-                  {' '}
-                  — use the <strong>Map</strong> tab in the bottom bar, patrol
-                  home, then open <strong>Scores</strong>.
-                </>
-              )}
+              {' '}
+              — open{' '}
+              <button
+                type="button"
+                className="game-inline-nav"
+                onClick={() => setScreen('map')}
+              >
+                Map
+              </button>{' '}
+              in the top bar, patrol home, then use <strong>Scores</strong> in
+              the action bar below.
             </p>
           ) : (
             <>
@@ -951,13 +934,11 @@ export default function GameApp() {
         </div>
       ) : null}
 
-      {!isWideNavLayout ? (
-        <GameFabBar
-          activeScreen={resolvedScreen}
-          onSelect={setScreen}
-          items={navItems}
-        />
-      ) : null}
+      <GameFabBar
+        activeScreen={resolvedScreen}
+        onSelect={setScreen}
+        items={fabActionItems}
+      />
     </div>
   );
 }

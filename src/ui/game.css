@@ -5,7 +5,7 @@
   margin: 0 auto;
 }
 
-/* Extra bottom padding when the mobile FAB bar is mounted (see GameApp). */
+/* Space for the fixed bottom action bar (FAB). */
 .game-shell--with-fab {
   padding-bottom: 96px;
 }
@@ -511,10 +511,7 @@
   line-height: 1.45;
 }
 
-/**
- * Mobile quick nav (FAB). Only mounted on narrow viewports in GameApp —
- * wide layouts use the top .game-nav instead (no duplicate controls in the DOM).
- */
+/** Bottom action bar — Market, Defense, Lots, Scores (see GameFabBar). */
 .game-fab {
   display: flex;
   flex-wrap: nowrap;
@@ -563,35 +560,11 @@
   outline-offset: 2px;
 }
 
-.game-fab-btn--labeled {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  min-width: 52px;
-  min-height: 52px;
-  padding: 6px 8px;
-}
-
 .game-fab-icon {
   flex-shrink: 0;
   color: var(--text-h);
 }
 
-.game-fab-label {
-  font-size: 0.62rem;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0.02em;
-  color: var(--text-h);
-  max-width: 52px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.game-fab-btn[data-active='true'] .game-fab-icon,
-.game-fab-btn[data-active='true'] .game-fab-label {
+.game-fab-btn[data-active='true'] .game-fab-icon {
   color: var(--text-h);
 }

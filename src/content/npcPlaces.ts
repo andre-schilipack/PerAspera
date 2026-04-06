@@ -75,4 +75,4 @@ export function linkedScreenButtonLabel(screen: NpcLinkedScreen): string {
 
 /** Lore / tutorial one-liner for glossary or tips. */
 export const loreNpcNavigationTip: string =
-  'Centro hosts Mercado Municipal, Prefeitura, and Quartel General — use Market / Defense screens there. Your home hex has Velho Rabiscão — open Scores when you are home.';
+  'Centro hosts Mercado Municipal, Prefeitura, and Quartel General — use Market / Defense in the bottom action bar when you stand there. Your home hex has Velho Rabiscão — Scores appears in the action bar when you are home.';
