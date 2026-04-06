@@ -505,4 +505,37 @@
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
+
+  .game-fab-btn--labeled {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 52px;
+    min-height: 52px;
+    padding: 6px 8px;
+  }
+
+  .game-fab-icon {
+    flex-shrink: 0;
+    color: var(--text-h);
+  }
+
+  .game-fab-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    color: var(--text-h);
+    max-width: 52px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .game-fab-btn[data-active='true'] .game-fab-icon,
+  .game-fab-btn[data-active='true'] .game-fab-label {
+    color: var(--text-h);
+  }
 }

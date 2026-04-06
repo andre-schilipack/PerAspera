@@ -52,31 +52,10 @@ import { useSkirmishStore } from '../stores/useSkirmishStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 
 import { CombatLogList } from './CombatLogList.tsx';
+import { GameFabBar } from './GameFabBar.tsx';
+import { GAME_NAV_ITEMS, type GameScreen } from './gameNavigation.ts';
 import { HexMapView } from './HexMapView.tsx';
 import './game.css';
-
-type Screen =
-  | 'map'
-  | 'profile'
-  | 'market'
-  | 'defense'
-  | 'lots'
-  | 'leaderboard'
-  | 'lore';
-
-const SCREEN_NAV: readonly {
-  id: Screen;
-  label: string;
-  fab: string;
-}[] = [
-  { id: 'map', label: 'Map', fab: 'Map' },
-  { id: 'profile', label: 'Profile', fab: 'Me' },
-  { id: 'market', label: 'Market', fab: '$' },
-  { id: 'defense', label: 'Defense', fab: 'Def' },
-  { id: 'lots', label: 'Lots', fab: 'Lot' },
-  { id: 'leaderboard', label: 'Scores', fab: 'Top' },
-  { id: 'lore', label: 'Lore', fab: 'Lore' },
-] as const;
 
 function useNowTick(ms: number): number {
   const [t, setT] = useState(() => Date.now());
@@ -96,7 +75,7 @@ function formatTime(d: Date): string {
 }
 
 export default function GameApp() {
-  const [screen, setScreen] = useState<Screen>('map');
+  const [screen, setScreen] = useState<GameScreen>('map');
   const [newName, setNewName] = useState('');
   const [workFeedback, setWorkFeedback] = useState<string | null>(null);
 
@@ -477,7 +456,7 @@ export default function GameApp() {
       </header>
 
       <nav className="game-nav" aria-label="Screens">
-        {SCREEN_NAV.map(({ id, label }) => (
+        {GAME_NAV_ITEMS.map(({ id, label }) => (
           <button
             key={id}
             type="button"
@@ -857,24 +836,7 @@ export default function GameApp() {
         </div>
       ) : null}
 
-      <div
-        className="game-fab"
-        role="toolbar"
-        aria-label="Quick navigation"
-      >
-        {SCREEN_NAV.map(({ id, fab, label }) => (
-          <button
-            key={id}
-            type="button"
-            className="game-fab-btn"
-            data-active={screen === id}
-            aria-label={label}
-            onClick={() => setScreen(id)}
-          >
-            {fab}
-          </button>
-        ))}
-      </div>
+      <GameFabBar activeScreen={screen} onSelect={setScreen} />
     </div>
   );
 }
