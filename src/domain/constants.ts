@@ -30,6 +30,15 @@ export const PATROL_ENCOUNTER_DANGER_WEIGHT = 0.34;
 /** Maximum encounter chance per patrol step (avoid frustration). */
 export const PATROL_ENCOUNTER_CHANCE_CAP = 0.42;
 
+/** Player HP pool during a street skirmish (Alpha). */
+export const STREET_SKIRMISH_PLAYER_HP = 42;
+
+/** Creds granted when you clear a street encounter. */
+export const STREET_SKIRMISH_WIN_CREDS = 8;
+
+/** Defense-score style contribution for local board (small). */
+export const STREET_SKIRMISH_WIN_SCORE = 4;
+
 /** STA spent to lock participation in nightly defense. */
 export const DEFENSE_LOCK_STA_COST = 50;
 

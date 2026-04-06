@@ -5,6 +5,7 @@ import { makeCharacterId } from '../domain/ids.ts';
 import { useCharactersStore } from '../stores/useCharactersStore.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
+import { useSkirmishStore } from '../stores/useSkirmishStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 import { addEmptyPlaceSlotsToHexMap } from './seedEmptyLots.ts';
 
@@ -51,4 +52,5 @@ export function startNewGame(characterName: string): void {
   useWorldStore.getState().setHexMap(withLots.hexMap);
 
   useDefenseStore.getState().reset();
+  useSkirmishStore.getState().dismiss();
 }

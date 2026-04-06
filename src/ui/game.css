@@ -218,6 +218,68 @@
   outline-offset: 2px;
 }
 
+.game-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 16px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--bg) 55%, black);
+  overflow: auto;
+}
+
+.game-modal {
+  width: 100%;
+  max-width: 420px;
+  margin-top: 12vh;
+  padding: 16px 18px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.game-modal h2 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+
+.game-modal h3 {
+  font-size: 0.95rem;
+  margin: 12px 0 6px;
+}
+
+.game-skirmish-enemies {
+  margin: 8px 0;
+  padding-left: 1.2rem;
+  font-size: 0.88rem;
+}
+
+.game-log--skirmish {
+  max-height: 200px;
+}
+
+.game-skirmish-result {
+  margin: 12px 0 8px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.game-modal button[type='button'] {
+  font: inherit;
+  margin-top: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
 .game-lore h3 {
   font-size: 0.95rem;
   margin: 16px 0 8px;

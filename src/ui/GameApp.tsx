@@ -7,6 +7,8 @@ import {
   EMPTY_LOT_PRICE,
   NPC_OWNER_CITY,
   PATROL_STA_COST,
+  STREET_SKIRMISH_WIN_CREDS,
+  STREET_SKIRMISH_WIN_SCORE,
   WORK_STA_COST,
 } from '../domain/constants.ts';
 import {
@@ -45,6 +47,7 @@ import { syncGlobalScoreboardFromCharacters } from '../game/syncScoreboard.ts';
 import { useCharactersStore } from '../stores/useCharactersStore.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
+import { useSkirmishStore } from '../stores/useSkirmishStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 
 import './game.css';
@@ -93,9 +96,11 @@ export default function GameApp() {
   const [screen, setScreen] = useState<Screen>('map');
   const [newName, setNewName] = useState('');
   const [workFeedback, setWorkFeedback] = useState<string | null>(null);
-  const [patrolEncounterBanner, setPatrolEncounterBanner] = useState<
-    string | null
-  >(null);
+
+  const skirmishSession = useSkirmishStore((s) => s.session);
+  const startSkirmishFromPatrol = useSkirmishStore((s) => s.startFromPatrol);
+  const advanceSkirmishRound = useSkirmishStore((s) => s.advanceRound);
+  const dismissSkirmish = useSkirmishStore((s) => s.dismiss);
 
   const hexMap = useWorldStore((s) => s.hexMap);
   const characters = useCharactersStore((s) => s.characters);
@@ -181,11 +186,12 @@ export default function GameApp() {
         random: Math.random,
       })
     ) {
-      setPatrolEncounterBanner(
-        `Street encounter — hostiles spotted in ${targetHexId} (danger ${Math.round(destDanger)}%). Full skirmish UI next.`,
-      );
-    } else {
-      setPatrolEncounterBanner(null);
+      startSkirmishFromPatrol({
+        hexId: targetHexId,
+        danger: destDanger,
+        characterId: character.id,
+        characterName: character.name,
+      });
     }
   }
 
@@ -489,18 +495,6 @@ export default function GameApp() {
             encounter; higher <strong>dng</strong> raises the chance (approx %
             per hex).
           </p>
-          {patrolEncounterBanner ? (
-            <div className="game-alert game-alert--encounter" role="status">
-              <p>{patrolEncounterBanner}</p>
-              <button
-                type="button"
-                className="game-alert-dismiss"
-                onClick={() => setPatrolEncounterBanner(null)}
-              >
-                Dismiss
-              </button>
-            </div>
-          ) : null}
           <div className="game-hex-grid">
             {sortedHexes.map((h) => {
               const isCurrent = h.id === character.currentHexId;
@@ -831,6 +825,68 @@ export default function GameApp() {
           </p>
         </section>
       )}
+
+      {skirmishSession ? (
+        <div
+          className="game-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="skirmish-title"
+        >
+          <div className="game-modal">
+            <h2 id="skirmish-title">Street fight</h2>
+            <p className="game-muted">
+              Hex {skirmishSession.hexId} · danger{' '}
+              {Math.round(skirmishSession.danger)} ·{' '}
+              {skirmishSession.characterName}
+            </p>
+            <p>
+              Your HP {skirmishSession.playerHealth}/
+              {skirmishSession.playerMaxHealth}
+            </p>
+            {skirmishSession.enemies.length > 0 ? (
+              <ul className="game-skirmish-enemies">
+                {skirmishSession.enemies.map((e, i) => (
+                  <li key={`${e.enemyId}-${i}`}>
+                    {e.enemyId} — {e.currentHealth} HP
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="game-muted">No hostiles left.</p>
+            )}
+            <h3>Log</h3>
+            <pre className="game-log game-log--skirmish">
+              {skirmishSession.combatLog.length === 0
+                ? '—'
+                : skirmishSession.combatLog
+                    .map((l) => `[${l.type}] ${l.text}`)
+                    .join('\n')}
+            </pre>
+            {skirmishSession.isCompleted ? (
+              <>
+                {skirmishSession.outcome === 'win' ? (
+                  <p className="game-skirmish-result">
+                    Victory — +{STREET_SKIRMISH_WIN_CREDS} creds, +
+                    {STREET_SKIRMISH_WIN_SCORE} score (already applied).
+                  </p>
+                ) : (
+                  <p className="game-skirmish-result">
+                    You went down. Heal up and keep patrolling.
+                  </p>
+                )}
+                <button type="button" onClick={() => dismissSkirmish()}>
+                  Close
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={() => advanceSkirmishRound()}>
+                Act (round)
+              </button>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       <div
         className="game-fab"

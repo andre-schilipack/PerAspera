@@ -20,5 +20,9 @@ export type {
 } from './defense.ts';
 export type { Item, ItemRarity, ItemType } from './items.ts';
 export type { Hex, HexMap, PlaceSlot, PlaceSlotType } from './map.ts';
+export type {
+  StreetSkirmishOutcome,
+  StreetSkirmishState,
+} from './skirmish.ts';
 export type { GameMetaState, NextIdCounters } from './meta.ts';
 export type { ScoreEntry } from './score.ts';
