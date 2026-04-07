@@ -640,3 +640,20 @@
 .game-fab-btn[data-active='true'] .game-fab-icon {
   color: var(--text-h);
 }
+
+.game-contract-card {
+  margin: 12px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--code-bg) 88%, transparent);
+}
+
+.game-contract-feedback {
+  margin: 10px 0 0;
+  color: var(--accent);
+}
+
+.game-hex-code {
+  font-size: 0.9em;
+}

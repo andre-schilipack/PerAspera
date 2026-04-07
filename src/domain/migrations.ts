@@ -11,6 +11,7 @@ function defaultNextIds(): NextIdCounters {
     combatLogEntry: 0,
     business: 0,
     placeSlot: 0,
+    contract: 0,
   };
 }
 
@@ -56,11 +57,16 @@ export function migrateGameMetaState(raw: unknown): GameMetaState {
     if (typeof nextIdsRaw.placeSlot === 'number') {
       nextIds.placeSlot = nextIdsRaw.placeSlot;
     }
+    if (typeof nextIdsRaw.contract === 'number') {
+      nextIds.contract = nextIdsRaw.contract;
+    }
   }
 
-  // Placeholder for future transforms when schemaVersion < N.
   if (schemaVersion < 1) {
     schemaVersion = 1;
+  }
+  if (schemaVersion < 2) {
+    schemaVersion = 2;
   }
 
   if (schemaVersion !== SCHEMA_VERSION) {

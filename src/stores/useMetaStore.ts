@@ -10,6 +10,7 @@ function defaultNextIds(): NextIdCounters {
     combatLogEntry: 0,
     business: 0,
     placeSlot: 0,
+    contract: 0,
   };
 }
 

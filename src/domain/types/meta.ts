@@ -9,6 +9,7 @@ export interface NextIdCounters {
   combatLogEntry: number;
   business: number;
   placeSlot: number;
+  contract: number;
 }
 
 export interface GameMetaState {

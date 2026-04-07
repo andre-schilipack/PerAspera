@@ -14,6 +14,7 @@ import {
   listAxialInDisk,
   type AxialCoord,
 } from '../hex.ts';
+import { dangerIntegrityForRingDistance } from '../hexDangerIntegrity.ts';
 import { makeSlotId } from '../ids.ts';
 import type { Hex, HexMap, PlaceSlot } from '../types/index.ts';
 
@@ -33,15 +34,6 @@ export interface CreateInitialWorldResult {
   nextSlotId: number;
   /** Same as input if no business rows were created (seed uses none). */
   nextBusinessId: number;
-}
-
-function defaultDangerIntegrity(distanceFromCenter: number): {
-  danger: number;
-  integrity: number;
-} {
-  const danger = Math.min(100, 12 + distanceFromCenter * 8);
-  const integrity = Math.max(40, 95 - distanceFromCenter * 5);
-  return { danger, integrity };
 }
 
 /** Downtown: Mercado Municipal, Prefeitura, Quartel General (NPC-only). */
@@ -135,7 +127,7 @@ export function createInitialWorld(
   for (const c of coords) {
     const id = hexKeyFromAxial(c.q, c.r);
     const dist = axialDistance(c, ORIGIN);
-    const { danger, integrity } = defaultDangerIntegrity(dist);
+    const { danger, integrity } = dangerIntegrityForRingDistance(dist);
 
     const isCenter = id === CENTER_HEX_ID;
     const isHome = id === HOME_HEX_ID;

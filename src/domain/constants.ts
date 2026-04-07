@@ -7,7 +7,7 @@
 export const GAME_VERSION = '0.1.0' as const;
 
 /** Monotonic integer for persisted data migrations only. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /** Stamina at character creation (before level-based max upgrades). */
 export const STAMINA_INITIAL = 200;
@@ -45,6 +45,10 @@ export const DEFENSE_LOCK_STA_COST = 50;
 /** STA spent to work / accelerate a business (daily tick). */
 export const WORK_STA_COST = 5;
 
+/** Quartel "Expansão de fronteira" contract: slots and enlist cost. */
+export const EXPANSION_CONTRACT_CHAR_SLOTS = 2;
+export const EXPANSION_CONTRACT_STA_COST = 20;
+
 /** Passive stamina regenerated over a full 24h window (offline-friendly). */
 export const STAMINA_REGEN_PER_24H = 120;
 
@@ -71,6 +75,9 @@ export const ID_PREFIX_BUSINESS = 'biz';
 
 /** Place slot id prefix. */
 export const ID_PREFIX_SLOT = 'slot';
+
+/** Contract id prefix (e.g. contract_1). */
+export const ID_PREFIX_CONTRACT = 'contract';
 
 /** NPC owner keys for fixed city tiles (not character ids). */
 export const NPC_OWNER_MERCADO = 'npc:mercado_municipal' as const;

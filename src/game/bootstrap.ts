@@ -2,6 +2,7 @@ import { formatLocalDateString } from '../domain/defenseSchedule.ts';
 import { createEmptyDailyDefense } from '../domain/factories/createDefenseSeed.ts';
 import { migrateGameMetaState } from '../domain/migrations.ts';
 import { useCharactersStore } from '../stores/useCharactersStore.ts';
+import { useContractsStore } from '../stores/useContractsStore.ts';
 import { applyStaminaRegenToAllCharacters } from './staminaRegenTick.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
@@ -24,6 +25,7 @@ async function rehydrateAllStores(): Promise<void> {
     useCharactersStore.persist.rehydrate(),
     useWorldStore.persist.rehydrate(),
     useDefenseStore.persist.rehydrate(),
+    useContractsStore.persist.rehydrate(),
   ]);
 }
 

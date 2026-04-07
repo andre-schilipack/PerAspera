@@ -54,9 +54,14 @@ import {
 import { MARKET_CATALOG } from '../game/marketCatalog.ts';
 import { addCharacterToWorld } from '../game/addCharacterToWorld.ts';
 import { applyStaminaRegenToAllCharacters } from '../game/staminaRegenTick.ts';
+import {
+  enlistInExpansionContract,
+  ensureExpansionContract,
+} from '../game/expansionContracts.ts';
 import { startNewGame } from '../game/startNewGame.ts';
 import { syncGlobalScoreboardFromCharacters } from '../game/syncScoreboard.ts';
 import { useCharactersStore } from '../stores/useCharactersStore.ts';
+import { useContractsStore } from '../stores/useContractsStore.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useSkirmishStore } from '../stores/useSkirmishStore.ts';
@@ -101,6 +106,12 @@ export default function GameApp() {
     null,
   );
   const [workFeedback, setWorkFeedback] = useState<string | null>(null);
+  const [expansionEnsureHint, setExpansionEnsureHint] = useState<string | null>(
+    null,
+  );
+  const [expansionEnlistFeedback, setExpansionEnlistFeedback] = useState<
+    string | null
+  >(null);
 
   const skirmishSession = useSkirmishStore((s) => s.session);
   const startSkirmishFromPatrol = useSkirmishStore((s) => s.startFromPatrol);
@@ -122,6 +133,7 @@ export default function GameApp() {
   const wall = useDefenseStore((s) => s.wall);
   const patchDailyDefense = useDefenseStore((s) => s.patchDailyDefense);
   const patchNextIds = useMetaStore((s) => s.patchNextIds);
+  const contracts = useContractsStore((s) => s.contracts);
 
   const now = useNowTick(1000);
   const staminaUiTick = useNowTick(STAMINA_REGEN_UI_INTERVAL_MS);
@@ -199,6 +211,38 @@ export default function GameApp() {
         a.coordinates.q - b.coordinates.q,
     );
   }, [hexMap]);
+
+  const openExpansionContract = useMemo(() => {
+    for (const c of Object.values(contracts)) {
+      if (c.type === 'expansion' && c.status === 'open') return c;
+    }
+    return null;
+  }, [contracts]);
+
+  useEffect(() => {
+    if (resolvedScreen !== 'defense') {
+      queueMicrotask(() => setExpansionEnlistFeedback(null));
+    }
+  }, [resolvedScreen]);
+
+  useEffect(() => {
+    if (!character || resolvedScreen !== 'defense') {
+      queueMicrotask(() => setExpansionEnsureHint(null));
+      return;
+    }
+    if (character.currentHexId !== CENTER_HEX_ID) {
+      queueMicrotask(() => setExpansionEnsureHint(null));
+      return;
+    }
+    const { reason } = ensureExpansionContract();
+    queueMicrotask(() =>
+      setExpansionEnsureHint(
+        reason === 'no_locked_hex'
+          ? 'No locked frontier hex is available for a new expansion contract.'
+          : null,
+      ),
+    );
+  }, [character, resolvedScreen, contracts]);
 
   const neighborIds = useMemo(() => {
     if (!character) return new Set<string>();
@@ -742,6 +786,75 @@ export default function GameApp() {
             You are at the <strong>Quartel General</strong> — enlist for the
             nightly defense below.
           </p>
+          <h3>Frontier expansion</h3>
+          <div className="game-contract-card">
+            <p className="game-muted">
+              Issued by <strong>Quartel General</strong>
+            </p>
+            {expansionEnsureHint ? (
+              <p className="game-muted" role="status">
+                {expansionEnsureHint}
+              </p>
+            ) : openExpansionContract ? (
+              <>
+                <p>
+                  Target hex{' '}
+                  <code className="game-hex-code">
+                    {openExpansionContract.targetHexId}
+                  </code>
+                </p>
+                <p className="game-muted">
+                  Volunteers{' '}
+                  {openExpansionContract.enlistedCharacterIds.length}/
+                  {openExpansionContract.charSlots} · cost{' '}
+                  {openExpansionContract.staminaCost} STA per enlistment
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!openExpansionContract) return;
+                    const r = enlistInExpansionContract(
+                      openExpansionContract.id,
+                      character.id,
+                      Date.now(),
+                    );
+                    if (!r.ok) {
+                      setExpansionEnlistFeedback(r.error);
+                      return;
+                    }
+                    setExpansionEnlistFeedback(
+                      r.completed
+                        ? 'Contract complete — target hex unlocked and frontier neighbors charted.'
+                        : 'Enlisted. One more distinct volunteer is needed to finish.',
+                    );
+                  }}
+                  disabled={
+                    openExpansionContract.enlistedCharacterIds.includes(
+                      character.id,
+                    ) ||
+                    openExpansionContract.enlistedCharacterIds.length >=
+                      openExpansionContract.charSlots ||
+                    character.stamina.current <
+                      openExpansionContract.staminaCost
+                  }
+                >
+                  Enlist ({openExpansionContract.staminaCost} STA)
+                </button>
+                {openExpansionContract.enlistedCharacterIds.includes(
+                  character.id,
+                ) ? (
+                  <p className="game-muted">You are already on this contract.</p>
+                ) : null}
+              </>
+            ) : (
+              <p className="game-muted">No open expansion contract.</p>
+            )}
+            {expansionEnlistFeedback ? (
+              <p className="game-contract-feedback" role="status">
+                {expansionEnlistFeedback}
+              </p>
+            ) : null}
+          </div>
           <p>
             Local time <strong>{formatTime(new Date(now))}</strong> · event
             hour {DEFENSE_START_HOUR}:00
