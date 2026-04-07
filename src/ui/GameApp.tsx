@@ -7,6 +7,7 @@ import {
   EMPTY_LOT_PRICE,
   NPC_OWNER_CITY,
   PATROL_STA_COST,
+  STAMINA_REGEN_UI_INTERVAL_MS,
   STREET_SKIRMISH_WIN_CREDS,
   STREET_SKIRMISH_WIN_SCORE,
   WORK_STA_COST,
@@ -25,6 +26,7 @@ import {
   isAxialNeighbor,
   parseHexKey,
 } from '../domain/hex.ts';
+import { staminaVisualCurrentAt } from '../domain/stamina.ts';
 import { makeBusinessId } from '../domain/ids.ts';
 import type { BusinessKind } from '../domain/types/index.ts';
 import type { CombatLogEntry } from '../domain/types/index.ts';
@@ -49,6 +51,7 @@ import {
   startSublineParents,
 } from '../content/lore.ts';
 import { MARKET_CATALOG } from '../game/marketCatalog.ts';
+import { applyStaminaRegenToAllCharacters } from '../game/staminaRegenTick.ts';
 import { startNewGame } from '../game/startNewGame.ts';
 import { syncGlobalScoreboardFromCharacters } from '../game/syncScoreboard.ts';
 import { useCharactersStore } from '../stores/useCharactersStore.ts';
@@ -115,6 +118,7 @@ export default function GameApp() {
   const patchNextIds = useMetaStore((s) => s.patchNextIds);
 
   const now = useNowTick(1000);
+  const staminaUiTick = useNowTick(STAMINA_REGEN_UI_INTERVAL_MS);
 
   const topScores = useMemo(
     () => topScoreboard(scoreEntriesFromCharacters(characters), 10),
@@ -138,6 +142,14 @@ export default function GameApp() {
   const activeId = currentId ?? firstCharacterId;
   const hasSave = hexMap !== null && firstCharacterId !== null;
   const character = activeId ? characters[activeId] : null;
+
+  useEffect(() => {
+    if (!hasSave) return;
+    const id = window.setInterval(() => {
+      applyStaminaRegenToAllCharacters(Date.now());
+    }, STAMINA_REGEN_UI_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [hasSave]);
 
   const fabActionItems = useMemo(() => {
     if (!character) return [...GAME_FAB_ACTION_ITEMS];
@@ -485,7 +497,9 @@ export default function GameApp() {
           </p>
         </div>
         <div className="game-stat">
-          STA {character.stamina.current}/{character.stamina.max}
+          STA{' '}
+          {Math.floor(staminaVisualCurrentAt(character.stamina, staminaUiTick))}/
+          {character.stamina.max}
         </div>
       </header>
 

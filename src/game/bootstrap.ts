@@ -1,8 +1,8 @@
 import { formatLocalDateString } from '../domain/defenseSchedule.ts';
 import { createEmptyDailyDefense } from '../domain/factories/createDefenseSeed.ts';
 import { migrateGameMetaState } from '../domain/migrations.ts';
-import { applyOfflineRegen } from '../domain/stamina.ts';
 import { useCharactersStore } from '../stores/useCharactersStore.ts';
+import { applyStaminaRegenToAllCharacters } from './staminaRegenTick.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
@@ -30,27 +30,6 @@ async function rehydrateAllStores(): Promise<void> {
 function runMetaMigration(): void {
   const migrated = migrateGameMetaState(pickMetaSnapshot(useMetaStore.getState()));
   useMetaStore.getState().applyMetaSnapshot(migrated);
-}
-
-function applyStaminaRegenToAllCharacters(now: number): void {
-  const { characters, updateCharacter } = useCharactersStore.getState();
-  for (const id of Object.keys(characters)) {
-    const ch = characters[id];
-    const { current, lastUpdated } = applyOfflineRegen({
-      current: ch.stamina.current,
-      max: ch.stamina.max,
-      lastUpdated: ch.stamina.lastUpdated,
-      now,
-    });
-    if (
-      current !== ch.stamina.current ||
-      lastUpdated !== ch.stamina.lastUpdated
-    ) {
-      updateCharacter(id, {
-        stamina: { ...ch.stamina, current, lastUpdated },
-      });
-    }
-  }
 }
 
 function rollDailyDefenseIfNeeded(now: number): void {

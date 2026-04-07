@@ -1,5 +1,7 @@
 import { MS_PER_DAY, STAMINA_REGEN_PER_24H } from './constants.ts';
 
+import type { StaminaState } from './types/character.ts';
+
 export interface ApplyOfflineRegenParams {
   current: number;
   max: number;
@@ -39,4 +41,20 @@ export function applyOfflineRegen(
     current: Math.min(max, clampedCurrent + gained),
     lastUpdated: now,
   };
+}
+
+/**
+ * Linear STA expected at `now` (fractional). For UI; persisted `current` still
+ * advances in whole steps via {@link applyOfflineRegen}.
+ */
+export function staminaVisualCurrentAt(
+  stamina: StaminaState,
+  now: number,
+): number {
+  const { current, max, lastUpdated } = stamina;
+  const clamped = Math.min(current, max);
+  if (now <= lastUpdated) return clamped;
+  const elapsed = now - lastUpdated;
+  const regenPerMs = STAMINA_REGEN_PER_24H / MS_PER_DAY;
+  return Math.min(max, clamped + elapsed * regenPerMs);
 }

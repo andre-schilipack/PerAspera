@@ -48,6 +48,9 @@ export const WORK_STA_COST = 5;
 /** Passive stamina regenerated over a full 24h window (offline-friendly). */
 export const STAMINA_REGEN_PER_24H = 120;
 
+/** Reapply regen logic on this interval while the game UI is open (real-time updates). */
+export const STAMINA_REGEN_UI_INTERVAL_MS = 10_000;
+
 /** Local hour (0–23) when nightly defense may start. */
 export const DEFENSE_START_HOUR = 20;
 
