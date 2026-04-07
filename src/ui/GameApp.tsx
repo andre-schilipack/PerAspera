@@ -52,6 +52,7 @@ import {
   startSublineParents,
 } from '../content/lore.ts';
 import { MARKET_CATALOG } from '../game/marketCatalog.ts';
+import { addCharacterToWorld } from '../game/addCharacterToWorld.ts';
 import { applyStaminaRegenToAllCharacters } from '../game/staminaRegenTick.ts';
 import { startNewGame } from '../game/startNewGame.ts';
 import { syncGlobalScoreboardFromCharacters } from '../game/syncScoreboard.ts';
@@ -95,6 +96,10 @@ function formatTime(d: Date): string {
 export default function GameApp() {
   const [screen, setScreen] = useState<GameScreen>('map');
   const [newName, setNewName] = useState('');
+  const [selectionNewName, setSelectionNewName] = useState('');
+  const [addCharacterError, setAddCharacterError] = useState<string | null>(
+    null,
+  );
   const [workFeedback, setWorkFeedback] = useState<string | null>(null);
 
   const skirmishSession = useSkirmishStore((s) => s.session);
@@ -132,25 +137,39 @@ export default function GameApp() {
   }, [characters]);
   const purchaseSeq = useRef(0);
 
-  const firstCharacterId = Object.keys(characters)[0] ?? null;
+  const characterIds = Object.keys(characters);
+  const needsFirstRun = !hexMap || characterIds.length === 0;
+  const activeCharacterValid =
+    currentId != null && characters[currentId] !== undefined;
+  const needsSelection =
+    hexMap != null && characterIds.length > 0 && !activeCharacterValid;
+  const inGame = hexMap != null && activeCharacterValid;
+  const character =
+    inGame && currentId !== null ? characters[currentId] : null;
 
   useEffect(() => {
-    if (firstCharacterId && !currentId) {
-      setCurrentCharacterId(firstCharacterId);
-    }
-  }, [firstCharacterId, currentId, setCurrentCharacterId]);
-
-  const activeId = currentId ?? firstCharacterId;
-  const hasSave = hexMap !== null && firstCharacterId !== null;
-  const character = activeId ? characters[activeId] : null;
-
-  useEffect(() => {
-    if (!hasSave) return;
+    if (!inGame) return;
     const id = window.setInterval(() => {
       applyStaminaRegenToAllCharacters(Date.now());
     }, STAMINA_REGEN_UI_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [hasSave]);
+  }, [inGame]);
+
+  function selectPlayableCharacter(characterId: string) {
+    setCurrentCharacterId(characterId);
+    dismissSkirmish();
+    setScreen('map');
+    setWorkFeedback(null);
+    setAddCharacterError(null);
+  }
+
+  function goToCharacterSelection() {
+    setCurrentCharacterId(null);
+    dismissSkirmish();
+    setScreen('map');
+    setWorkFeedback(null);
+    setAddCharacterError(null);
+  }
 
   const fabActionItems = useMemo(() => {
     if (!character) return [...GAME_FAB_ACTION_ITEMS];
@@ -433,7 +452,7 @@ export default function GameApp() {
     );
   }
 
-  if (!hasSave || !character || !hexMap) {
+  if (needsFirstRun) {
     return (
       <div className="game-start">
         <h1>{GAME_TITLE}</h1>
@@ -462,6 +481,80 @@ export default function GameApp() {
         </button>
       </div>
     );
+  }
+
+  if (needsSelection) {
+    const sortedIds = [...characterIds].sort();
+    return (
+      <div className="game-start game-char-select">
+        <h1>{GAME_TITLE}</h1>
+        <p className="game-muted">Choose a character or create a new one.</p>
+        <ul className="game-char-card-list" aria-label="Saved characters">
+          {sortedIds.map((id) => {
+            const ch = characters[id];
+            return (
+              <li key={id} className="game-char-card">
+                <div className="game-char-card-body">
+                  <strong className="game-char-card-name">{ch.name}</strong>
+                  <span className="game-muted">
+                    Lv {ch.level} · {ch.creds}c · STA{' '}
+                    {Math.floor(
+                      staminaVisualCurrentAt(ch.stamina, staminaUiTick),
+                    )}
+                    /{ch.stamina.max}
+                  </span>
+                  <span className="game-muted">Home {ch.homeHexId}</span>
+                </div>
+                <button
+                  type="button"
+                  className="game-char-card-play"
+                  onClick={() => selectPlayableCharacter(id)}
+                >
+                  Play
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="game-char-new">
+          <h2 className="game-char-new-title">New character</h2>
+          <label htmlFor="char-name-new">Name</label>
+          <input
+            id="char-name-new"
+            value={selectionNewName}
+            onChange={(e) => {
+              setSelectionNewName(e.target.value);
+              setAddCharacterError(null);
+            }}
+            placeholder="Name"
+            autoComplete="off"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setAddCharacterError(null);
+              const result = addCharacterToWorld(selectionNewName);
+              if (!result.ok) {
+                setAddCharacterError(result.error);
+              } else {
+                setSelectionNewName('');
+              }
+            }}
+          >
+            Create
+          </button>
+          {addCharacterError ? (
+            <p className="game-char-error" role="alert">
+              {addCharacterError}
+            </p>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (!character || !hexMap) {
+    return null;
   }
 
   const currentHex = hexMap.hexes[character.currentHexId];
@@ -537,6 +630,11 @@ export default function GameApp() {
           <p>Score (defense) {character.score}</p>
           <p>Reputation {character.reputation}</p>
           <p>Home {character.homeHexId}</p>
+          <p>
+            <button type="button" onClick={goToCharacterSelection}>
+              Switch character
+            </button>
+          </p>
         </section>
       )}
 

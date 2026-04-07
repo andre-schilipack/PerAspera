@@ -287,6 +287,68 @@
   cursor: pointer;
 }
 
+.game-char-select {
+  max-width: 480px;
+}
+
+.game-char-card-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+
+.game-char-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+}
+
+.game-char-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.game-char-card-name {
+  font-size: 1rem;
+}
+
+.game-char-card-play {
+  font: inherit;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--text-h);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.game-char-new {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.game-char-new-title {
+  font-size: 1rem;
+  margin: 0 0 8px;
+}
+
+.game-char-error {
+  margin: 10px 0 0;
+  font-size: 0.88rem;
+  color: var(--text-h);
+}
+
 .game-table {
   width: 100%;
   border-collapse: collapse;

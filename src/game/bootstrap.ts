@@ -48,6 +48,7 @@ function rollDailyDefenseIfNeeded(now: number): void {
   );
 }
 
+/** Fix persisted id pointing at a removed character; keep null for selection screen. */
 function fixInvalidCurrentCharacter(): void {
   const { characters, currentCharacterId, setCurrentCharacterId } =
     useCharactersStore.getState();
