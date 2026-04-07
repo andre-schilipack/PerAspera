@@ -21,7 +21,6 @@ export function startNewGame(characterName: string): void {
   const slotStart = meta.nextIds.placeSlot + 1;
 
   const worldResult = createInitialWorld({
-    characterId: charId,
     slotIdCounter: slotStart,
   });
 

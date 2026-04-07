@@ -4,6 +4,7 @@ import {
   HOME_HEX_ID,
   NPC_OWNER_HISTORIAN,
   NPC_OWNER_MERCADO,
+  NPC_OWNER_PARENTS_HOME,
   NPC_OWNER_PREFEITURA,
   NPC_OWNER_QUARTEL,
 } from '../constants.ts';
@@ -21,8 +22,6 @@ const ORIGIN: AxialCoord = { q: 0, r: 0 };
 export interface CreateInitialWorldParams {
   /** Axial grid radius (default {@link DEFAULT_MAP_RADIUS}). */
   radius?: number;
-  /** Owner id for the home slot (e.g. `char_1`). */
-  characterId: string;
   /** First free slot counter; factory consumes sequential ids (`slot_1`, …). */
   slotIdCounter: number;
   /** Echoed back unchanged until world seed creates businesses. */
@@ -80,10 +79,9 @@ function buildCenterSlots(params: {
   return { slots, nextSlotId: n };
 }
 
-/** Home ring hex: player home + Velho Rabiscão (historian / Score List). */
+/** Home ring hex: parents' home (shared) + Velho Rabiscão (historian / Score List). */
 function buildHomeSlots(params: {
   homeHexId: string;
-  characterId: string;
   slotIdCounter: number;
 }): { slots: PlaceSlot[]; nextSlotId: number } {
   let n = params.slotIdCounter;
@@ -93,7 +91,7 @@ function buildHomeSlots(params: {
     {
       id: nextId(),
       hexId: params.homeHexId,
-      ownedBy: params.characterId,
+      ownedBy: NPC_OWNER_PARENTS_HOME,
       type: 'home',
       priceToBuy: 0,
     },
@@ -130,7 +128,6 @@ export function createInitialWorld(
 
   const homeSlots = buildHomeSlots({
     homeHexId: HOME_HEX_ID,
-    characterId: params.characterId,
     slotIdCounter: slotCounter,
   });
   slotCounter = homeSlots.nextSlotId;

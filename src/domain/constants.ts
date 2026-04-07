@@ -78,6 +78,9 @@ export const NPC_OWNER_PREFEITURA = 'npc:prefeitura' as const;
 export const NPC_OWNER_QUARTEL = 'npc:quartel_general' as const;
 export const NPC_OWNER_HISTORIAN = 'npc:velho_rabiscao' as const;
 
+/** Shared parents' home tile on {@link HOME_HEX_ID} (all characters start here). */
+export const NPC_OWNER_PARENTS_HOME = 'npc:parents_home' as const;
+
 /** City-owned empty lots before a character purchases. */
 export const NPC_OWNER_CITY = 'npc:city' as const;
 
