@@ -1,7 +1,8 @@
 import type { Business } from './types/economy.ts';
 import type { ItemRarity, ItemType } from './types/items.ts';
+import type { Hex } from './types/map.ts';
 
-/** Output of one Work action on a single owned business (5 STA globally covers all). */
+/** Output of one Work action on a single owned business on the current hex. */
 export interface BusinessWorkYield {
   creds: number;
   /** Items to add (caller assigns instance ids). */
@@ -87,4 +88,18 @@ export function mergeItemGrants(
     }
   }
   return [...byTemplate.values()];
+}
+
+/** True if the hex has at least one business slot owned by the character. */
+export function hasCharacterBusinessOnHex(
+  hex: Hex | undefined,
+  characterId: string,
+): boolean {
+  if (!hex) return false;
+  return hex.placeSlots.some(
+    (p) =>
+      p.type === 'business' &&
+      p.business != null &&
+      p.ownedBy === characterId,
+  );
 }

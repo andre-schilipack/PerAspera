@@ -305,6 +305,16 @@
   font-size: 0.85rem;
 }
 
+.game-work-here {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.game-work-here .game-muted {
+  margin-top: 0;
+}
+
 .game-work-feedback {
   margin: 10px 0 0;
   font-size: 0.9rem;

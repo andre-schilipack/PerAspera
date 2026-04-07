@@ -14,6 +14,7 @@ import {
 } from '../domain/constants.ts';
 import {
   computeWorkPayout,
+  hasCharacterBusinessOnHex,
   mergeItemGrants,
   type ItemGrant,
 } from '../domain/businessPayout.ts';
@@ -363,53 +364,34 @@ export default function GameApp() {
     if (character.stamina.current < WORK_STA_COST) return;
     const map = useWorldStore.getState().hexMap;
     if (!map) return;
-    const t = now;
-
-    let hasBusiness = false;
-    for (const hex of Object.values(map.hexes)) {
-      for (const p of hex.placeSlots) {
-        if (
-          p.type === 'business' &&
-          p.business &&
-          p.ownedBy === character.id
-        ) {
-          hasBusiness = true;
-          break;
-        }
-      }
-      if (hasBusiness) break;
-    }
-    if (!hasBusiness) {
-      setWorkFeedback('No business to work.');
+    const hex = map.hexes[character.currentHexId];
+    if (!hasCharacterBusinessOnHex(hex, character.id)) {
+      setWorkFeedback('Stand on a hex with your business to work.');
       return;
     }
+    const t = now;
 
     let totalCreds = 0;
     const rawGrants: ItemGrant[] = [];
 
-    for (const hex of Object.values(map.hexes)) {
-      let touched = false;
-      const newSlots = hex.placeSlots.map((p) => {
-        if (
-          p.type !== 'business' ||
-          !p.business ||
-          p.ownedBy !== character.id
-        ) {
-          return p;
-        }
-        touched = true;
-        const y = computeWorkPayout(p.business);
-        totalCreds += y.creds;
-        rawGrants.push(...y.itemGrants);
-        return {
-          ...p,
-          business: { ...p.business, lastProduction: t },
-        };
-      });
-      if (touched) {
-        updateHex(hex.id, (h) => ({ ...h, placeSlots: newSlots }));
+    const newSlots = hex.placeSlots.map((p) => {
+      if (
+        p.type !== 'business' ||
+        !p.business ||
+        p.ownedBy !== character.id
+      ) {
+        return p;
       }
-    }
+      const y = computeWorkPayout(p.business);
+      totalCreds += y.creds;
+      rawGrants.push(...y.itemGrants);
+      return {
+        ...p,
+        business: { ...p.business, lastProduction: t },
+      };
+    });
+
+    updateHex(character.currentHexId, (h) => ({ ...h, placeSlots: newSlots }));
 
     const merged = mergeItemGrants(rawGrants);
     let seq = purchaseSeq.current;
@@ -484,6 +466,10 @@ export default function GameApp() {
 
   const currentHex = hexMap.hexes[character.currentHexId];
   const slotsHere = currentHex?.placeSlots ?? [];
+  const canWorkOnCurrentHex = hasCharacterBusinessOnHex(
+    currentHex,
+    character.id,
+  );
   const atCenter = character.currentHexId === CENTER_HEX_ID;
   const atHome = character.currentHexId === character.homeHexId;
 
@@ -551,19 +537,6 @@ export default function GameApp() {
           <p>Score (defense) {character.score}</p>
           <p>Reputation {character.reputation}</p>
           <p>Home {character.homeHexId}</p>
-          <h3>Work (businesses)</h3>
-          <p className="game-muted">
-            Spend {WORK_STA_COST} STA once to work all your businesses (creds
-            + items by type — e.g. farm yields Food).
-          </p>
-          <button type="button" onClick={workBusinesses}>
-            Work ({WORK_STA_COST} STA)
-          </button>
-          {workFeedback ? (
-            <p className="game-work-feedback" role="status">
-              {workFeedback}
-            </p>
-          ) : null}
         </section>
       )}
 
@@ -804,6 +777,32 @@ export default function GameApp() {
       {resolvedScreen === 'lots' && (
         <section className="game-panel">
           <h2>Lots @ {character.currentHexId}</h2>
+          {canWorkOnCurrentHex ? (
+            <div className="game-work-here">
+              <p className="game-muted">
+                Work applies to <strong>your businesses on this hex only</strong>{' '}
+                ({WORK_STA_COST} STA — creds + items by business type).
+              </p>
+              <button
+                type="button"
+                onClick={workBusinesses}
+                disabled={character.stamina.current < WORK_STA_COST}
+              >
+                Work ({WORK_STA_COST} STA)
+              </button>
+              {workFeedback ? (
+                <p className="game-work-feedback" role="status">
+                  {workFeedback}
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="game-muted">
+              <strong>Work</strong> is available when you stand on a hex that
+              has a business you own — open Lots there after building on an
+              empty lot.
+            </p>
+          )}
           {slotsHere.length === 0 ? (
             <p className="game-muted">No slots here</p>
           ) : (
