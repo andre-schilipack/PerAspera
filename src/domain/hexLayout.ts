@@ -8,6 +8,7 @@ export const DEFAULT_HEX_PIXEL_RADIUS = 24;
 
 /**
  * Axial (q, r) to pixel center for a pointy-top grid.
+ * Y is negated so screen space matches a typical “north up” map (SVG Y grows down).
  */
 export function axialToPixelPointyTop(
   q: number,
@@ -15,7 +16,7 @@ export function axialToPixelPointyTop(
   size: number = DEFAULT_HEX_PIXEL_RADIUS,
 ): { x: number; y: number } {
   const x = size * Math.sqrt(3) * (q + r / 2);
-  const y = size * (3 / 2) * r;
+  const y = -size * (3 / 2) * r;
   return { x, y };
 }
 
