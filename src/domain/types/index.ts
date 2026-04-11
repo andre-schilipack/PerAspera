@@ -27,3 +27,4 @@ export type {
 export type { Contract, ContractStatus, ContractType } from './contracts.ts';
 export type { GameMetaState, NextIdCounters } from './meta.ts';
 export type { ScoreEntry } from './score.ts';
+export type { CityCoreState } from './city.ts';

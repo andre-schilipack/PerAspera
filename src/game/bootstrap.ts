@@ -6,7 +6,9 @@ import { useContractsStore } from '../stores/useContractsStore.ts';
 import { applyStaminaRegenToAllCharacters } from './staminaRegenTick.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
+import { useCityStore } from '../stores/useCityStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
+import { runEconomicCatchUp } from './economicCatchUp.ts';
 import type { GameMetaState } from '../domain/types/index.ts';
 
 function pickMetaSnapshot(state: ReturnType<typeof useMetaStore.getState>): GameMetaState {
@@ -26,6 +28,7 @@ async function rehydrateAllStores(): Promise<void> {
     useWorldStore.persist.rehydrate(),
     useDefenseStore.persist.rehydrate(),
     useContractsStore.persist.rehydrate(),
+    useCityStore.persist.rehydrate(),
   ]);
 }
 
@@ -84,4 +87,5 @@ export async function bootstrapGame(): Promise<void> {
   rollDailyDefenseIfNeeded(now);
   fixInvalidCurrentCharacter();
   ensureCharacterCurrentHex();
+  runEconomicCatchUp(now);
 }

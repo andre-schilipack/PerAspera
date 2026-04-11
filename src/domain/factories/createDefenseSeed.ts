@@ -7,6 +7,7 @@ import type {
 } from '../types/index.ts';
 
 export function createInitialWallState(): WallState {
+  /** Real-valued integrity; UI uses floor/ceil via economicDisplay. */
   const section = () => ({
     current: 100,
     max: 100,

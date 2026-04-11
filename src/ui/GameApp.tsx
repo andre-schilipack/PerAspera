@@ -4,14 +4,24 @@ import {
   CENTER_HEX_ID,
   DEFENSE_LOCK_STA_COST,
   DEFENSE_START_HOUR,
+  DEFENSE_WALL_WEAR_ON_WAVE_CLEARED,
+  ECONOMIC_TICK_INTERVAL_MS,
   EMPTY_LOT_PRICE,
   NPC_OWNER_CITY,
   PATROL_STA_COST,
   STAMINA_REGEN_UI_INTERVAL_MS,
   STREET_SKIRMISH_WIN_CREDS,
   STREET_SKIRMISH_WIN_SCORE,
+  WALL_REPAIR_CREDS_COST,
+  WALL_REPAIR_INTEGRITY_PER_ACTION,
   WORK_STA_COST,
 } from '../domain/constants.ts';
+import { formatLocalDateString } from '../domain/defenseSchedule.ts';
+import { displayEconomicDecreasing, displayEconomicIncreasing } from '../domain/economicDisplay.ts';
+import {
+  applyDamageToWallSection,
+  repairWallSection as applyWallIntegrityRepair,
+} from '../domain/wallIntegrity.ts';
 import {
   computeWorkPayout,
   hasCharacterBusinessOnHex,
@@ -29,7 +39,7 @@ import {
 } from '../domain/hex.ts';
 import { staminaVisualCurrentAt } from '../domain/stamina.ts';
 import { makeBusinessId } from '../domain/ids.ts';
-import type { BusinessKind } from '../domain/types/index.ts';
+import type { BusinessKind, WallCardinal } from '../domain/types/index.ts';
 import type { CombatLogEntry } from '../domain/types/index.ts';
 import type { Item } from '../domain/types/index.ts';
 import {
@@ -58,10 +68,12 @@ import {
   enlistInExpansionContract,
   ensureExpansionContract,
 } from '../game/expansionContracts.ts';
+import { runEconomicCatchUp } from '../game/economicCatchUp.ts';
 import { startNewGame } from '../game/startNewGame.ts';
 import { syncGlobalScoreboardFromCharacters } from '../game/syncScoreboard.ts';
 import { useCharactersStore } from '../stores/useCharactersStore.ts';
 import { useContractsStore } from '../stores/useContractsStore.ts';
+import { useCityStore } from '../stores/useCityStore.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useSkirmishStore } from '../stores/useSkirmishStore.ts';
@@ -131,7 +143,9 @@ export default function GameApp() {
 
   const dailyDefense = useDefenseStore((s) => s.dailyDefense);
   const wall = useDefenseStore((s) => s.wall);
+  const setWall = useDefenseStore((s) => s.setWall);
   const patchDailyDefense = useDefenseStore((s) => s.patchDailyDefense);
+  const cityCore = useCityStore((s) => s.cityCore);
   const patchNextIds = useMetaStore((s) => s.patchNextIds);
   const contracts = useContractsStore((s) => s.contracts);
 
@@ -164,6 +178,14 @@ export default function GameApp() {
     const id = window.setInterval(() => {
       applyStaminaRegenToAllCharacters(Date.now());
     }, STAMINA_REGEN_UI_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [inGame]);
+
+  useEffect(() => {
+    if (!inGame) return;
+    const id = window.setInterval(() => {
+      runEconomicCatchUp(Date.now());
+    }, ECONOMIC_TICK_INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [inGame]);
 
@@ -336,6 +358,14 @@ export default function GameApp() {
       if (live) {
         updateCharacter(character.id, { score: live.score + 25 });
       }
+      const wallNow = useDefenseStore.getState().wall;
+      setWall(
+        applyDamageToWallSection(
+          wallNow,
+          dd.attackedSection,
+          DEFENSE_WALL_WEAR_ON_WAVE_CLEARED,
+        ),
+      );
     }
     patchNextIds({ combatLogEntry: logNum });
     patchDailyDefense({
@@ -343,6 +373,26 @@ export default function GameApp() {
       combatLog: [...dd.combatLog, line],
       enemies: nextEnemies,
       isCompleted: waveCleared,
+    });
+  }
+
+  function payForWallRepair(side: WallCardinal) {
+    if (!character) return;
+    const w = useDefenseStore.getState().wall;
+    const sec = w.sections[side];
+    if (sec.current >= sec.max - 0.000_001) return;
+    if (character.creds < WALL_REPAIR_CREDS_COST) return;
+    const nextWall = applyWallIntegrityRepair(
+      w,
+      side,
+      WALL_REPAIR_INTEGRITY_PER_ACTION,
+    );
+    updateCharacter(character.id, {
+      creds: character.creds - WALL_REPAIR_CREDS_COST,
+    });
+    setWall({
+      ...nextWall,
+      lastRepairedDate: formatLocalDateString(new Date()),
     });
   }
 
@@ -618,6 +668,12 @@ export default function GameApp() {
           <p className="game-muted">
             Lv {character.level} · {character.creds} creds
           </p>
+          <p className="game-muted">
+            City power{' '}
+            {displayEconomicDecreasing(cityCore.energyCurrent)}/
+            {displayEconomicIncreasing(cityCore.energyMax)} · stability{' '}
+            {displayEconomicDecreasing(cityCore.stabilityIndex)}
+          </p>
         </div>
         <div className="game-stat">
           STA{' '}
@@ -646,7 +702,8 @@ export default function GameApp() {
             You are at <strong>{character.currentHexId}</strong>. Neighbors
             cost {PATROL_STA_COST} STA. Entering a hex may trigger a street
             encounter; higher <strong>dng</strong> raises the chance (approx %
-            per hex).
+            per hex). City economy simulates every 30 min (including offline
+            catch-up when you load the game).
           </p>
           <p className="game-muted game-map-npc">
             <strong>Centro</strong> ({CENTER_HEX_ID}): Mercado Municipal,
@@ -878,21 +935,30 @@ export default function GameApp() {
             Advance tick (demo)
           </button>
           <h3>Wall</h3>
-          {(Object.keys(wall.sections) as (keyof typeof wall.sections)[]).map(
-            (side) => (
-              <div key={side} className="game-wall-bar">
-                {side}:{' '}
-                <meter
-                  value={wall.sections[side].current}
-                  min={0}
-                  max={wall.sections[side].max}
-                />{' '}
-                {Math.round(wall.sections[side].current)}/
-                {wall.sections[side].max}
-                {wall.sections[side].breached ? ' (breached)' : ''}
-              </div>
-            ),
-          )}
+          {(Object.keys(wall.sections) as WallCardinal[]).map((side) => (
+            <div key={side} className="game-wall-bar">
+              {side}:{' '}
+              <meter
+                value={wall.sections[side].current}
+                min={0}
+                max={wall.sections[side].max}
+              />{' '}
+              {displayEconomicDecreasing(wall.sections[side].current)}/
+              {displayEconomicIncreasing(wall.sections[side].max)}
+              {wall.sections[side].breached ? ' (breached)' : ''}
+              <button
+                type="button"
+                className="game-inline-nav"
+                onClick={() => payForWallRepair(side)}
+                disabled={
+                  wall.sections[side].current >= wall.sections[side].max - 0.000_001 ||
+                  character.creds < WALL_REPAIR_CREDS_COST
+                }
+              >
+                Repair (+{WALL_REPAIR_INTEGRITY_PER_ACTION}, {WALL_REPAIR_CREDS_COST}c)
+              </button>
+            </div>
+          ))}
           <h3>Combat log</h3>
           <CombatLogList entries={dailyDefense.combatLog} />
             </>
