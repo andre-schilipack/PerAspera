@@ -19,9 +19,37 @@ export interface ItemGrant {
   quantity: number;
 }
 
+/** Template metadata for items (quantity added by caller). Production types: no creds from active Work. */
+export function itemGrantTemplate(
+  templateId: string,
+): Omit<ItemGrant, 'quantity'> | null {
+  switch (templateId) {
+    case 'food_ration':
+      return {
+        templateId: 'food_ration',
+        name: 'Food',
+        type: 'consumable',
+        rarity: 'comum',
+        value: 6,
+        effects: { staminaBoost: 10 },
+      };
+    case 'scrap_metal':
+      return {
+        templateId: 'scrap_metal',
+        name: 'Scrap Metal',
+        type: 'material',
+        rarity: 'comum',
+        value: 8,
+        effects: {},
+      };
+    default:
+      return null;
+  }
+}
+
 /**
- * Active Work payout: creds and/or items from one business tick.
- * Tuned for Alpha — passive daily income comes later (workers).
+ * Active Work: instant STA tick. Production businesses yield items only (no creds).
+ * Loja: no creds/items until passive sales + claim (MVP).
  */
 export function computeWorkPayout(business: Business): BusinessWorkYield {
   const rate = Math.max(1, business.productionRate);
@@ -29,7 +57,7 @@ export function computeWorkPayout(business: Business): BusinessWorkYield {
   switch (business.type) {
     case 'fazenda':
       return {
-        creds: Math.floor(rate / 4),
+        creds: 0,
         itemGrants: [
           {
             templateId: 'food_ration',
@@ -38,18 +66,18 @@ export function computeWorkPayout(business: Business): BusinessWorkYield {
             rarity: 'comum',
             value: 6,
             effects: { staminaBoost: 10 },
-            quantity: 1,
+            quantity: Math.max(1, Math.floor(rate / 8)),
           },
         ],
       };
     case 'loja':
       return {
-        creds: Math.floor(rate / 2),
+        creds: 0,
         itemGrants: [],
       };
     case 'industria':
       return {
-        creds: Math.floor(rate / 3),
+        creds: 0,
         itemGrants: [
           {
             templateId: 'scrap_metal',
@@ -58,15 +86,25 @@ export function computeWorkPayout(business: Business): BusinessWorkYield {
             rarity: 'comum',
             value: 8,
             effects: {},
-            quantity: Math.min(3, 1 + Math.floor(rate / 20)),
+            quantity: Math.min(3, Math.max(1, Math.floor(rate / 12))),
           },
         ],
       };
     case 'outro':
     default:
       return {
-        creds: Math.floor(rate / 5),
-        itemGrants: [],
+        creds: 0,
+        itemGrants: [
+          {
+            templateId: 'scrap_metal',
+            name: 'Scrap Metal',
+            type: 'material',
+            rarity: 'comum',
+            value: 8,
+            effects: {},
+            quantity: Math.max(1, Math.floor(rate / 10)),
+          },
+        ],
       };
   }
 }

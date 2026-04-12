@@ -24,6 +24,23 @@ export const WALL_REPAIR_INTEGRITY_PER_ACTION = 25;
 /** Creds cost per repair action (paid by active character). */
 export const WALL_REPAIR_CREDS_COST = 40;
 
+/** Economic ticks per simulated wage day (24h real at 30 min/tick). */
+export const ECONOMIC_TICKS_PER_WAGE_DAY = 48;
+
+/** Civilians required to add one worker to the global pool (floor division). */
+export const CIVILIANS_PER_WORKER_POOL_SLOT = 1000;
+
+/** Starting population for new saves (MVP: static growth comes later). */
+export const INITIAL_CIVILIAN_POPULATION = 12_000;
+
+/** Placeholder creds/day from simulated shop sales per assigned worker (loja). */
+export const SHOP_SIMULATED_CREDS_PER_DAY_PER_WORKER = 24;
+
+/** Default max workers per business slot. */
+export const DEFAULT_WORKER_SLOTS = 2;
+
+export const DEFAULT_WAGE_PER_DAY = 8;
+
 /** Stamina at character creation (before level-based max upgrades). */
 export const STAMINA_INITIAL = 200;
 

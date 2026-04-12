@@ -7,6 +7,7 @@ import {
   DEFENSE_WALL_WEAR_ON_WAVE_CLEARED,
   ECONOMIC_TICK_INTERVAL_MS,
   EMPTY_LOT_PRICE,
+  INITIAL_CIVILIAN_POPULATION,
   NPC_OWNER_CITY,
   PATROL_STA_COST,
   STAMINA_REGEN_UI_INTERVAL_MS,
@@ -16,8 +17,18 @@ import {
   WALL_REPAIR_INTEGRITY_PER_ACTION,
   WORK_STA_COST,
 } from '../domain/constants.ts';
+import {
+  normalizeBusiness,
+  totalAssignedWorkersAcrossMap,
+  workerPoolAvailable,
+} from '../domain/businessEconomyTick.ts';
+import { claimFromBusinessBuffers } from '../domain/businessClaim.ts';
+import { createNewBusiness } from '../domain/factories/createBusiness.ts';
 import { formatLocalDateString } from '../domain/defenseSchedule.ts';
-import { displayEconomicDecreasing, displayEconomicIncreasing } from '../domain/economicDisplay.ts';
+import {
+  displayEconomicDecreasing,
+  displayEconomicIncreasing,
+} from '../domain/economicDisplay.ts';
 import {
   applyDamageToWallSection,
   repairWallSection as applyWallIntegrityRepair,
@@ -25,6 +36,7 @@ import {
 import {
   computeWorkPayout,
   hasCharacterBusinessOnHex,
+  itemGrantTemplate,
   mergeItemGrants,
   type ItemGrant,
 } from '../domain/businessPayout.ts';
@@ -146,6 +158,9 @@ export default function GameApp() {
   const setWall = useDefenseStore((s) => s.setWall);
   const patchDailyDefense = useDefenseStore((s) => s.patchDailyDefense);
   const cityCore = useCityStore((s) => s.cityCore);
+  const civilianPopulation = useCityStore(
+    (s) => s.civilianPopulation ?? INITIAL_CIVILIAN_POPULATION,
+  );
   const patchNextIds = useMetaStore((s) => s.patchNextIds);
   const contracts = useContractsStore((s) => s.contracts);
 
@@ -233,6 +248,16 @@ export default function GameApp() {
         a.coordinates.q - b.coordinates.q,
     );
   }, [hexMap]);
+
+  const workerAssignedTotal = useMemo(() => {
+    if (!hexMap) return 0;
+    return totalAssignedWorkersAcrossMap(hexMap);
+  }, [hexMap]);
+
+  const workerPoolFree = useMemo(
+    () => workerPoolAvailable(civilianPopulation, workerAssignedTotal),
+    [civilianPopulation, workerAssignedTotal],
+  );
 
   const openExpansionContract = useMemo(() => {
     for (const c of Object.values(contracts)) {
@@ -396,6 +421,89 @@ export default function GameApp() {
     });
   }
 
+  function hireWorker(hexId: string, slotId: string) {
+    if (!hexMap || workerPoolFree <= 0) return;
+    updateHex(hexId, (h) => ({
+      ...h,
+      placeSlots: h.placeSlots.map((p) => {
+        if (p.id !== slotId || p.type !== 'business' || !p.business) return p;
+        const b = normalizeBusiness(p.business);
+        if (b.workersAssigned >= b.workerSlots) return p;
+        return {
+          ...p,
+          business: {
+            ...b,
+            workersAssigned: b.workersAssigned + 1,
+          },
+        };
+      }),
+    }));
+  }
+
+  function fireWorker(hexId: string, slotId: string) {
+    updateHex(hexId, (h) => ({
+      ...h,
+      placeSlots: h.placeSlots.map((p) => {
+        if (p.id !== slotId || p.type !== 'business' || !p.business) return p;
+        const b = normalizeBusiness(p.business);
+        if (b.workersAssigned <= 0) return p;
+        return {
+          ...p,
+          business: {
+            ...b,
+            workersAssigned: b.workersAssigned - 1,
+          },
+        };
+      }),
+    }));
+  }
+
+  function claimBusinessPassive(hexId: string, slotId: string) {
+    if (!character || !hexMap) return;
+    const hex = hexMap.hexes[hexId];
+    const slot = hex?.placeSlots.find((s) => s.id === slotId);
+    if (
+      !slot ||
+      slot.type !== 'business' ||
+      !slot.business ||
+      slot.ownedBy !== character.id
+    ) {
+      return;
+    }
+    const { business, credsAdded, items } = claimFromBusinessBuffers(
+      slot.business,
+    );
+    if (credsAdded <= 0 && items.length === 0) return;
+
+    updateHex(hexId, (h) => ({
+      ...h,
+      placeSlots: h.placeSlots.map((p) =>
+        p.id === slotId ? { ...p, business } : p,
+      ),
+    }));
+
+    const live = useCharactersStore.getState().characters[character.id];
+    if (!live) return;
+    const t = now;
+    let seq = purchaseSeq.current;
+    for (const chunk of items) {
+      const stub = itemGrantTemplate(chunk.templateId);
+      if (!stub) continue;
+      const item: Item = {
+        id: `${chunk.templateId}_${t}_${seq++}`,
+        name: stub.name,
+        type: stub.type,
+        rarity: stub.rarity,
+        value: stub.value,
+        effects: { ...stub.effects },
+        quantity: chunk.quantity,
+      };
+      addItem(character.id, item);
+    }
+    purchaseSeq.current = seq;
+    updateCharacter(character.id, { creds: live.creds + credsAdded });
+  }
+
   function buyCatalog(entry: (typeof MARKET_CATALOG)[number]) {
     if (!character) return;
     if (character.creds < entry.value) return;
@@ -459,14 +567,13 @@ export default function GameApp() {
       ...h,
       placeSlots: h.placeSlots.map((p) => {
         if (p.id !== slotId || p.ownedBy !== character.id) return p;
-        const business = {
+        const business = createNewBusiness({
           id: bizId,
           name: labels[kind],
           type: kind,
-          level: 1,
+          nowMs: now,
           productionRate: 12,
-          lastProduction: now,
-        };
+        });
         return { ...p, type: 'business' as const, business };
       }),
     }));
@@ -673,6 +780,10 @@ export default function GameApp() {
             {displayEconomicDecreasing(cityCore.energyCurrent)}/
             {displayEconomicIncreasing(cityCore.energyMax)} · stability{' '}
             {displayEconomicDecreasing(cityCore.stabilityIndex)}
+          </p>
+          <p className="game-muted">
+            Pop {Math.floor(civilianPopulation)} · workers pool{' '}
+            {workerPoolFree} free / {workerAssignedTotal} assigned
           </p>
         </div>
         <div className="game-stat">
@@ -1058,7 +1169,8 @@ export default function GameApp() {
             <div className="game-work-here">
               <p className="game-muted">
                 Work applies to <strong>your businesses on this hex only</strong>{' '}
-                ({WORK_STA_COST} STA — creds + items by business type).
+                ({WORK_STA_COST} STA — production: items only; shop: passive sales
+                + claim).
               </p>
               <button
                 type="button"
@@ -1146,13 +1258,76 @@ export default function GameApp() {
                         )}
                       </span>
                     )}
-                  {slot.type === 'business' && slot.business && (
-                    <span className="game-muted">
-                      {' '}
-                      — {slot.business.name} (Lv {slot.business.level},{' '}
-                      +{slot.business.productionRate}/day)
-                    </span>
-                  )}
+                  {slot.type === 'business' && slot.business && (() => {
+                    const b = normalizeBusiness(slot.business);
+                    const bufLines: string[] = [];
+                    for (const [tid, q] of Object.entries(b.passiveItemBuffer)) {
+                      if (q > 0) {
+                        bufLines.push(
+                          `${tid} ×${displayEconomicIncreasing(q)}`,
+                        );
+                      }
+                    }
+                    if (b.type === 'loja' && b.credsPending > 0) {
+                      bufLines.push(
+                        `creds ×${displayEconomicIncreasing(b.credsPending)} (claim)`,
+                      );
+                    }
+                    const canHire =
+                      workerPoolFree > 0 && b.workersAssigned < b.workerSlots;
+                    const hasClaim =
+                      (b.type === 'loja' && b.credsPending > 0.000_001) ||
+                      Object.values(b.passiveItemBuffer).some(
+                        (q) => q > 0.000_001,
+                      );
+                    return (
+                      <div className="game-business-panel">
+                        <span className="game-muted">
+                          {' '}
+                          — {b.name} (Lv {b.level}) · workers {b.workersAssigned}/
+                          {b.workerSlots} · wage {b.wagePerDay}c/day each · passive{' '}
+                          +{b.productionRate}/day
+                        </span>
+                        {bufLines.length > 0 ? (
+                          <p className="game-muted game-business-buffer">
+                            Buffer: {bufLines.join(' · ')}
+                          </p>
+                        ) : null}
+                        <div className="game-business-actions">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              hireWorker(character.currentHexId, slot.id)
+                            }
+                            disabled={!canHire}
+                          >
+                            Hire worker
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              fireWorker(character.currentHexId, slot.id)
+                            }
+                            disabled={b.workersAssigned <= 0}
+                          >
+                            Fire
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              claimBusinessPassive(
+                                character.currentHexId,
+                                slot.id,
+                              )
+                            }
+                            disabled={!hasClaim}
+                          >
+                            Claim passive
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </li>
               );
               })}

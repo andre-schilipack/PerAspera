@@ -394,6 +394,18 @@
   padding: 0;
 }
 
+.game-business-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.game-business-buffer {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+}
+
 .game-slot-row {
   margin-bottom: 14px;
   padding-bottom: 12px;
