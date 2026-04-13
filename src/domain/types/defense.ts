@@ -21,6 +21,23 @@ export interface WallState {
   lastRepairedDate?: string;
 }
 
+export type NightlyDefensePhase = 'idle' | 'preparing' | 'fighting' | 'ended';
+
+export type NightlyDefenseOutcome =
+  | 'active'
+  | 'victory'
+  | 'breach'
+  | 'loss';
+
+/** Player defenders in the nightly fight (session HP; melee front line MVP). */
+export interface DefenderLineEntry {
+  characterId: string;
+  name: string;
+  currentHp: number;
+  maxHp: number;
+  retreated: boolean;
+}
+
 export interface DailyDefenseState {
   /** Calendar day for daily reset (local), YYYY-MM-DD. */
   date: string;
@@ -28,6 +45,8 @@ export interface DailyDefenseState {
   currentTurn: number;
   isLocked: Record<string, boolean>;
   lockedAt: Record<string, number | null>;
+  /** Which `date` this character enlisted for (YYYY-MM-DD). */
+  enlistedForDate: Record<string, string>;
   combatLog: CombatLogEntry[];
   enemies: EnemyInstance[];
   totalEnemyPoints: number;
@@ -38,4 +57,8 @@ export interface DailyDefenseState {
   participants: DefenseParticipant[];
   /** Anchor for scaling (e.g. days since founding). */
   gameDayIndex: number;
+  phase: NightlyDefensePhase;
+  outcome: NightlyDefenseOutcome;
+  /** Snapshot per fight; filled when combat starts. */
+  defenderLine: DefenderLineEntry[];
 }

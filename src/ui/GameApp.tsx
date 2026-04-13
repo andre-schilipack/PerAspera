@@ -4,7 +4,9 @@ import {
   CENTER_HEX_ID,
   DEFENSE_LOCK_STA_COST,
   DEFENSE_START_HOUR,
-  DEFENSE_WALL_WEAR_ON_WAVE_CLEARED,
+  DEFENSE_VICTORY_CREDS,
+  DEFENSE_VICTORY_REPUTATION,
+  DEFENSE_VICTORY_SCORE,
   ECONOMIC_TICK_INTERVAL_MS,
   EMPTY_LOT_PRICE,
   INITIAL_CIVILIAN_POPULATION,
@@ -29,10 +31,7 @@ import {
   displayEconomicDecreasing,
   displayEconomicIncreasing,
 } from '../domain/economicDisplay.ts';
-import {
-  applyDamageToWallSection,
-  repairWallSection as applyWallIntegrityRepair,
-} from '../domain/wallIntegrity.ts';
+import { repairWallSection as applyWallIntegrityRepair } from '../domain/wallIntegrity.ts';
 import {
   computeWorkPayout,
   hasCharacterBusinessOnHex,
@@ -51,7 +50,7 @@ import {
 } from '../domain/hex.ts';
 import { staminaVisualCurrentAt } from '../domain/stamina.ts';
 import { makeBusinessId } from '../domain/ids.ts';
-import type { BusinessKind, WallCardinal } from '../domain/types/index.ts';
+import type { BusinessKind, DailyDefenseState, WallCardinal } from '../domain/types/index.ts';
 import type { CombatLogEntry } from '../domain/types/index.ts';
 import type { Item } from '../domain/types/index.ts';
 import {
@@ -79,8 +78,13 @@ import {
   enlistInExpansionContract,
   ensureExpansionContract,
 } from '../game/expansionContracts.ts';
+import { applyRaidFromRemainingThreat } from '../domain/applyRaid.ts';
 import { playCombatStartSound } from '../audio/playCombatStartSound.ts';
-import { resolveIncomingMeleeDamage } from '../domain/combatResolution.ts';
+import { sumLivingThreatPoints } from '../domain/enemyThreat.ts';
+import {
+  advanceNightlyDefenseRound,
+  buildDefenderLineFromLocks,
+} from '../domain/nightlyDefenseCombat.ts';
 import { runEconomicCatchUp } from '../game/economicCatchUp.ts';
 import { startNewGame } from '../game/startNewGame.ts';
 import { syncGlobalScoreboardFromCharacters } from '../game/syncScoreboard.ts';
@@ -152,6 +156,7 @@ export default function GameApp() {
   const addItem = useCharactersStore((s) => s.addItemToInventory);
   const removeItem = useCharactersStore((s) => s.removeItemFromInventory);
   const updateHex = useWorldStore((s) => s.updateHex);
+  const setHexMap = useWorldStore((s) => s.setHexMap);
 
   const dailyDefense = useDefenseStore((s) => s.dailyDefense);
   const wall = useDefenseStore((s) => s.wall);
@@ -161,6 +166,7 @@ export default function GameApp() {
   const civilianPopulation = useCityStore(
     (s) => s.civilianPopulation ?? INITIAL_CIVILIAN_POPULATION,
   );
+  const setCivilianPopulation = useCityStore((s) => s.setCivilianPopulation);
   const patchNextIds = useMetaStore((s) => s.patchNextIds);
   const contracts = useContractsStore((s) => s.contracts);
 
@@ -239,6 +245,139 @@ export default function GameApp() {
     skirmishSession?.phase,
     skirmishSession?.isCompleted,
     skirmishSession?.characterId,
+  ]);
+
+  function syncDefenderHpToCharacters(
+    line: { characterId: string; currentHp: number; maxHp: number }[],
+  ) {
+    for (const d of line) {
+      const ch = useCharactersStore.getState().characters[d.characterId];
+      if (!ch) continue;
+      updateCharacter(d.characterId, {
+        health: {
+          current: Math.min(d.maxHp, Math.max(0, d.currentHp)),
+          max: d.maxHp,
+        },
+      });
+    }
+  }
+
+  function advanceNightlyDefenseAction() {
+    const dd = useDefenseStore.getState().dailyDefense;
+    const w = useDefenseStore.getState().wall;
+    const result = advanceNightlyDefenseRound(dd, w, Math.random);
+    const meta = useMetaStore.getState();
+    let nextId = meta.nextIds.combatLogEntry;
+    const newLines: CombatLogEntry[] = result.newLogLines.map((l) => {
+      nextId += 1;
+      return { ...l, id: nextId };
+    });
+    let combatLog = [...dd.combatLog, ...newLines];
+    let nextDaily: DailyDefenseState = { ...result.nextDaily, combatLog };
+    setWall(result.wallResult.wall);
+    useMetaStore.getState().patchNextIds({ combatLogEntry: nextId });
+
+    if (result.fightEnded) {
+      syncDefenderHpToCharacters(result.nextDaily.defenderLine);
+      if (result.nextDaily.outcome === 'victory') {
+        const participantIds = result.nextDaily.defenderLine.map(
+          (d) => d.characterId,
+        );
+        for (const pid of participantIds) {
+          const live = useCharactersStore.getState().characters[pid];
+          if (!live) continue;
+          updateCharacter(pid, {
+            score: live.score + DEFENSE_VICTORY_SCORE,
+            reputation: live.reputation + DEFENSE_VICTORY_REPUTATION,
+            creds: live.creds + DEFENSE_VICTORY_CREDS,
+          });
+        }
+      }
+      if (result.nextDaily.outcome === 'breach') {
+        const hm = useWorldStore.getState().hexMap;
+        if (!hm) {
+          useDefenseStore.getState().patchDailyDefense(nextDaily);
+          return;
+        }
+        const threat = sumLivingThreatPoints(result.nextDaily.enemies);
+        const raid = applyRaidFromRemainingThreat({
+          remainingThreatPoints: threat,
+          civilianPopulation: useCityStore.getState().civilianPopulation,
+          hexMap: hm,
+          rng: Math.random,
+        });
+        setCivilianPopulation(raid.civilianPopulation);
+        setHexMap(raid.hexMap);
+        for (const text of raid.logLines) {
+          nextId += 1;
+          combatLog = [
+            ...combatLog,
+            {
+              id: nextId,
+              turn: nextDaily.currentTurn,
+              timestamp: Date.now(),
+              text,
+              type: 'system',
+            },
+          ];
+        }
+        useMetaStore.getState().patchNextIds({ combatLogEntry: nextId });
+        nextDaily = {
+          ...nextDaily,
+          combatLog,
+          enemies: [],
+          totalEnemyPoints: 0,
+        };
+      }
+    }
+    useDefenseStore.getState().patchDailyDefense(nextDaily);
+  }
+
+  function beginNightlyDefense() {
+    const dd = useDefenseStore.getState().dailyDefense;
+    if (dd.phase !== 'idle' || dd.isCompleted || dd.enemies.length === 0) {
+      return;
+    }
+    const chars = useCharactersStore.getState().characters;
+    const lockedIds = Object.keys(dd.isLocked).filter((id) => dd.isLocked[id]);
+    const line = buildDefenderLineFromLocks(lockedIds, (id) => chars[id]);
+    patchDailyDefense({ phase: 'preparing', defenderLine: line });
+  }
+
+  /** Nightly defense: 5s prep then first round; then 3s auto rounds. */
+  useEffect(() => {
+    if (!inGame || dailyDefense.phase !== 'preparing') return;
+    playCombatStartSound();
+    const prepTimer = window.setTimeout(() => {
+      useDefenseStore.getState().patchDailyDefense({ phase: 'fighting' });
+      queueMicrotask(() => advanceNightlyDefenseAction());
+    }, 5000);
+    return () => window.clearTimeout(prepTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset prep on phase/date identity
+  }, [inGame, dailyDefense.phase, dailyDefense.date]);
+
+  useEffect(() => {
+    if (
+      !inGame ||
+      dailyDefense.phase !== 'fighting' ||
+      dailyDefense.isCompleted
+    ) {
+      return;
+    }
+    const intervalId = window.setInterval(() => {
+      advanceNightlyDefenseAction();
+      const s = useDefenseStore.getState().dailyDefense;
+      if (s.isCompleted) {
+        window.clearInterval(intervalId);
+      }
+    }, 3000);
+    return () => window.clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    inGame,
+    dailyDefense.phase,
+    dailyDefense.isCompleted,
+    dailyDefense.date,
   ]);
 
   function selectPlayableCharacter(characterId: string) {
@@ -387,75 +526,10 @@ export default function GameApp() {
     patchDailyDefense({
       isLocked: { ...dd.isLocked, [character.id]: true },
       lockedAt: { ...dd.lockedAt, [character.id]: t },
-      enemies:
-        dd.enemies.length === 0
-          ? [
-              {
-                enemyId: 'drone_scout',
-                currentHealth: 28,
-                buffs: {},
-              },
-            ]
-          : dd.enemies,
-    });
-  }
-
-  function advanceDefenseTick() {
-    const dd = useDefenseStore.getState().dailyDefense;
-    const meta = useMetaStore.getState();
-    const turn = dd.currentTurn + 1;
-    const rawStrike = 7 + Math.floor(Math.random() * 7);
-    const strike = resolveIncomingMeleeDamage(rawStrike, Math.random);
-    let strikeText: string;
-    if (strike.flags.dodged) {
-      strikeText = `Defense tick ${String(turn)}: hostiles evade the volley.`;
-    } else if (strike.flags.blocked) {
-      strikeText = `Defense tick ${String(turn)}: blocked — ${String(strike.finalDamage)} damage through.`;
-    } else {
-      strikeText = `Defense tick ${String(turn)}: volley hits for ${String(strike.finalDamage)} damage.`;
-    }
-    const logNum = meta.nextIds.combatLogEntry + 1;
-    const line: CombatLogEntry = {
-      id: logNum,
-      turn,
-      timestamp: now,
-      text: strikeText,
-      type: 'system',
-    };
-    const first = dd.enemies[0];
-    let nextEnemies = dd.enemies;
-    if (first && strike.finalDamage > 0) {
-      const nh = first.currentHealth - strike.finalDamage;
-      if (nh <= 0) {
-        nextEnemies = dd.enemies.slice(1);
-      } else {
-        nextEnemies = [
-          { ...first, currentHealth: nh },
-          ...dd.enemies.slice(1),
-        ];
-      }
-    }
-    const waveCleared = dd.enemies.length > 0 && nextEnemies.length === 0;
-    if (waveCleared && character) {
-      const live = useCharactersStore.getState().characters[character.id];
-      if (live) {
-        updateCharacter(character.id, { score: live.score + 25 });
-      }
-      const wallNow = useDefenseStore.getState().wall;
-      setWall(
-        applyDamageToWallSection(
-          wallNow,
-          dd.attackedSection,
-          DEFENSE_WALL_WEAR_ON_WAVE_CLEARED,
-        ),
-      );
-    }
-    patchNextIds({ combatLogEntry: logNum });
-    patchDailyDefense({
-      currentTurn: turn,
-      combatLog: [...dd.combatLog, line],
-      enemies: nextEnemies,
-      isCompleted: waveCleared,
+      enlistedForDate: {
+        ...dd.enlistedForDate,
+        [character.id]: dd.date,
+      },
     });
   }
 
@@ -1095,7 +1169,21 @@ export default function GameApp() {
           </p>
           <p className="game-muted">
             Day {dailyDefense.date} · game day index {dailyDefense.gameDayIndex}{' '}
-            · locked:{' '}
+            · threat {dailyDefense.totalEnemyPoints} · phase{' '}
+            <strong>{dailyDefense.phase}</strong>
+            {dailyDefense.outcome !== 'active' ? (
+              <>
+                {' '}
+                · outcome <strong>{dailyDefense.outcome}</strong>
+              </>
+            ) : null}
+          </p>
+          <p>
+            Tonight&apos;s push targets the <strong>{dailyDefense.attackedSection}</strong>{' '}
+            wall.
+          </p>
+          <p className="game-muted">
+            Lock for this calendar night:{' '}
             {dailyDefense.isLocked[character.id] ? 'yes' : 'no'}
           </p>
           <button
@@ -1103,17 +1191,48 @@ export default function GameApp() {
             onClick={tryLockDefense}
             disabled={
               dailyDefense.isLocked[character.id] ||
-              character.stamina.current < DEFENSE_LOCK_STA_COST
+              character.stamina.current < DEFENSE_LOCK_STA_COST ||
+              dailyDefense.isCompleted
             }
           >
             Lock ({DEFENSE_LOCK_STA_COST} STA)
           </button>
-          <button type="button" onClick={advanceDefenseTick}>
-            Advance tick (demo)
+          <button
+            type="button"
+            onClick={beginNightlyDefense}
+            disabled={
+              dailyDefense.phase !== 'idle' ||
+              dailyDefense.isCompleted ||
+              dailyDefense.enemies.length === 0
+            }
+          >
+            Start nightly defense
           </button>
+          {dailyDefense.phase === 'preparing' ? (
+            <p className="game-muted" role="status">
+              Stand by — combat begins in a few seconds.
+            </p>
+          ) : dailyDefense.phase === 'fighting' && !dailyDefense.isCompleted ? (
+            <p className="game-muted" role="status">
+              Auto-battle: a new round every 3 seconds.
+            </p>
+          ) : null}
+          {dailyDefense.defenderLine.length > 0 ? (
+            <ul className="game-skirmish-enemies">
+              {dailyDefense.defenderLine.map((d) => (
+                <li key={d.characterId}>
+                  {d.name}: {d.currentHp}/{d.maxHp} HP
+                  {d.retreated ? ' (fell back)' : ''}
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <h3>Wall</h3>
           {(Object.keys(wall.sections) as WallCardinal[]).map((side) => (
-            <div key={side} className="game-wall-bar">
+            <div
+              key={side}
+              className={`game-wall-bar${dailyDefense.attackedSection === side ? ' game-wall-bar--active' : ''}`}
+            >
               {side}:{' '}
               <meter
                 value={wall.sections[side].current}
@@ -1137,7 +1256,10 @@ export default function GameApp() {
             </div>
           ))}
           <h3>Combat log</h3>
-          <CombatLogList entries={dailyDefense.combatLog} />
+          <CombatLogList
+            entries={dailyDefense.combatLog}
+            autoScroll={dailyDefense.phase === 'fighting'}
+          />
             </>
           )}
         </section>

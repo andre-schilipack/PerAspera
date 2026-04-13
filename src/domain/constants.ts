@@ -15,8 +15,31 @@ export const ECONOMIC_TICK_INTERVAL_MS = 30 * 60 * 1000;
 /** Cap offline catch-up to avoid clock abuse (14 days of ticks). */
 export const MAX_ECONOMIC_CATCH_UP_TICKS = 48 * 14;
 
-/** Structural damage to wall section when a defense wave is cleared (demo combat). */
+/** Structural damage to wall section when a defense wave was cleared (legacy demo; prefer enemy wall strikes). */
 export const DEFENSE_WALL_WEAR_ON_WAVE_CLEARED = 12.4;
+
+/** Nightly defense: tower + guards only deal damage (no incoming HP). */
+export const DEFENSE_NPC_TOWER_ID = 'npc_auto_tower' as const;
+export const DEFENSE_NPC_TOWER_LABEL = 'Auto tower';
+export const DEFENSE_NPC_GUARD_IDS = [
+  'npc_guard_rifle_a',
+  'npc_guard_rifle_b',
+] as const;
+export const DEFENSE_TOWER_DAMAGE_MIN = 8;
+export const DEFENSE_TOWER_DAMAGE_MAX = 14;
+export const DEFENSE_GUARD_DAMAGE_MIN = 5;
+export const DEFENSE_GUARD_DAMAGE_MAX = 10;
+export const DEFENSE_ENEMY_STRIKE_VS_PLAYER_MIN = 4;
+export const DEFENSE_ENEMY_STRIKE_VS_PLAYER_MAX = 10;
+export const DEFENSE_ENEMY_STRIKE_VS_WALL_MIN = 6;
+export const DEFENSE_ENEMY_STRIKE_VS_WALL_MAX = 12;
+/** Retreat from front line at or below this fraction of max session HP. */
+export const DEFENSE_RETREAT_HP_FRACTION = 0.5;
+
+/** Raid: civilians lost per remaining threat point after breach. */
+export const RAID_CIVILIANS_PER_THREAT_POINT = 40;
+/** Raid: threat points consumed per destroyed business slot. */
+export const RAID_THREAT_PER_BUSINESS = 3;
 
 /** Integrity points restored per repair action. */
 export const WALL_REPAIR_INTEGRITY_PER_ACTION = 25;
@@ -85,6 +108,15 @@ export const BLOCK_DAMAGE_FACTOR = 0.5;
 
 /** STA spent to lock participation in nightly defense. */
 export const DEFENSE_LOCK_STA_COST = 50;
+
+/** Per participant on nightly defense victory (leaderboard / meta). */
+export const DEFENSE_VICTORY_SCORE = 25;
+
+/** Reputation (fame) granted to each enlisted participant on victory. */
+export const DEFENSE_VICTORY_REPUTATION = 20;
+
+/** Creds granted to each enlisted participant on victory. */
+export const DEFENSE_VICTORY_CREDS = 50;
 
 /** STA spent to work / accelerate a business (daily tick). */
 export const WORK_STA_COST = 5;

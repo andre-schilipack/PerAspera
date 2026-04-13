@@ -39,6 +39,12 @@
   color: var(--text-h);
 }
 
+.game-wall-bar--active {
+  outline: 2px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 0;
+}
+
 .game-nav {
   display: flex;
   flex-wrap: wrap;

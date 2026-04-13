@@ -5,6 +5,7 @@ export {
 export {
   createEmptyDailyDefense,
   createInitialWallState,
+  rollDailyDefenseStateForNewDay,
 } from './createDefenseSeed.ts';
 export {
   createInitialWorld,

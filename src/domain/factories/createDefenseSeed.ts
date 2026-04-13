@@ -1,4 +1,10 @@
 import { DEFENSE_START_HOUR } from '../constants.ts';
+import {
+  composeWaveFromBudget,
+  pickRandomWallCardinal,
+  sumLivingThreatPoints,
+  targetThreatBudget,
+} from '../enemyThreat.ts';
 import { formatLocalDateString } from '../defenseSchedule.ts';
 import type {
   DailyDefenseState,
@@ -39,6 +45,7 @@ export function createEmptyDailyDefense(params?: {
     currentTurn: 0,
     isLocked: {},
     lockedAt: {},
+    enlistedForDate: {},
     combatLog: [],
     enemies: [],
     totalEnemyPoints: 0,
@@ -48,5 +55,42 @@ export function createEmptyDailyDefense(params?: {
     attackedSection: params?.attackedSection ?? 'north',
     participants: [],
     gameDayIndex: params?.gameDayIndex ?? 0,
+    phase: 'idle',
+    outcome: 'active',
+    defenderLine: [],
+  };
+}
+
+/**
+ * Roll a new calendar day: random wall side, scaled wave, cleared locks (daily re-enlist MVP).
+ */
+export function rollDailyDefenseStateForNewDay(params: {
+  date: string;
+  gameDayIndex: number;
+  startHour: number;
+  rng: () => number;
+}): DailyDefenseState {
+  const attackedSection = pickRandomWallCardinal(params.rng);
+  const budget = targetThreatBudget(params.gameDayIndex);
+  const enemies = composeWaveFromBudget(budget, params.rng);
+  const totalEnemyPoints = sumLivingThreatPoints(enemies);
+  return {
+    date: params.date,
+    currentTurn: 0,
+    isLocked: {},
+    lockedAt: {},
+    enlistedForDate: {},
+    combatLog: [],
+    enemies,
+    totalEnemyPoints,
+    playerContribution: {},
+    isCompleted: false,
+    startHour: params.startHour,
+    attackedSection,
+    participants: [],
+    gameDayIndex: params.gameDayIndex,
+    phase: 'idle',
+    outcome: 'active',
+    defenderLine: [],
   };
 }

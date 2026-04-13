@@ -1,5 +1,10 @@
 import { formatLocalDateString } from '../domain/defenseSchedule.ts';
-import { createEmptyDailyDefense } from '../domain/factories/createDefenseSeed.ts';
+import {
+  composeWaveFromBudget,
+  sumLivingThreatPoints,
+  targetThreatBudget,
+} from '../domain/enemyThreat.ts';
+import { rollDailyDefenseStateForNewDay } from '../domain/factories/createDefenseSeed.ts';
 import { migrateGameMetaState } from '../domain/migrations.ts';
 import { useCharactersStore } from '../stores/useCharactersStore.ts';
 import { useContractsStore } from '../stores/useContractsStore.ts';
@@ -10,7 +15,7 @@ import { useCityStore } from '../stores/useCityStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 import { PLAYER_BASE_MAX_HP } from '../domain/constants.ts';
 import { runEconomicCatchUp } from './economicCatchUp.ts';
-import type { GameMetaState } from '../domain/types/index.ts';
+import type { DailyDefenseState, GameMetaState } from '../domain/types/index.ts';
 
 function pickMetaSnapshot(state: ReturnType<typeof useMetaStore.getState>): GameMetaState {
   return {
@@ -45,13 +50,58 @@ function rollDailyDefenseIfNeeded(now: number): void {
 
   const prev = dailyDefense;
   setDailyDefense(
-    createEmptyDailyDefense({
+    rollDailyDefenseStateForNewDay({
       date: today,
-      startHour: prev.startHour,
-      attackedSection: prev.attackedSection,
       gameDayIndex: prev.gameDayIndex + 1,
+      startHour: prev.startHour,
+      rng: Math.random,
     }),
   );
+}
+
+/** Old saves may omit nightly defense fields; fill defaults without wiping progress. */
+function ensureDailyDefenseShape(): void {
+  const { dailyDefense, patchDailyDefense } = useDefenseStore.getState();
+  const d = dailyDefense as unknown as Record<string, unknown>;
+  let needsPatch = false;
+  const patch: Record<string, unknown> = {};
+  if (d.enlistedForDate === undefined) {
+    patch.enlistedForDate = {};
+    needsPatch = true;
+  }
+  if (d.phase === undefined) {
+    patch.phase = 'idle';
+    needsPatch = true;
+  }
+  if (d.outcome === undefined) {
+    patch.outcome = 'active';
+    needsPatch = true;
+  }
+  if (d.defenderLine === undefined) {
+    patch.defenderLine = [];
+    needsPatch = true;
+  }
+  if (needsPatch) {
+    patchDailyDefense(patch as Partial<DailyDefenseState>);
+  }
+}
+
+/**
+ * Persisted saves from before seeded waves: if no enemies for current idle day, seed once.
+ */
+function seedNightlyWaveIfEmpty(now: number): void {
+  const today = formatLocalDateString(new Date(now));
+  const { dailyDefense, patchDailyDefense } = useDefenseStore.getState();
+  if (dailyDefense.date !== today) return;
+  if (dailyDefense.enemies.length > 0) return;
+  if (dailyDefense.isCompleted) return;
+  const rng = Math.random;
+  const budget = targetThreatBudget(dailyDefense.gameDayIndex);
+  const enemies = composeWaveFromBudget(budget, rng);
+  patchDailyDefense({
+    enemies,
+    totalEnemyPoints: sumLivingThreatPoints(enemies),
+  });
 }
 
 /** Fix persisted id pointing at a removed character; keep null for selection screen. */
@@ -101,6 +151,8 @@ export async function bootstrapGame(): Promise<void> {
   const now = Date.now();
   applyStaminaRegenToAllCharacters(now);
   rollDailyDefenseIfNeeded(now);
+  ensureDailyDefenseShape();
+  seedNightlyWaveIfEmpty(now);
   fixInvalidCurrentCharacter();
   ensureCharacterCurrentHex();
   ensureCharacterHealth();
