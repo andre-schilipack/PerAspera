@@ -7,6 +7,12 @@ export interface StaminaState {
   lastUpdated: number;
 }
 
+/** Persistent combat vitality (synced after skirmish / future systems). */
+export interface CharacterHealth {
+  current: number;
+  max: number;
+}
+
 export interface Character {
   id: string;
   name: string;
@@ -15,6 +21,7 @@ export interface Character {
   exp: number;
   creds: number;
   stamina: StaminaState;
+  health: CharacterHealth;
   score: number;
   reputation: number;
   homeHexId: string;

@@ -2,6 +2,8 @@ import type { CombatLogEntry, EnemyInstance } from './combat.ts';
 
 export type StreetSkirmishOutcome = 'active' | 'win' | 'loss';
 
+export type StreetSkirmishPhase = 'preparing' | 'fighting' | 'ended';
+
 /**
  * Volatile street fight after a patrol encounter (not persisted).
  * Separate from {@link DailyDefenseState}.
@@ -19,4 +21,6 @@ export interface StreetSkirmishState {
   combatLog: CombatLogEntry[];
   isCompleted: boolean;
   outcome: StreetSkirmishOutcome;
+  /** UI/autobattle: wait before auto rounds; lock manual advance during preparing. */
+  phase: StreetSkirmishPhase;
 }

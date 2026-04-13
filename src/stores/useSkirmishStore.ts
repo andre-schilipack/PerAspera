@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 import {
-  STREET_SKIRMISH_WIN_CREDS,
+  STREET_SKIRMISH_SCRAP_REWARD_QTY,
   STREET_SKIRMISH_WIN_SCORE,
 } from '../domain/constants.ts';
 import {
@@ -9,16 +9,20 @@ import {
   createStreetSkirmish,
   type CreateStreetSkirmishParams,
 } from '../domain/streetSkirmish.ts';
-import type { CombatLogEntry } from '../domain/types/index.ts';
-import type { StreetSkirmishState } from '../domain/types/skirmish.ts';
+import type { CombatLogEntry, Item } from '../domain/types/index.ts';
+import type {
+  StreetSkirmishPhase,
+  StreetSkirmishState,
+} from '../domain/types/skirmish.ts';
 import { useCharactersStore } from './useCharactersStore.ts';
 import { useMetaStore } from './useMetaStore.ts';
 
 interface SkirmishActions {
   startFromPatrol: (params: CreateStreetSkirmishParams) => void;
+  setPhase: (phase: StreetSkirmishPhase) => void;
   /** One round of player + enemy actions. */
   advanceRound: () => void;
-  /** Close modal and drop volatile session. */
+  /** Close modal, sync HP to character, drop volatile session. */
   dismiss: () => void;
 }
 
@@ -37,7 +41,12 @@ export const useSkirmishStore = create<SkirmishStore>()((set, get) => ({
   session: null,
 
   startFromPatrol: (params) => {
-    const initial = createStreetSkirmish(params);
+    const ch = useCharactersStore.getState().characters[params.characterId];
+    const initial = createStreetSkirmish({
+      ...params,
+      playerHealth: ch?.health?.current,
+      playerMaxHealth: ch?.health?.max,
+    });
     const meta = useMetaStore.getState();
     const openId = meta.nextIds.combatLogEntry + 1;
     useMetaStore.getState().patchNextIds({ combatLogEntry: openId });
@@ -45,10 +54,16 @@ export const useSkirmishStore = create<SkirmishStore>()((set, get) => ({
       id: openId,
       turn: 0,
       timestamp: Date.now(),
-      text: 'Rust and eyes — something wants your creds.',
+      text: 'Rust and eyes — something steps out of the dark.',
       type: 'system',
     };
     set({ session: { ...initial, combatLog: [opening] } });
+  },
+
+  setPhase: (phase) => {
+    const s = get().session;
+    if (!s) return;
+    set({ session: { ...s, phase } });
   },
 
   advanceRound: () => {
@@ -70,8 +85,17 @@ export const useSkirmishStore = create<SkirmishStore>()((set, get) => ({
     if (next.outcome === 'win' && next.isCompleted) {
       const ch = useCharactersStore.getState().characters[next.characterId];
       if (ch) {
+        const scrap: Item = {
+          id: `scrap_metal_skirmish_${Date.now()}`,
+          name: 'Scrap Metal',
+          type: 'material',
+          rarity: 'comum',
+          value: 8,
+          effects: {},
+          quantity: STREET_SKIRMISH_SCRAP_REWARD_QTY,
+        };
+        useCharactersStore.getState().addItemToInventory(next.characterId, scrap);
         useCharactersStore.getState().updateCharacter(next.characterId, {
-          creds: ch.creds + STREET_SKIRMISH_WIN_CREDS,
           score: ch.score + STREET_SKIRMISH_WIN_SCORE,
         });
       }
@@ -85,5 +109,19 @@ export const useSkirmishStore = create<SkirmishStore>()((set, get) => ({
     });
   },
 
-  dismiss: () => set({ session: null }),
+  dismiss: () => {
+    const s = get().session;
+    if (s) {
+      const ch = useCharactersStore.getState().characters[s.characterId];
+      if (ch) {
+        useCharactersStore.getState().updateCharacter(s.characterId, {
+          health: {
+            current: Math.min(s.playerMaxHealth, Math.max(0, s.playerHealth)),
+            max: s.playerMaxHealth,
+          },
+        });
+      }
+    }
+    set({ session: null });
+  },
 }));

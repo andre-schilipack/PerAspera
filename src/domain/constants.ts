@@ -62,14 +62,26 @@ export const PATROL_ENCOUNTER_DANGER_WEIGHT = 0.34;
 /** Maximum encounter chance per patrol step (avoid frustration). */
 export const PATROL_ENCOUNTER_CHANCE_CAP = 0.42;
 
-/** Player HP pool during a street skirmish (Alpha). */
-export const STREET_SKIRMISH_PLAYER_HP = 42;
+/** Default max (and starting) HP for playable characters and street skirmish pool. */
+export const PLAYER_BASE_MAX_HP = 42;
 
-/** Creds granted when you clear a street encounter. */
-export const STREET_SKIRMISH_WIN_CREDS = 8;
+/** @deprecated Use {@link PLAYER_BASE_MAX_HP}. */
+export const STREET_SKIRMISH_PLAYER_HP = PLAYER_BASE_MAX_HP;
 
-/** Defense-score style contribution for local board (small). */
+/** Score granted when you clear a street encounter (no creds from enemies). */
 export const STREET_SKIRMISH_WIN_SCORE = 4;
+
+/** Scrap metal units granted on street skirmish win (enemies do not drop creds). */
+export const STREET_SKIRMISH_SCRAP_REWARD_QTY = 2;
+
+/** Base dodge chance (0–1) for melee resolution. */
+export const BASE_MELEE_DODGE_CHANCE = 0.1;
+
+/** Base block chance (0–1), rolled only if not dodged. */
+export const BASE_MELEE_BLOCK_CHANCE = 0.1;
+
+/** Damage multiplier when a hit is blocked (mitigated). */
+export const BLOCK_DAMAGE_FACTOR = 0.5;
 
 /** STA spent to lock participation in nightly defense. */
 export const DEFENSE_LOCK_STA_COST = 50;

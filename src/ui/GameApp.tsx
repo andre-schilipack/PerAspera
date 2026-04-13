@@ -11,7 +11,7 @@ import {
   NPC_OWNER_CITY,
   PATROL_STA_COST,
   STAMINA_REGEN_UI_INTERVAL_MS,
-  STREET_SKIRMISH_WIN_CREDS,
+  STREET_SKIRMISH_SCRAP_REWARD_QTY,
   STREET_SKIRMISH_WIN_SCORE,
   WALL_REPAIR_CREDS_COST,
   WALL_REPAIR_INTEGRITY_PER_ACTION,
@@ -58,7 +58,6 @@ import {
   scoreEntriesFromCharacters,
   topScoreboard,
 } from '../domain/leaderboard.ts';
-import { defenseDemoPulseMessage } from '../content/combatLines.ts';
 import {
   linkedScreenButtonLabel,
   placeSlotDisplayTitle,
@@ -80,6 +79,8 @@ import {
   enlistInExpansionContract,
   ensureExpansionContract,
 } from '../game/expansionContracts.ts';
+import { playCombatStartSound } from '../audio/playCombatStartSound.ts';
+import { resolveIncomingMeleeDamage } from '../domain/combatResolution.ts';
 import { runEconomicCatchUp } from '../game/economicCatchUp.ts';
 import { startNewGame } from '../game/startNewGame.ts';
 import { syncGlobalScoreboardFromCharacters } from '../game/syncScoreboard.ts';
@@ -139,7 +140,6 @@ export default function GameApp() {
 
   const skirmishSession = useSkirmishStore((s) => s.session);
   const startSkirmishFromPatrol = useSkirmishStore((s) => s.startFromPatrol);
-  const advanceSkirmishRound = useSkirmishStore((s) => s.advanceRound);
   const dismissSkirmish = useSkirmishStore((s) => s.dismiss);
 
   const hexMap = useWorldStore((s) => s.hexMap);
@@ -203,6 +203,43 @@ export default function GameApp() {
     }, ECONOMIC_TICK_INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [inGame]);
+
+  /** Street skirmish: drum sting, then after 5s start fighting + first round; then every 3s. */
+  useEffect(() => {
+    if (!skirmishSession || skirmishSession.phase !== 'preparing') return;
+    playCombatStartSound();
+    const prepTimer = window.setTimeout(() => {
+      const store = useSkirmishStore.getState();
+      store.setPhase('fighting');
+      store.advanceRound();
+    }, 5000);
+    return () => window.clearTimeout(prepTimer);
+    // Intentionally omit skirmishSession: combatLog/HP updates must not restart the 5s prep timer.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- session identity via hexId + characterId + phase
+  }, [skirmishSession?.phase, skirmishSession?.characterId, skirmishSession?.hexId]);
+
+  useEffect(() => {
+    if (
+      !skirmishSession ||
+      skirmishSession.phase !== 'fighting' ||
+      skirmishSession.isCompleted
+    ) {
+      return;
+    }
+    const intervalId = window.setInterval(() => {
+      useSkirmishStore.getState().advanceRound();
+      const s = useSkirmishStore.getState().session;
+      if (!s || s.isCompleted) {
+        window.clearInterval(intervalId);
+      }
+    }, 3000);
+    return () => window.clearInterval(intervalId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- log/HP churn must not reset the 3s interval
+  }, [
+    skirmishSession?.phase,
+    skirmishSession?.isCompleted,
+    skirmishSession?.characterId,
+  ]);
 
   function selectPlayableCharacter(characterId: string) {
     setCurrentCharacterId(characterId);
@@ -366,17 +403,38 @@ export default function GameApp() {
   function advanceDefenseTick() {
     const dd = useDefenseStore.getState().dailyDefense;
     const meta = useMetaStore.getState();
+    const turn = dd.currentTurn + 1;
+    const rawStrike = 7 + Math.floor(Math.random() * 7);
+    const strike = resolveIncomingMeleeDamage(rawStrike, Math.random);
+    let strikeText: string;
+    if (strike.flags.dodged) {
+      strikeText = `Defense tick ${String(turn)}: hostiles evade the volley.`;
+    } else if (strike.flags.blocked) {
+      strikeText = `Defense tick ${String(turn)}: blocked — ${String(strike.finalDamage)} damage through.`;
+    } else {
+      strikeText = `Defense tick ${String(turn)}: volley hits for ${String(strike.finalDamage)} damage.`;
+    }
     const logNum = meta.nextIds.combatLogEntry + 1;
     const line: CombatLogEntry = {
       id: logNum,
-      turn: dd.currentTurn + 1,
+      turn,
       timestamp: now,
-      text: defenseDemoPulseMessage(dd.currentTurn + 1),
+      text: strikeText,
       type: 'system',
     };
-    const nextEnemies = dd.enemies
-      .map((e) => ({ ...e, currentHealth: e.currentHealth - 8 }))
-      .filter((e) => e.currentHealth > 0);
+    const first = dd.enemies[0];
+    let nextEnemies = dd.enemies;
+    if (first && strike.finalDamage > 0) {
+      const nh = first.currentHealth - strike.finalDamage;
+      if (nh <= 0) {
+        nextEnemies = dd.enemies.slice(1);
+      } else {
+        nextEnemies = [
+          { ...first, currentHealth: nh },
+          ...dd.enemies.slice(1),
+        ];
+      }
+    }
     const waveCleared = dd.enemies.length > 0 && nextEnemies.length === 0;
     if (waveCleared && character) {
       const live = useCharactersStore.getState().characters[character.id];
@@ -394,7 +452,7 @@ export default function GameApp() {
     }
     patchNextIds({ combatLogEntry: logNum });
     patchDailyDefense({
-      currentTurn: dd.currentTurn + 1,
+      currentTurn: turn,
       combatLog: [...dd.combatLog, line],
       enemies: nextEnemies,
       isCompleted: waveCleared,
@@ -786,10 +844,18 @@ export default function GameApp() {
             {workerPoolFree} free / {workerAssignedTotal} assigned
           </p>
         </div>
-        <div className="game-stat">
-          STA{' '}
-          {Math.floor(staminaVisualCurrentAt(character.stamina, staminaUiTick))}/
-          {character.stamina.max}
+        <div className="game-header-stats">
+          <div className="game-stat" aria-label="Health points">
+            HP {Math.max(0, Math.floor(character.health.current))}/
+            {character.health.max}
+          </div>
+          <div className="game-stat" aria-label="Stamina">
+            STA{' '}
+            {Math.floor(
+              staminaVisualCurrentAt(character.stamina, staminaUiTick),
+            )}
+            /{character.stamina.max}
+          </div>
         </div>
       </header>
 
@@ -1358,6 +1424,16 @@ export default function GameApp() {
               Your HP {skirmishSession.playerHealth}/
               {skirmishSession.playerMaxHealth}
             </p>
+            {skirmishSession.phase === 'preparing' ? (
+              <p className="game-muted" role="status">
+                Stand by — combat begins in a few seconds.
+              </p>
+            ) : skirmishSession.phase === 'fighting' &&
+              !skirmishSession.isCompleted ? (
+              <p className="game-muted" role="status">
+                Auto-battle: a new round every 3 seconds.
+              </p>
+            ) : null}
             {skirmishSession.enemies.length > 0 ? (
               <ul className="game-skirmish-enemies">
                 {skirmishSession.enemies.map((e, i) => (
@@ -1373,12 +1449,13 @@ export default function GameApp() {
             <CombatLogList
               entries={skirmishSession.combatLog}
               className="game-combat-log--skirmish"
+              autoScroll={skirmishSession.phase === 'fighting'}
             />
             {skirmishSession.isCompleted ? (
               <>
                 {skirmishSession.outcome === 'win' ? (
                   <p className="game-skirmish-result">
-                    Victory — +{STREET_SKIRMISH_WIN_CREDS} creds, +
+                    Victory — +{STREET_SKIRMISH_SCRAP_REWARD_QTY} scrap metal, +
                     {STREET_SKIRMISH_WIN_SCORE} score (already applied).
                   </p>
                 ) : (
@@ -1390,11 +1467,7 @@ export default function GameApp() {
                   Close
                 </button>
               </>
-            ) : (
-              <button type="button" onClick={() => advanceSkirmishRound()}>
-                Act (round)
-              </button>
-            )}
+            ) : null}
           </div>
         </div>
       ) : null}

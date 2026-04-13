@@ -8,6 +8,7 @@ import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useCityStore } from '../stores/useCityStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
+import { PLAYER_BASE_MAX_HP } from '../domain/constants.ts';
 import { runEconomicCatchUp } from './economicCatchUp.ts';
 import type { GameMetaState } from '../domain/types/index.ts';
 
@@ -75,6 +76,21 @@ function ensureCharacterCurrentHex(): void {
   }
 }
 
+/** Older saves without `health` — default to full HP. */
+function ensureCharacterHealth(): void {
+  const { characters, updateCharacter } = useCharactersStore.getState();
+  for (const id of Object.keys(characters)) {
+    const ch = characters[id];
+    if (ch.health != null && ch.health.max > 0) continue;
+    updateCharacter(id, {
+      health: {
+        current: PLAYER_BASE_MAX_HP,
+        max: PLAYER_BASE_MAX_HP,
+      },
+    });
+  }
+}
+
 /**
  * Rehydrate persisted slices, migrate meta, regen stamina, roll daily defense,
  * and fix stale `currentCharacterId`.
@@ -87,5 +103,6 @@ export async function bootstrapGame(): Promise<void> {
   rollDailyDefenseIfNeeded(now);
   fixInvalidCurrentCharacter();
   ensureCharacterCurrentHex();
+  ensureCharacterHealth();
   runEconomicCatchUp(now);
 }

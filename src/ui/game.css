@@ -26,6 +26,14 @@
   margin: 0;
 }
 
+.game-header-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: baseline;
+  justify-content: flex-end;
+}
+
 .game-stat {
   font-size: 0.95rem;
   color: var(--text-h);

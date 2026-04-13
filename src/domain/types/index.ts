@@ -1,4 +1,4 @@
-export type { Character, StaminaState } from './character.ts';
+export type { Character, CharacterHealth, StaminaState } from './character.ts';
 export type {
   CombatLogActor,
   CombatLogEntry,

@@ -1,4 +1,5 @@
 import {
+  PLAYER_BASE_MAX_HP,
   STAMINA_INITIAL,
   STAMINA_MAX_BASE,
   STARTING_CREDS,
@@ -40,6 +41,10 @@ export function createCharacter(params: CreateCharacterParams): Character {
       current: STAMINA_INITIAL,
       max: STAMINA_MAX_BASE,
       lastUpdated: nowMs,
+    },
+    health: {
+      current: PLAYER_BASE_MAX_HP,
+      max: PLAYER_BASE_MAX_HP,
     },
     score: 0,
     reputation: 0,
