@@ -8,6 +8,7 @@ import { rollDailyDefenseStateForNewDay } from '../domain/factories/createDefens
 import { migrateGameMetaState } from '../domain/migrations.ts';
 import { useCharactersStore } from '../stores/useCharactersStore.ts';
 import { useContractsStore } from '../stores/useContractsStore.ts';
+import { applyHealthRegenToAllCharacters } from './healthRegenTick.ts';
 import { applyStaminaRegenToAllCharacters } from './staminaRegenTick.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
@@ -126,18 +127,27 @@ function ensureCharacterCurrentHex(): void {
   }
 }
 
-/** Older saves without `health` — default to full HP. */
+/** Older saves without `health` or without `health.lastUpdated`. */
 function ensureCharacterHealth(): void {
   const { characters, updateCharacter } = useCharactersStore.getState();
+  const now = Date.now();
   for (const id of Object.keys(characters)) {
     const ch = characters[id];
-    if (ch.health != null && ch.health.max > 0) continue;
-    updateCharacter(id, {
-      health: {
-        current: PLAYER_BASE_MAX_HP,
-        max: PLAYER_BASE_MAX_HP,
-      },
-    });
+    if (ch.health == null || ch.health.max <= 0) {
+      updateCharacter(id, {
+        health: {
+          current: PLAYER_BASE_MAX_HP,
+          max: PLAYER_BASE_MAX_HP,
+          lastUpdated: now,
+        },
+      });
+      continue;
+    }
+    if (ch.health.lastUpdated == null) {
+      updateCharacter(id, {
+        health: { ...ch.health, lastUpdated: now },
+      });
+    }
   }
 }
 
@@ -156,5 +166,6 @@ export async function bootstrapGame(): Promise<void> {
   fixInvalidCurrentCharacter();
   ensureCharacterCurrentHex();
   ensureCharacterHealth();
+  applyHealthRegenToAllCharacters(now);
   runEconomicCatchUp(now);
 }

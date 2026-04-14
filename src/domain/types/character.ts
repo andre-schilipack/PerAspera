@@ -11,6 +11,8 @@ export interface StaminaState {
 export interface CharacterHealth {
   current: number;
   max: number;
+  /** For passive HP regen (offline-friendly), same idea as stamina. */
+  lastUpdated: number;
 }
 
 export interface Character {

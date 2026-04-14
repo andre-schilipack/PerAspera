@@ -48,6 +48,7 @@ import {
   isAxialNeighbor,
   parseHexKey,
 } from '../domain/hex.ts';
+import { healthVisualCurrentAt } from '../domain/healthRegen.ts';
 import { staminaVisualCurrentAt } from '../domain/stamina.ts';
 import { makeBusinessId } from '../domain/ids.ts';
 import type { BusinessKind, DailyDefenseState, WallCardinal } from '../domain/types/index.ts';
@@ -73,6 +74,7 @@ import {
 } from '../content/lore.ts';
 import { MARKET_CATALOG } from '../game/marketCatalog.ts';
 import { addCharacterToWorld } from '../game/addCharacterToWorld.ts';
+import { applyHealthRegenToAllCharacters } from '../game/healthRegenTick.ts';
 import { applyStaminaRegenToAllCharacters } from '../game/staminaRegenTick.ts';
 import {
   enlistInExpansionContract,
@@ -197,7 +199,9 @@ export default function GameApp() {
   useEffect(() => {
     if (!inGame) return;
     const id = window.setInterval(() => {
-      applyStaminaRegenToAllCharacters(Date.now());
+      const t = Date.now();
+      applyStaminaRegenToAllCharacters(t);
+      applyHealthRegenToAllCharacters(t);
     }, STAMINA_REGEN_UI_INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [inGame]);
@@ -250,6 +254,7 @@ export default function GameApp() {
   function syncDefenderHpToCharacters(
     line: { characterId: string; currentHp: number; maxHp: number }[],
   ) {
+    const t = Date.now();
     for (const d of line) {
       const ch = useCharactersStore.getState().characters[d.characterId];
       if (!ch) continue;
@@ -257,6 +262,7 @@ export default function GameApp() {
         health: {
           current: Math.min(d.maxHp, Math.max(0, d.currentHp)),
           max: d.maxHp,
+          lastUpdated: t,
         },
       });
     }
@@ -920,8 +926,12 @@ export default function GameApp() {
         </div>
         <div className="game-header-stats">
           <div className="game-stat" aria-label="Health points">
-            HP {Math.max(0, Math.floor(character.health.current))}/
-            {character.health.max}
+            HP{' '}
+            {Math.max(
+              0,
+              Math.floor(healthVisualCurrentAt(character.health, staminaUiTick)),
+            )}
+            /{character.health.max}
           </div>
           <div className="game-stat" aria-label="Stamina">
             STA{' '}

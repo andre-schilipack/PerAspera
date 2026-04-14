@@ -128,6 +128,9 @@ export const EXPANSION_CONTRACT_STA_COST = 20;
 /** Passive stamina regenerated over a full 24h window (offline-friendly). */
 export const STAMINA_REGEN_PER_24H = 120;
 
+/** Passive HP regenerated over a full 24h window (same clock as stamina regen). */
+export const HEALTH_REGEN_PER_24H = 48;
+
 /** Reapply regen logic on this interval while the game UI is open (real-time updates). */
 export const STAMINA_REGEN_UI_INTERVAL_MS = 10_000;
 

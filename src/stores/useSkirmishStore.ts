@@ -118,6 +118,7 @@ export const useSkirmishStore = create<SkirmishStore>()((set, get) => ({
           health: {
             current: Math.min(s.playerMaxHealth, Math.max(0, s.playerHealth)),
             max: s.playerMaxHealth,
+            lastUpdated: Date.now(),
           },
         });
       }

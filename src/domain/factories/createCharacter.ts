@@ -45,6 +45,7 @@ export function createCharacter(params: CreateCharacterParams): Character {
     health: {
       current: PLAYER_BASE_MAX_HP,
       max: PLAYER_BASE_MAX_HP,
+      lastUpdated: nowMs,
     },
     score: 0,
     reputation: 0,
