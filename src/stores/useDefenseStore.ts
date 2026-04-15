@@ -7,12 +7,23 @@ import {
   createInitialWallState,
   rollDailyDefenseStateForNewDay,
 } from '../domain/factories/createDefenseSeed.ts';
+import {
+  applyNightlyDefenseAdvanceCommit,
+  buildNightlyDefenseAdvanceCommit,
+} from '../game/nightlyDefenseAdvance.ts';
 import type { DailyDefenseState, WallState } from '../domain/types/index.ts';
+
+import { useCharactersStore } from './useCharactersStore.ts';
+import { useCityStore } from './useCityStore.ts';
+import { useMetaStore } from './useMetaStore.ts';
+import { useWorldStore } from './useWorldStore.ts';
 
 interface DefenseActions {
   setDailyDefense: (dailyDefense: DailyDefenseState) => void;
   patchDailyDefense: (patch: Partial<DailyDefenseState>) => void;
   setWall: (wall: WallState) => void;
+  /** One combat round: domain commit + cross-store apply (centered here). */
+  advanceNightlyDefenseRound: (rng?: () => number) => void;
   reset: () => void;
 }
 
@@ -38,12 +49,35 @@ function initialDefenseState(): DefenseSlice {
 
 export const useDefenseStore = create<DefenseStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...initialDefenseState(),
       setDailyDefense: (dailyDefense) => set({ dailyDefense }),
       patchDailyDefense: (patch) =>
         set((s) => ({ dailyDefense: { ...s.dailyDefense, ...patch } })),
       setWall: (wall) => set({ wall }),
+      advanceNightlyDefenseRound: (rng = Math.random) => {
+        const commit = buildNightlyDefenseAdvanceCommit(
+          {
+            dailyDefense: get().dailyDefense,
+            wall: get().wall,
+            nextCombatLogEntryId: useMetaStore.getState().nextIds.combatLogEntry,
+            civilianPopulation: useCityStore.getState().civilianPopulation,
+            hexMap: useWorldStore.getState().hexMap,
+          },
+          rng,
+          Date.now(),
+        );
+        applyNightlyDefenseAdvanceCommit(commit, {
+          setWall: (wall) => get().setWall(wall),
+          patchNextIds: useMetaStore.getState().patchNextIds,
+          setDailyDefense: (dailyDefense) => get().setDailyDefense(dailyDefense),
+          updateCharacter: useCharactersStore.getState().updateCharacter,
+          getCharacter: (id) => useCharactersStore.getState().characters[id],
+          setCivilianPopulation: useCityStore.getState().setCivilianPopulation,
+          setHexMap: useWorldStore.getState().setHexMap,
+          addItemToInventory: useCharactersStore.getState().addItemToInventory,
+        });
+      },
       reset: () => set(initialDefenseState()),
     }),
     {

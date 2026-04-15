@@ -5,6 +5,7 @@ import {
   sumLivingThreatPoints,
   targetThreatBudget,
 } from '../enemyThreat.ts';
+import { rollVictoryLootPoolForWave } from '../nightlyDefenseLoot.ts';
 import { formatLocalDateString } from '../defenseSchedule.ts';
 import type {
   DailyDefenseState,
@@ -58,6 +59,7 @@ export function createEmptyDailyDefense(params?: {
     phase: 'idle',
     outcome: 'active',
     defenderLine: [],
+    victoryLootPool: [],
   };
 }
 
@@ -74,6 +76,11 @@ export function rollDailyDefenseStateForNewDay(params: {
   const budget = targetThreatBudget(params.gameDayIndex);
   const enemies = composeWaveFromBudget(budget, params.rng);
   const totalEnemyPoints = sumLivingThreatPoints(enemies);
+  const victoryLootPool = rollVictoryLootPoolForWave(
+    enemies,
+    params.rng,
+    `day_${params.date}`,
+  );
   return {
     date: params.date,
     currentTurn: 0,
@@ -92,5 +99,6 @@ export function rollDailyDefenseStateForNewDay(params: {
     phase: 'idle',
     outcome: 'active',
     defenderLine: [],
+    victoryLootPool,
   };
 }

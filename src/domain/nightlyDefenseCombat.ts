@@ -66,14 +66,23 @@ function applyFinalDamageToFirstLiving(
   return next;
 }
 
-function pickEnemyStrikeTarget(
+/**
+ * Strike order: each living defender in line order, then the wall (repeats by modulo).
+ */
+function buildEnemyStrikeCycle(
   defenderLine: DefenderLineEntry[],
-): DefenderLineEntry | null {
-  const eligible = defenderLine.filter(
-    (d) => !d.retreated && d.currentHp > 0,
-  );
-  if (eligible.length === 0) return null;
-  return eligible[0]!;
+): Array<{ kind: 'defender'; lineIndex: number } | { kind: 'wall' }> {
+  const cycle: Array<
+    { kind: 'defender'; lineIndex: number } | { kind: 'wall' }
+  > = [];
+  for (let i = 0; i < defenderLine.length; i++) {
+    const d = defenderLine[i]!;
+    if (!d.retreated && d.currentHp > 0) {
+      cycle.push({ kind: 'defender', lineIndex: i });
+    }
+  }
+  cycle.push({ kind: 'wall' });
+  return cycle;
 }
 
 function applyRetreatRules(entry: DefenderLineEntry): DefenderLineEntry {
@@ -114,6 +123,7 @@ export function advanceNightlyDefenseRound(
         isCompleted: true,
         phase: 'ended',
         outcome: 'victory',
+        victoryLootPool: daily.victoryLootPool,
       },
       wallResult: { wall, breached: false },
       fightEnded: true,
@@ -195,41 +205,14 @@ export function advanceNightlyDefenseRound(
 
   enemies = enemies.filter((e) => e.currentHealth > 0);
 
-  for (const e of enemies) {
+  const strikeCycle = buildEnemyStrikeCycle(defenderLine);
+
+  for (let ei = 0; ei < enemies.length; ei++) {
+    const e = enemies[ei]!;
     if (breached) break;
-    const target = pickEnemyStrikeTarget(defenderLine);
-    if (target) {
-      const raw = rollIntInclusive(
-        rng,
-        DEFENSE_ENEMY_STRIKE_VS_PLAYER_MIN,
-        DEFENSE_ENEMY_STRIKE_VS_PLAYER_MAX,
-      );
-      const strike = resolveIncomingMeleeDamage(raw, rng);
-      const di = defenderLine.findIndex(
-        (d) => d.characterId === target.characterId,
-      );
-      if (di >= 0) {
-        const d = defenderLine[di]!;
-        const nextHp = strike.flags.dodged
-          ? d.currentHp
-          : Math.max(0, d.currentHp - strike.finalDamage);
-        let nextD: DefenderLineEntry = { ...d, currentHp: nextHp };
-        nextD = applyRetreatRules(nextD);
-        const rep = [...defenderLine];
-        rep[di] = nextD;
-        defenderLine = rep;
-        lines.push({
-          turn,
-          timestamp: t0,
-          text: strike.flags.dodged
-            ? `${e.enemyId} lunges at ${d.name} — evaded.`
-            : strike.flags.blocked
-              ? `${e.enemyId} hits ${d.name} (blocked) for ${String(strike.finalDamage)}.`
-              : `${e.enemyId} hits ${d.name} for ${String(strike.finalDamage)}.`,
-          type: 'enemy',
-        });
-      }
-    } else {
+    const slot = strikeCycle[ei % strikeCycle.length]!;
+
+    const hitWall = (): void => {
       const raw = rollIntInclusive(
         rng,
         DEFENSE_ENEMY_STRIKE_VS_WALL_MIN,
@@ -248,7 +231,50 @@ export function advanceNightlyDefenseRound(
         text: `Hostiles strike the ${daily.attackedSection} wall for ${String(raw)} structural damage.`,
         type: 'enemy',
       });
+    };
+
+    if (slot.kind === 'wall') {
+      hitWall();
+      continue;
     }
+
+    const di = slot.lineIndex;
+    const d = defenderLine[di]!;
+    if (d.retreated || d.currentHp <= 0) {
+      lines.push({
+        turn,
+        timestamp: t0,
+        text: `${e.enemyId} aims at ${d.name}'s position — line down; pressure on the wall.`,
+        type: 'enemy',
+      });
+      hitWall();
+      continue;
+    }
+
+    const raw = rollIntInclusive(
+      rng,
+      DEFENSE_ENEMY_STRIKE_VS_PLAYER_MIN,
+      DEFENSE_ENEMY_STRIKE_VS_PLAYER_MAX,
+    );
+    const strike = resolveIncomingMeleeDamage(raw, rng);
+    const nextHp = strike.flags.dodged
+      ? d.currentHp
+      : Math.max(0, d.currentHp - strike.finalDamage);
+    let nextD: DefenderLineEntry = { ...d, currentHp: nextHp };
+    nextD = applyRetreatRules(nextD);
+    const rep = [...defenderLine];
+    rep[di] = nextD;
+    defenderLine = rep;
+    lines.push({
+      turn,
+      timestamp: t0,
+      text: strike.flags.dodged
+        ? `${e.enemyId} lunges at ${d.name} — evaded.`
+        : strike.flags.blocked
+          ? `${e.enemyId} hits ${d.name} (blocked) for ${String(strike.finalDamage)}.`
+          : `${e.enemyId} hits ${d.name} for ${String(strike.finalDamage)}.`,
+      type: 'enemy',
+    });
   }
 
   const totalEnemyPoints = sumLivingThreatPoints(enemies);
@@ -288,6 +314,7 @@ export function advanceNightlyDefenseRound(
     outcome,
     isCompleted,
     phase,
+    victoryLootPool: daily.victoryLootPool,
   };
 
   return {

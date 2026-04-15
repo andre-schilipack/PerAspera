@@ -4,9 +4,6 @@ import {
   CENTER_HEX_ID,
   DEFENSE_LOCK_STA_COST,
   DEFENSE_START_HOUR,
-  DEFENSE_VICTORY_CREDS,
-  DEFENSE_VICTORY_REPUTATION,
-  DEFENSE_VICTORY_SCORE,
   ECONOMIC_TICK_INTERVAL_MS,
   EMPTY_LOT_PRICE,
   INITIAL_CIVILIAN_POPULATION,
@@ -51,8 +48,7 @@ import {
 import { healthVisualCurrentAt } from '../domain/healthRegen.ts';
 import { staminaVisualCurrentAt } from '../domain/stamina.ts';
 import { makeBusinessId } from '../domain/ids.ts';
-import type { BusinessKind, DailyDefenseState, WallCardinal } from '../domain/types/index.ts';
-import type { CombatLogEntry } from '../domain/types/index.ts';
+import type { BusinessKind, WallCardinal } from '../domain/types/index.ts';
 import type { Item } from '../domain/types/index.ts';
 import {
   scoreEntriesFromCharacters,
@@ -80,13 +76,8 @@ import {
   enlistInExpansionContract,
   ensureExpansionContract,
 } from '../game/expansionContracts.ts';
-import { applyRaidFromRemainingThreat } from '../domain/applyRaid.ts';
 import { playCombatStartSound } from '../audio/playCombatStartSound.ts';
-import { sumLivingThreatPoints } from '../domain/enemyThreat.ts';
-import {
-  advanceNightlyDefenseRound,
-  buildDefenderLineFromLocks,
-} from '../domain/nightlyDefenseCombat.ts';
+import { buildDefenderLineFromLocks } from '../domain/nightlyDefenseCombat.ts';
 import { runEconomicCatchUp } from '../game/economicCatchUp.ts';
 import { startNewGame } from '../game/startNewGame.ts';
 import { syncGlobalScoreboardFromCharacters } from '../game/syncScoreboard.ts';
@@ -158,17 +149,18 @@ export default function GameApp() {
   const addItem = useCharactersStore((s) => s.addItemToInventory);
   const removeItem = useCharactersStore((s) => s.removeItemFromInventory);
   const updateHex = useWorldStore((s) => s.updateHex);
-  const setHexMap = useWorldStore((s) => s.setHexMap);
 
   const dailyDefense = useDefenseStore((s) => s.dailyDefense);
   const wall = useDefenseStore((s) => s.wall);
   const setWall = useDefenseStore((s) => s.setWall);
   const patchDailyDefense = useDefenseStore((s) => s.patchDailyDefense);
+  const advanceNightlyDefenseRound = useDefenseStore(
+    (s) => s.advanceNightlyDefenseRound,
+  );
   const cityCore = useCityStore((s) => s.cityCore);
   const civilianPopulation = useCityStore(
     (s) => s.civilianPopulation ?? INITIAL_CIVILIAN_POPULATION,
   );
-  const setCivilianPopulation = useCityStore((s) => s.setCivilianPopulation);
   const patchNextIds = useMetaStore((s) => s.patchNextIds);
   const contracts = useContractsStore((s) => s.contracts);
 
@@ -185,6 +177,8 @@ export default function GameApp() {
     syncGlobalScoreboardFromCharacters(characters);
   }, [characters]);
   const purchaseSeq = useRef(0);
+  /** Prevents duplicate auto-start on the same calendar day. */
+  const autoNightlyDefenseDateRef = useRef<string | null>(null);
 
   const characterIds = Object.keys(characters);
   const needsFirstRun = !hexMap || characterIds.length === 0;
@@ -251,94 +245,6 @@ export default function GameApp() {
     skirmishSession?.characterId,
   ]);
 
-  function syncDefenderHpToCharacters(
-    line: { characterId: string; currentHp: number; maxHp: number }[],
-  ) {
-    const t = Date.now();
-    for (const d of line) {
-      const ch = useCharactersStore.getState().characters[d.characterId];
-      if (!ch) continue;
-      updateCharacter(d.characterId, {
-        health: {
-          current: Math.min(d.maxHp, Math.max(0, d.currentHp)),
-          max: d.maxHp,
-          lastUpdated: t,
-        },
-      });
-    }
-  }
-
-  function advanceNightlyDefenseAction() {
-    const dd = useDefenseStore.getState().dailyDefense;
-    const w = useDefenseStore.getState().wall;
-    const result = advanceNightlyDefenseRound(dd, w, Math.random);
-    const meta = useMetaStore.getState();
-    let nextId = meta.nextIds.combatLogEntry;
-    const newLines: CombatLogEntry[] = result.newLogLines.map((l) => {
-      nextId += 1;
-      return { ...l, id: nextId };
-    });
-    let combatLog = [...dd.combatLog, ...newLines];
-    let nextDaily: DailyDefenseState = { ...result.nextDaily, combatLog };
-    setWall(result.wallResult.wall);
-    useMetaStore.getState().patchNextIds({ combatLogEntry: nextId });
-
-    if (result.fightEnded) {
-      syncDefenderHpToCharacters(result.nextDaily.defenderLine);
-      if (result.nextDaily.outcome === 'victory') {
-        const participantIds = result.nextDaily.defenderLine.map(
-          (d) => d.characterId,
-        );
-        for (const pid of participantIds) {
-          const live = useCharactersStore.getState().characters[pid];
-          if (!live) continue;
-          updateCharacter(pid, {
-            score: live.score + DEFENSE_VICTORY_SCORE,
-            reputation: live.reputation + DEFENSE_VICTORY_REPUTATION,
-            creds: live.creds + DEFENSE_VICTORY_CREDS,
-          });
-        }
-      }
-      if (result.nextDaily.outcome === 'breach') {
-        const hm = useWorldStore.getState().hexMap;
-        if (!hm) {
-          useDefenseStore.getState().patchDailyDefense(nextDaily);
-          return;
-        }
-        const threat = sumLivingThreatPoints(result.nextDaily.enemies);
-        const raid = applyRaidFromRemainingThreat({
-          remainingThreatPoints: threat,
-          civilianPopulation: useCityStore.getState().civilianPopulation,
-          hexMap: hm,
-          rng: Math.random,
-        });
-        setCivilianPopulation(raid.civilianPopulation);
-        setHexMap(raid.hexMap);
-        for (const text of raid.logLines) {
-          nextId += 1;
-          combatLog = [
-            ...combatLog,
-            {
-              id: nextId,
-              turn: nextDaily.currentTurn,
-              timestamp: Date.now(),
-              text,
-              type: 'system',
-            },
-          ];
-        }
-        useMetaStore.getState().patchNextIds({ combatLogEntry: nextId });
-        nextDaily = {
-          ...nextDaily,
-          combatLog,
-          enemies: [],
-          totalEnemyPoints: 0,
-        };
-      }
-    }
-    useDefenseStore.getState().patchDailyDefense(nextDaily);
-  }
-
   function beginNightlyDefense() {
     const dd = useDefenseStore.getState().dailyDefense;
     if (dd.phase !== 'idle' || dd.isCompleted || dd.enemies.length === 0) {
@@ -350,13 +256,37 @@ export default function GameApp() {
     patchDailyDefense({ phase: 'preparing', defenderLine: line });
   }
 
+  /** Auto-start at local DEFENSE_START_HOUR when still idle (manual Start remains available earlier). */
+  useEffect(() => {
+    if (!inGame) return;
+    const tryAutoStartNightlyDefense = () => {
+      if (new Date().getHours() < DEFENSE_START_HOUR) return;
+      const dd = useDefenseStore.getState().dailyDefense;
+      if (dd.phase !== 'idle' || dd.isCompleted || dd.enemies.length === 0) {
+        return;
+      }
+      if (autoNightlyDefenseDateRef.current === dd.date) return;
+      const chars = useCharactersStore.getState().characters;
+      const lockedIds = Object.keys(dd.isLocked).filter((id) => dd.isLocked[id]);
+      const line = buildDefenderLineFromLocks(lockedIds, (id) => chars[id]);
+      autoNightlyDefenseDateRef.current = dd.date;
+      useDefenseStore.getState().patchDailyDefense({
+        phase: 'preparing',
+        defenderLine: line,
+      });
+    };
+    tryAutoStartNightlyDefense();
+    const intervalId = window.setInterval(tryAutoStartNightlyDefense, 30_000);
+    return () => window.clearInterval(intervalId);
+  }, [inGame, dailyDefense.date]);
+
   /** Nightly defense: 5s prep then first round; then 3s auto rounds. */
   useEffect(() => {
     if (!inGame || dailyDefense.phase !== 'preparing') return;
     playCombatStartSound();
     const prepTimer = window.setTimeout(() => {
       useDefenseStore.getState().patchDailyDefense({ phase: 'fighting' });
-      queueMicrotask(() => advanceNightlyDefenseAction());
+      queueMicrotask(() => advanceNightlyDefenseRound());
     }, 5000);
     return () => window.clearTimeout(prepTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset prep on phase/date identity
@@ -371,7 +301,7 @@ export default function GameApp() {
       return;
     }
     const intervalId = window.setInterval(() => {
-      advanceNightlyDefenseAction();
+      advanceNightlyDefenseRound();
       const s = useDefenseStore.getState().dailyDefense;
       if (s.isCompleted) {
         window.clearInterval(intervalId);
@@ -1175,7 +1105,8 @@ export default function GameApp() {
           </div>
           <p>
             Local time <strong>{formatTime(new Date(now))}</strong> · event
-            hour {DEFENSE_START_HOUR}:00
+            hour {DEFENSE_START_HOUR}:00 — auto-starts at{' '}
+            {DEFENSE_START_HOUR}:00 if still idle (you can Start earlier manually).
           </p>
           <p className="game-muted">
             Day {dailyDefense.date} · game day index {dailyDefense.gameDayIndex}{' '}

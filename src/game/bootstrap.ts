@@ -4,6 +4,7 @@ import {
   sumLivingThreatPoints,
   targetThreatBudget,
 } from '../domain/enemyThreat.ts';
+import { rollVictoryLootPoolForWave } from '../domain/nightlyDefenseLoot.ts';
 import { rollDailyDefenseStateForNewDay } from '../domain/factories/createDefenseSeed.ts';
 import { migrateGameMetaState } from '../domain/migrations.ts';
 import { useCharactersStore } from '../stores/useCharactersStore.ts';
@@ -82,6 +83,10 @@ function ensureDailyDefenseShape(): void {
     patch.defenderLine = [];
     needsPatch = true;
   }
+  if (d.victoryLootPool === undefined) {
+    patch.victoryLootPool = [];
+    needsPatch = true;
+  }
   if (needsPatch) {
     patchDailyDefense(patch as Partial<DailyDefenseState>);
   }
@@ -99,9 +104,15 @@ function seedNightlyWaveIfEmpty(now: number): void {
   const rng = Math.random;
   const budget = targetThreatBudget(dailyDefense.gameDayIndex);
   const enemies = composeWaveFromBudget(budget, rng);
+  const victoryLootPool = rollVictoryLootPoolForWave(
+    enemies,
+    rng,
+    `seed_${today}`,
+  );
   patchDailyDefense({
     enemies,
     totalEnemyPoints: sumLivingThreatPoints(enemies),
+    victoryLootPool,
   });
 }
 

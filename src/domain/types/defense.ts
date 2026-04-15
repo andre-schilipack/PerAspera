@@ -3,6 +3,7 @@ import type {
   DefenseParticipant,
   EnemyInstance,
 } from './combat.ts';
+import type { Item } from './items.ts';
 
 export type WallCardinal = 'north' | 'south' | 'east' | 'west';
 
@@ -61,4 +62,8 @@ export interface DailyDefenseState {
   outcome: NightlyDefenseOutcome;
   /** Snapshot per fight; filled when combat starts. */
   defenderLine: DefenderLineEntry[];
+  /**
+   * Rolled when the wave is seeded; split randomly among `defenderLine` on victory.
+   */
+  victoryLootPool: Item[];
 }
