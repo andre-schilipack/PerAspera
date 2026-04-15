@@ -166,7 +166,7 @@ export function advanceNightlyDefenseRound(
     text: towerHit.flags.dodged
       ? `${DEFENSE_NPC_TOWER_LABEL}: shot evaded by hostiles.`
       : `${DEFENSE_NPC_TOWER_LABEL} fires for ${String(towerHit.finalDamage)} damage.`,
-    type: 'system',
+    type: 'guarda',
   });
 
   for (let gi = 0; gi < DEFENSE_NPC_GUARD_IDS.length; gi++) {

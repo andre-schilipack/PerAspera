@@ -7,11 +7,16 @@ import {
   createInitialWallState,
   rollDailyDefenseStateForNewDay,
 } from '../domain/factories/createDefenseSeed.ts';
+import { defenseEndScreenFromCommit } from '../game/defenseEndScreenFromCommit.ts';
 import {
   applyNightlyDefenseAdvanceCommit,
   buildNightlyDefenseAdvanceCommit,
 } from '../game/nightlyDefenseAdvance.ts';
-import type { DailyDefenseState, WallState } from '../domain/types/index.ts';
+import type {
+  DailyDefenseState,
+  DefenseEndScreenState,
+  WallState,
+} from '../domain/types/index.ts';
 
 import { useCharactersStore } from './useCharactersStore.ts';
 import { useCityStore } from './useCityStore.ts';
@@ -24,12 +29,15 @@ interface DefenseActions {
   setWall: (wall: WallState) => void;
   /** One combat round: domain commit + cross-store apply (centered here). */
   advanceNightlyDefenseRound: (rng?: () => number) => void;
+  dismissDefenseEndScreen: () => void;
   reset: () => void;
 }
 
 type DefenseSlice = {
   dailyDefense: DailyDefenseState;
   wall: WallState;
+  /** Ephemeral victory/defeat modal payload (excluded from persist). */
+  defenseEndScreen: DefenseEndScreenState | null;
 };
 
 type DefenseStore = DefenseSlice & DefenseActions;
@@ -44,6 +52,7 @@ function initialDefenseState(): DefenseSlice {
       rng: Math.random,
     }),
     wall: createInitialWallState(),
+    defenseEndScreen: null,
   };
 }
 
@@ -77,7 +86,15 @@ export const useDefenseStore = create<DefenseStore>()(
           setHexMap: useWorldStore.getState().setHexMap,
           addItemToInventory: useCharactersStore.getState().addItemToInventory,
         });
+        const end = defenseEndScreenFromCommit(commit, (id) => {
+          const ch = useCharactersStore.getState().characters[id];
+          return ch?.name ?? id;
+        });
+        if (end) {
+          set({ defenseEndScreen: end });
+        }
       },
+      dismissDefenseEndScreen: () => set({ defenseEndScreen: null }),
       reset: () => set(initialDefenseState()),
     }),
     {

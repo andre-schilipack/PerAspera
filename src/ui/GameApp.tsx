@@ -157,6 +157,10 @@ export default function GameApp() {
   const advanceNightlyDefenseRound = useDefenseStore(
     (s) => s.advanceNightlyDefenseRound,
   );
+  const defenseEndScreen = useDefenseStore((s) => s.defenseEndScreen);
+  const dismissDefenseEndScreen = useDefenseStore(
+    (s) => s.dismissDefenseEndScreen,
+  );
   const cityCore = useCityStore((s) => s.cityCore);
   const civilianPopulation = useCityStore(
     (s) => s.civilianPopulation ?? INITIAL_CIVILIAN_POPULATION,
@@ -1531,6 +1535,64 @@ export default function GameApp() {
                 </button>
               </>
             ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {defenseEndScreen ? (
+        <div
+          className="game-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="defense-end-title"
+        >
+          <div className="game-modal">
+            {defenseEndScreen.kind === 'victory' ? (
+              <>
+                <h2 id="defense-end-title">Defense held</h2>
+                <p className="game-muted">
+                  The perimeter holds — nightly defense succeeded.
+                </p>
+                {defenseEndScreen.participants.length === 0 ? (
+                  <p className="game-muted">
+                    No player line this night — static defenses carried the sector.
+                  </p>
+                ) : (
+                  <ul className="game-skirmish-enemies">
+                    {defenseEndScreen.participants.map((p) => (
+                      <li key={p.characterId}>
+                        <strong>{p.name}</strong>
+                        <span className="game-muted">
+                          {' '}
+                          +{p.scoreDelta} score, +{p.reputationDelta} rep, +
+                          {p.credsDelta} creds
+                        </span>
+                        {p.items.length > 0 ? (
+                          <ul className="game-defense-spoils">
+                            {p.items.map((it) => (
+                              <li key={it.id}>
+                                {it.name} × {it.quantity}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : (
+              <>
+                <h2 id="defense-end-title">Wall breached</h2>
+                <p>
+                  Hostiles broke through — the city was raided. Repair the walls
+                  and recover what you can.
+                </p>
+              </>
+            )}
+            <button type="button" onClick={() => dismissDefenseEndScreen()}>
+              Continue
+            </button>
           </div>
         </div>
       ) : null}

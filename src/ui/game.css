@@ -540,6 +540,13 @@
   font-size: 0.88rem;
 }
 
+.game-defense-spoils {
+  margin: 6px 0 0;
+  padding-left: 1.2rem;
+  list-style: disc;
+  font-size: 0.85rem;
+}
+
 .game-log--skirmish {
   max-height: 200px;
 }

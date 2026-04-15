@@ -67,3 +67,23 @@ export interface DailyDefenseState {
    */
   victoryLootPool: Item[];
 }
+
+/** Post-battle summary modal (not persisted). */
+export interface DefenseVictoryParticipantSummary {
+  characterId: string;
+  name: string;
+  scoreDelta: number;
+  reputationDelta: number;
+  credsDelta: number;
+  items: Item[];
+}
+
+export type DefenseEndScreenState =
+  | {
+      kind: 'victory';
+      participants: DefenseVictoryParticipantSummary[];
+    }
+  | {
+      kind: 'defeat';
+      variant: 'breach';
+    };
