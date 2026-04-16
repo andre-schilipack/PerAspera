@@ -32,6 +32,11 @@ export interface Character {
   availableMoves: string[];
   /** Resets with daily defense bookkeeping. */
   currentDefenseContribution: number;
+  /**
+   * When true (default), STA is spent and lock is applied automatically before
+   * nightly defense starts if stamina allows. Persisted; older saves omit → treated as true.
+   */
+  autoEnlistNightlyDefense?: boolean;
   inventory: Item[];
   createdAt: number;
 }

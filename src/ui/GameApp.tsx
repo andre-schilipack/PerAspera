@@ -77,6 +77,7 @@ import {
   ensureExpansionContract,
 } from '../game/expansionContracts.ts';
 import { playCombatStartSound } from '../audio/playCombatStartSound.ts';
+import { applyAutoEnlistLocksForDefense } from '../game/applyAutoEnlistLocksForDefense.ts';
 import { buildDefenderLineFromLocks } from '../domain/nightlyDefenseCombat.ts';
 import { runEconomicCatchUp } from '../game/economicCatchUp.ts';
 import { startNewGame } from '../game/startNewGame.ts';
@@ -254,8 +255,12 @@ export default function GameApp() {
     if (dd.phase !== 'idle' || dd.isCompleted || dd.enemies.length === 0) {
       return;
     }
+    applyAutoEnlistLocksForDefense(Date.now());
+    const ddAfter = useDefenseStore.getState().dailyDefense;
     const chars = useCharactersStore.getState().characters;
-    const lockedIds = Object.keys(dd.isLocked).filter((id) => dd.isLocked[id]);
+    const lockedIds = Object.keys(ddAfter.isLocked).filter(
+      (id) => ddAfter.isLocked[id],
+    );
     const line = buildDefenderLineFromLocks(lockedIds, (id) => chars[id]);
     patchDailyDefense({ phase: 'preparing', defenderLine: line });
   }
@@ -270,8 +275,12 @@ export default function GameApp() {
         return;
       }
       if (autoNightlyDefenseDateRef.current === dd.date) return;
+      applyAutoEnlistLocksForDefense(Date.now());
+      const ddAfter = useDefenseStore.getState().dailyDefense;
       const chars = useCharactersStore.getState().characters;
-      const lockedIds = Object.keys(dd.isLocked).filter((id) => dd.isLocked[id]);
+      const lockedIds = Object.keys(ddAfter.isLocked).filter(
+        (id) => ddAfter.isLocked[id],
+      );
       const line = buildDefenderLineFromLocks(lockedIds, (id) => chars[id]);
       autoNightlyDefenseDateRef.current = dd.date;
       useDefenseStore.getState().patchDailyDefense({
@@ -1130,6 +1139,24 @@ export default function GameApp() {
           <p className="game-muted">
             Lock for this calendar night:{' '}
             {dailyDefense.isLocked[character.id] ? 'yes' : 'no'}
+          </p>
+          <p className="game-muted">
+            <label>
+              <input
+                type="checkbox"
+                checked={character.autoEnlistNightlyDefense ?? true}
+                onChange={() => {
+                  updateCharacter(character.id, {
+                    autoEnlistNightlyDefense: !(
+                      character.autoEnlistNightlyDefense ?? true
+                    ),
+                  });
+                }}
+                disabled={dailyDefense.isCompleted}
+              />{' '}
+              Auto-enlist — spend {DEFENSE_LOCK_STA_COST} STA when nightly
+              defense starts (auto or manual Start) if you have enough stamina
+            </label>
           </p>
           <button
             type="button"

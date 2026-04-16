@@ -138,6 +138,16 @@ function ensureCharacterCurrentHex(): void {
   }
 }
 
+/** Older saves omit `autoEnlistNightlyDefense`; default ON (opt-out in UI). */
+function ensureCharacterAutoEnlist(): void {
+  const { characters, updateCharacter } = useCharactersStore.getState();
+  for (const id of Object.keys(characters)) {
+    const ch = characters[id]!;
+    if (ch.autoEnlistNightlyDefense !== undefined) continue;
+    updateCharacter(id, { autoEnlistNightlyDefense: true });
+  }
+}
+
 /** Older saves without `health` or without `health.lastUpdated`. */
 function ensureCharacterHealth(): void {
   const { characters, updateCharacter } = useCharactersStore.getState();
@@ -176,6 +186,7 @@ export async function bootstrapGame(): Promise<void> {
   seedNightlyWaveIfEmpty(now);
   fixInvalidCurrentCharacter();
   ensureCharacterCurrentHex();
+  ensureCharacterAutoEnlist();
   ensureCharacterHealth();
   applyHealthRegenToAllCharacters(now);
   runEconomicCatchUp(now);

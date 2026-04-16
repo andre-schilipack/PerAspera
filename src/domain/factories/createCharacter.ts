@@ -53,6 +53,7 @@ export function createCharacter(params: CreateCharacterParams): Character {
     currentHexId: currentHexId ?? homeHexId,
     availableMoves: ['basic_attack'],
     currentDefenseContribution: 0,
+    autoEnlistNightlyDefense: true,
     inventory: [],
     createdAt: nowMs,
   };
