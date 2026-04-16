@@ -25,7 +25,11 @@ function pickMetaSnapshot(state: ReturnType<typeof useMetaStore.getState>): Game
     schemaVersion: state.schemaVersion,
     createdAt: state.createdAt,
     globalScoreboard: state.globalScoreboard,
+    hallOfFame: state.hallOfFame ?? [],
     nextIds: state.nextIds,
+    gameOver: state.gameOver ?? false,
+    gameOverReason: state.gameOverReason ?? null,
+    gameOverAt: state.gameOverAt ?? null,
   };
 }
 
@@ -180,6 +184,13 @@ export async function bootstrapGame(): Promise<void> {
   await rehydrateAllStores();
   runMetaMigration();
   const now = Date.now();
+  if (useMetaStore.getState().gameOver) {
+    fixInvalidCurrentCharacter();
+    ensureCharacterCurrentHex();
+    ensureCharacterAutoEnlist();
+    ensureCharacterHealth();
+    return;
+  }
   applyStaminaRegenToAllCharacters(now);
   rollDailyDefenseIfNeeded(now);
   ensureDailyDefenseShape();

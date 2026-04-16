@@ -2,7 +2,12 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { GAME_VERSION, SCHEMA_VERSION } from '../domain/constants.ts';
-import type { GameMetaState, NextIdCounters, ScoreEntry } from '../domain/types/index.ts';
+import type {
+  GameMetaState,
+  HallOfFameEntry,
+  NextIdCounters,
+  ScoreEntry,
+} from '../domain/types/index.ts';
 
 function defaultNextIds(): NextIdCounters {
   return {
@@ -20,7 +25,11 @@ function initialMetaState(): GameMetaState {
     schemaVersion: SCHEMA_VERSION,
     createdAt: Date.now(),
     globalScoreboard: [],
+    hallOfFame: [],
     nextIds: defaultNextIds(),
+    gameOver: false,
+    gameOverReason: null,
+    gameOverAt: null,
   };
 }
 
@@ -31,6 +40,9 @@ interface MetaActions {
   patchNextIds: (patch: Partial<NextIdCounters>) => void;
   /** Replace persisted fields after {@link migrateGameMetaState}. */
   applyMetaSnapshot: (snapshot: GameMetaState) => void;
+  /** Terminal run + append {@link HallOfFameEntry} — blocks play until new game. */
+  recordGameOverRun: (entry: HallOfFameEntry) => void;
+  clearGameOver: () => void;
   reset: () => void;
 }
 
@@ -51,7 +63,24 @@ export const useMetaStore = create<MetaStore>()(
           schemaVersion: snapshot.schemaVersion,
           createdAt: snapshot.createdAt,
           globalScoreboard: snapshot.globalScoreboard,
+          hallOfFame: snapshot.hallOfFame ?? [],
           nextIds: snapshot.nextIds,
+          gameOver: snapshot.gameOver,
+          gameOverReason: snapshot.gameOverReason,
+          gameOverAt: snapshot.gameOverAt,
+        }),
+      recordGameOverRun: (entry) =>
+        set((s) => ({
+          gameOver: true,
+          gameOverReason: entry.reason,
+          gameOverAt: entry.gameOverDateTime,
+          hallOfFame: [...s.hallOfFame, entry],
+        })),
+      clearGameOver: () =>
+        set({
+          gameOver: false,
+          gameOverReason: null,
+          gameOverAt: null,
         }),
       reset: () => set(initialMetaState()),
     }),
@@ -63,7 +92,11 @@ export const useMetaStore = create<MetaStore>()(
         schemaVersion: state.schemaVersion,
         createdAt: state.createdAt,
         globalScoreboard: state.globalScoreboard,
+        hallOfFame: state.hallOfFame,
         nextIds: state.nextIds,
+        gameOver: state.gameOver,
+        gameOverReason: state.gameOverReason,
+        gameOverAt: state.gameOverAt,
       }),
     },
   ),

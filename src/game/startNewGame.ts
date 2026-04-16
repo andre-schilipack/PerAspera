@@ -17,6 +17,8 @@ import { addEmptyPlaceSlotsToHexMap } from './seedEmptyLots.ts';
  */
 export function startNewGame(characterName: string): void {
   const now = Date.now();
+  useMetaStore.getState().clearGameOver();
+  useCharactersStore.getState().reset();
   const meta = useMetaStore.getState();
   const nextCharNum = meta.nextIds.character + 1;
   const charId = makeCharacterId(nextCharNum);

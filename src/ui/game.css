@@ -499,6 +499,126 @@
   outline-offset: 2px;
 }
 
+.game-gameover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--bg) 35%, black);
+}
+
+.game-gameover-modal {
+  width: 100%;
+  max-width: 400px;
+  padding: 20px 22px 22px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.game-gameover-modal--wide {
+  max-width: 520px;
+  max-height: min(92vh, 720px);
+  overflow-y: auto;
+}
+
+.game-gameover-modal h2 {
+  margin: 0 0 10px;
+  font-size: 1.2rem;
+}
+
+.game-gameover-subtitle {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.game-gameover-section {
+  margin: 14px 0 12px;
+}
+
+.game-gameover-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.game-gameover-table th,
+.game-gameover-table td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.game-gameover-table th:last-child,
+.game-gameover-table td:last-child {
+  text-align: right;
+}
+
+.game-gameover-hall-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.game-gameover-hall-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+}
+
+.game-gameover-hall-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+}
+
+.game-gameover-hall-top {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.85rem;
+  color: var(--text-muted, var(--text));
+}
+
+.game-gameover-name {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 14px 0 12px;
+  font-size: 0.9rem;
+}
+
+.game-gameover-name input {
+  font: inherit;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text-h);
+}
+
+.game-gameover-modal button[type='button'] {
+  font: inherit;
+  margin-top: 4px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
 .game-modal-backdrop {
   position: fixed;
   inset: 0;

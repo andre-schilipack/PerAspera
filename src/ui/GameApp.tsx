@@ -92,6 +92,7 @@ import { useWorldStore } from '../stores/useWorldStore.ts';
 
 import { CombatLogList } from './CombatLogList.tsx';
 import { GameFabBar } from './GameFabBar.tsx';
+import { GameOverOverlay } from './GameOverOverlay.tsx';
 import {
   GAME_FAB_ACTION_ITEMS,
   GAME_TOP_NAV_ITEMS,
@@ -167,6 +168,9 @@ export default function GameApp() {
     (s) => s.civilianPopulation ?? INITIAL_CIVILIAN_POPULATION,
   );
   const patchNextIds = useMetaStore((s) => s.patchNextIds);
+  const gameOver = useMetaStore((s) => s.gameOver);
+  const gameOverReason = useMetaStore((s) => s.gameOverReason);
+  const gameOverAt = useMetaStore((s) => s.gameOverAt);
   const contracts = useContractsStore((s) => s.contracts);
 
   const now = useNowTick(1000);
@@ -196,22 +200,22 @@ export default function GameApp() {
     inGame && currentId !== null ? characters[currentId] : null;
 
   useEffect(() => {
-    if (!inGame) return;
+    if (!inGame || gameOver) return;
     const id = window.setInterval(() => {
       const t = Date.now();
       applyStaminaRegenToAllCharacters(t);
       applyHealthRegenToAllCharacters(t);
     }, STAMINA_REGEN_UI_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [inGame]);
+  }, [inGame, gameOver]);
 
   useEffect(() => {
-    if (!inGame) return;
+    if (!inGame || gameOver) return;
     const id = window.setInterval(() => {
       runEconomicCatchUp(Date.now());
     }, ECONOMIC_TICK_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [inGame]);
+  }, [inGame, gameOver]);
 
   /** Street skirmish: drum sting, then after 5s start fighting + first round; then every 3s. */
   useEffect(() => {
@@ -267,7 +271,7 @@ export default function GameApp() {
 
   /** Auto-start at local DEFENSE_START_HOUR when still idle (manual Start remains available earlier). */
   useEffect(() => {
-    if (!inGame) return;
+    if (!inGame || gameOver) return;
     const tryAutoStartNightlyDefense = () => {
       if (new Date().getHours() < DEFENSE_START_HOUR) return;
       const dd = useDefenseStore.getState().dailyDefense;
@@ -291,11 +295,11 @@ export default function GameApp() {
     tryAutoStartNightlyDefense();
     const intervalId = window.setInterval(tryAutoStartNightlyDefense, 30_000);
     return () => window.clearInterval(intervalId);
-  }, [inGame, dailyDefense.date]);
+  }, [inGame, gameOver, dailyDefense.date]);
 
   /** Nightly defense: 5s prep then first round; then 3s auto rounds. */
   useEffect(() => {
-    if (!inGame || dailyDefense.phase !== 'preparing') return;
+    if (!inGame || gameOver || dailyDefense.phase !== 'preparing') return;
     playCombatStartSound();
     const prepTimer = window.setTimeout(() => {
       useDefenseStore.getState().patchDailyDefense({ phase: 'fighting' });
@@ -303,11 +307,12 @@ export default function GameApp() {
     }, 5000);
     return () => window.clearTimeout(prepTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset prep on phase/date identity
-  }, [inGame, dailyDefense.phase, dailyDefense.date]);
+  }, [inGame, gameOver, dailyDefense.phase, dailyDefense.date]);
 
   useEffect(() => {
     if (
       !inGame ||
+      gameOver ||
       dailyDefense.phase !== 'fighting' ||
       dailyDefense.isCompleted
     ) {
@@ -324,6 +329,7 @@ export default function GameApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     inGame,
+    gameOver,
     dailyDefense.phase,
     dailyDefense.isCompleted,
     dailyDefense.date,
@@ -1629,6 +1635,13 @@ export default function GameApp() {
         onSelect={setScreen}
         items={fabActionItems}
       />
+
+      {gameOver ? (
+        <GameOverOverlay
+          reason={gameOverReason ?? 'prefeitura_fallen'}
+          endedAt={gameOverAt}
+        />
+      ) : null}
     </div>
   );
 }

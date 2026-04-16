@@ -7,7 +7,7 @@
 export const GAME_VERSION = '0.1.0' as const;
 
 /** Monotonic integer for persisted data migrations only. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 4;
 
 /** Economic simulation: one tick every 30 minutes of real time (48 ticks / 24h). */
 export const ECONOMIC_TICK_INTERVAL_MS = 30 * 60 * 1000;
