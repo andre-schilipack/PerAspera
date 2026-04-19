@@ -43,3 +43,28 @@ export function minutesUntilDefenseStartToday(
   if (diffMs <= 0) return 0;
   return Math.ceil(diffMs / 60_000);
 }
+
+/** Lexicographic compare for `YYYY-MM-DD` strings (local calendar labels). */
+export function compareIsoDateString(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
+/** Local midnight → next calendar day as `YYYY-MM-DD`. */
+export function addLocalCalendarDays(dateStr: string, deltaDays: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d + deltaDays);
+  return formatLocalDateString(dt);
+}
+
+/** Milliseconds for local date `YYYY-MM-DD` at `hour`:`minute`:`second`. */
+export function localDateTimeMs(
+  dateStr: string,
+  hour: number,
+  minute = 0,
+  second = 0,
+): number {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d, hour, minute, second, 0).getTime();
+}

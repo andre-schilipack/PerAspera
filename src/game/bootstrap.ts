@@ -5,12 +5,12 @@ import {
   targetThreatBudget,
 } from '../domain/enemyThreat.ts';
 import { rollVictoryLootPoolForWave } from '../domain/nightlyDefenseLoot.ts';
-import { rollDailyDefenseStateForNewDay } from '../domain/factories/createDefenseSeed.ts';
 import { migrateGameMetaState } from '../domain/migrations.ts';
 import { useCharactersStore } from '../stores/useCharactersStore.ts';
 import { useContractsStore } from '../stores/useContractsStore.ts';
 import { applyHealthRegenToAllCharacters } from './healthRegenTick.ts';
 import { applyStaminaRegenToAllCharacters } from './staminaRegenTick.ts';
+import { runNightlyDefenseCatchUp } from './nightlyDefenseCatchUp.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useCityStore } from '../stores/useCityStore.ts';
@@ -47,22 +47,6 @@ async function rehydrateAllStores(): Promise<void> {
 function runMetaMigration(): void {
   const migrated = migrateGameMetaState(pickMetaSnapshot(useMetaStore.getState()));
   useMetaStore.getState().applyMetaSnapshot(migrated);
-}
-
-function rollDailyDefenseIfNeeded(now: number): void {
-  const today = formatLocalDateString(new Date(now));
-  const { dailyDefense, setDailyDefense } = useDefenseStore.getState();
-  if (dailyDefense.date === today) return;
-
-  const prev = dailyDefense;
-  setDailyDefense(
-    rollDailyDefenseStateForNewDay({
-      date: today,
-      gameDayIndex: prev.gameDayIndex + 1,
-      startHour: prev.startHour,
-      rng: Math.random,
-    }),
-  );
 }
 
 /** Old saves may omit nightly defense fields; fill defaults without wiping progress. */
@@ -177,8 +161,8 @@ function ensureCharacterHealth(): void {
 }
 
 /**
- * Rehydrate persisted slices, migrate meta, regen stamina, roll daily defense,
- * and fix stale `currentCharacterId`.
+ * Rehydrate persisted slices, migrate meta, multi-day defense catch-up (before economy),
+ * tail regen to `now`, then economic catch-up.
  */
 export async function bootstrapGame(): Promise<void> {
   await rehydrateAllStores();
@@ -191,14 +175,30 @@ export async function bootstrapGame(): Promise<void> {
     ensureCharacterHealth();
     return;
   }
-  applyStaminaRegenToAllCharacters(now);
-  rollDailyDefenseIfNeeded(now);
+
   ensureDailyDefenseShape();
+  fixInvalidCurrentCharacter();
+  ensureCharacterCurrentHex();
+  ensureCharacterAutoEnlist();
+  ensureCharacterHealth();
+
+  runNightlyDefenseCatchUp(now);
+
+  if (useMetaStore.getState().gameOver) {
+    fixInvalidCurrentCharacter();
+    ensureCharacterCurrentHex();
+    ensureCharacterAutoEnlist();
+    ensureCharacterHealth();
+    return;
+  }
+
+  applyStaminaRegenToAllCharacters(now);
+  applyHealthRegenToAllCharacters(now);
+
   seedNightlyWaveIfEmpty(now);
   fixInvalidCurrentCharacter();
   ensureCharacterCurrentHex();
   ensureCharacterAutoEnlist();
   ensureCharacterHealth();
-  applyHealthRegenToAllCharacters(now);
   runEconomicCatchUp(now);
 }
