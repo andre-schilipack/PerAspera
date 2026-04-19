@@ -10,11 +10,13 @@ import {
   distributeItemsAmongParticipants,
 } from '../domain/nightlyDefenseLoot.ts';
 import type { Character } from '../domain/types/character.ts';
-import type { DailyDefenseState, WallState } from '../domain/types/defense.ts';
 import type { CombatLogEntry } from '../domain/types/combat.ts';
+import type { DailyDefenseState, WallState } from '../domain/types/defense.ts';
 import type { Item } from '../domain/types/items.ts';
 import type { HexMap } from '../domain/types/map.ts';
-import type { NextIdCounters } from '../domain/types/meta.ts';
+import type { GameOverReason, NextIdCounters } from '../domain/types/meta.ts';
+
+import { declareGameOver } from './gameOver.ts';
 
 /** Snapshot of stores needed to compute one nightly defense round advance. */
 export interface NightlyDefenseAdvanceSnapshot {
@@ -56,6 +58,8 @@ export interface NightlyDefenseAdvanceCommit {
   victoryLootGrants?: Array<{ characterId: string; items: Item[] }>;
   /** `skipped` = breach but no hex map (raid not simulated). */
   breachRaid?: { civilianPopulation: number; hexMap: HexMap } | 'skipped';
+  /** Terminal run after raid (e.g. Prefeitura destroyed). Applied last. */
+  declareGameOver?: { reason: GameOverReason; at: number };
 }
 
 export function buildNightlyDefenseAdvanceCommit(
@@ -162,6 +166,9 @@ export function buildNightlyDefenseAdvanceCommit(
         civilianPopulation: raid.civilianPopulation,
         hexMap: raid.hexMap,
       },
+      declareGameOver: raid.prefeituraDestroyed
+        ? { reason: 'prefeitura_fallen', at: now }
+        : undefined,
     };
   }
 
@@ -234,4 +241,8 @@ export function applyNightlyDefenseAdvanceCommit(
   }
 
   api.setDailyDefense(commit.dailyDefense);
+
+  if (commit.declareGameOver) {
+    declareGameOver(commit.declareGameOver.reason, commit.declareGameOver.at);
+  }
 }

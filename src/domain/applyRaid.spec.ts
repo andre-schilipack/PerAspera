@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { CENTER_HEX_ID } from './constants.ts';
+import { CENTER_HEX_ID, NPC_OWNER_PREFEITURA } from './constants.ts';
 import { createNewBusiness } from './factories/createBusiness.ts';
 import { applyRaidFromRemainingThreat } from './applyRaid.ts';
 import type { HexMap } from './types/map.ts';
@@ -47,6 +47,7 @@ describe('applyRaidFromRemainingThreat', () => {
     });
     expect(r.civilianPopulation).toBeLessThan(1000);
     expect(r.logLines.length).toBeGreaterThan(0);
+    expect(r.prefeituraDestroyed).toBe(false);
   });
 
   it('destroys a business when threat budget allows', () => {
@@ -59,5 +60,39 @@ describe('applyRaidFromRemainingThreat', () => {
     });
     const slot = r.hexMap.hexes[CENTER_HEX_ID]!.placeSlots[0]!;
     expect(slot.type).toBe('empty');
+    expect(r.prefeituraDestroyed).toBe(false);
+  });
+
+  it('destroys Prefeitura on Centro when threat remains after businesses', () => {
+    const hm: HexMap = {
+      size: 5,
+      hexes: {
+        [CENTER_HEX_ID]: {
+          id: CENTER_HEX_ID,
+          coordinates: { q: 0, r: 0 },
+          isUnlocked: true,
+          danger: 0,
+          integrity: 80,
+          placeSlots: [
+            {
+              id: 'slot_pref',
+              hexId: CENTER_HEX_ID,
+              ownedBy: NPC_OWNER_PREFEITURA,
+              type: 'prefeitura',
+              priceToBuy: 0,
+            },
+          ],
+        },
+      },
+    };
+    const r = applyRaidFromRemainingThreat({
+      remainingThreatPoints: 6,
+      civilianPopulation: 50_000,
+      hexMap: hm,
+      rng: () => 0,
+    });
+    expect(r.prefeituraDestroyed).toBe(true);
+    const prefSlot = r.hexMap.hexes[CENTER_HEX_ID]!.placeSlots[0]!;
+    expect(prefSlot.type).toBe('empty');
   });
 });

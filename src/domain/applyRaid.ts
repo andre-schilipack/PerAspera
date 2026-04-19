@@ -1,4 +1,5 @@
 import {
+  CENTER_HEX_ID,
   EMPTY_LOT_PRICE,
   NPC_OWNER_CITY,
   RAID_CIVILIANS_PER_THREAT_POINT,
@@ -10,6 +11,8 @@ export interface RaidResult {
   civilianPopulation: number;
   hexMap: HexMap;
   logLines: string[];
+  /** True after the Centro Prefeitura civic slot was destroyed by this raid. */
+  prefeituraDestroyed: boolean;
 }
 
 /**
@@ -32,6 +35,7 @@ export function applyRaidFromRemainingThreat(params: {
       civilianPopulation: pop,
       hexMap: params.hexMap,
       logLines: [],
+      prefeituraDestroyed: false,
     };
   }
 
@@ -87,11 +91,45 @@ export function applyRaidFromRemainingThreat(params: {
     );
   }
 
+  let prefeituraDestroyed = false;
+  const centerHex = hexMap.hexes[CENTER_HEX_ID];
+  if (
+    centerHex &&
+    threat >= RAID_THREAT_PER_BUSINESS
+  ) {
+    const prefIdx = centerHex.placeSlots.findIndex((p) => p.type === 'prefeitura');
+    if (prefIdx >= 0) {
+      threat -= RAID_THREAT_PER_BUSINESS;
+      const prev = centerHex.placeSlots[prefIdx]!;
+      const placeSlots = centerHex.placeSlots.map((p, i) =>
+        i === prefIdx
+          ? {
+              ...prev,
+              type: 'empty' as const,
+              ownedBy: NPC_OWNER_CITY,
+              priceToBuy: EMPTY_LOT_PRICE,
+            }
+          : p,
+      );
+      hexMap = {
+        ...hexMap,
+        hexes: {
+          ...hexMap.hexes,
+          [CENTER_HEX_ID]: { ...centerHex, placeSlots },
+        },
+      };
+      prefeituraDestroyed = true;
+      logLines.push(
+        `Raid: the Prefeitura has been overrun (${String(RAID_THREAT_PER_BUSINESS)} threat).`,
+      );
+    }
+  }
+
   if (threat > 0) {
     logLines.push(
       `Raid ends with ${String(threat)} threat points of chaos still roaming.`,
     );
   }
 
-  return { civilianPopulation: pop, hexMap, logLines };
+  return { civilianPopulation: pop, hexMap, logLines, prefeituraDestroyed };
 }

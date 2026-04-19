@@ -56,7 +56,7 @@ function fastForwardCombatToEnd(rng: () => number, simNow: number): void {
       addItemToInventory: useCharactersStore.getState().addItemToInventory,
     });
     const dd = useDefenseStore.getState().dailyDefense;
-    if (dd.isCompleted) {
+    if (dd.isCompleted || useMetaStore.getState().gameOver) {
       return;
     }
   }
