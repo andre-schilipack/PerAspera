@@ -1148,8 +1148,17 @@ export default function GameApp() {
             ) : null}
           </p>
           <p>
-            Tonight&apos;s push targets the <strong>{dailyDefense.attackedSection}</strong>{' '}
-            wall.
+            {dailyDefense.outcome === 'prefeitura_siege' ? (
+              <>
+                Hostiles broke through — <strong>last stand at the Prefeitura</strong>{' '}
+                (Centro).
+              </>
+            ) : (
+              <>
+                Tonight&apos;s push targets the{' '}
+                <strong>{dailyDefense.attackedSection}</strong> wall.
+              </>
+            )}
           </p>
           <p className="game-muted">
             Lock for this calendar night:{' '}
@@ -1201,7 +1210,9 @@ export default function GameApp() {
             </p>
           ) : dailyDefense.phase === 'fighting' && !dailyDefense.isCompleted ? (
             <p className="game-muted" role="status">
-              Auto-battle: a new round every 3 seconds.
+              {dailyDefense.outcome === 'prefeitura_siege'
+                ? 'Prefeitura siege — auto round every 3 seconds.'
+                : 'Auto-battle: a new round every 3 seconds.'}
             </p>
           ) : null}
           {dailyDefense.defenderLine.length > 0 ? (

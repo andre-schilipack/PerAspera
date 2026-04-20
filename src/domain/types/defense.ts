@@ -28,6 +28,7 @@ export type NightlyDefenseOutcome =
   | 'active'
   | 'victory'
   | 'breach'
+  | 'prefeitura_siege'
   | 'loss';
 
 /** Player defenders in the nightly fight (session HP; melee front line MVP). */

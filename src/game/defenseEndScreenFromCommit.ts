@@ -8,6 +8,9 @@ export function defenseEndScreenFromCommit(
   commit: NightlyDefenseAdvanceCommit,
   getCharacterName: (characterId: string) => string,
 ): DefenseEndScreenState | null {
+  if (commit.declareGameOver) {
+    return null;
+  }
   const d = commit.dailyDefense;
   if (!d.isCompleted) {
     return null;
