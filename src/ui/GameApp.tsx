@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   CENTER_HEX_ID,
+  DEFAULT_BUSINESS_STRUCTURE_MAX_HP,
   DEFENSE_LOCK_STA_COST,
   DEFENSE_START_HOUR,
   ECONOMIC_TICK_INTERVAL_MS,
@@ -661,7 +662,15 @@ export default function GameApp() {
           nowMs: now,
           productionRate: 12,
         });
-        return { ...p, type: 'business' as const, business };
+        return {
+          ...p,
+          type: 'business' as const,
+          business,
+          structureHp: {
+            current: DEFAULT_BUSINESS_STRUCTURE_MAX_HP,
+            max: DEFAULT_BUSINESS_STRUCTURE_MAX_HP,
+          },
+        };
       }),
     }));
   }
@@ -1424,6 +1433,12 @@ export default function GameApp() {
                         )}
                       </span>
                     )}
+                  {slot.type === 'ruin' ? (
+                    <span className="game-muted">
+                      {' '}
+                      — Ruins (raid damage).
+                    </span>
+                  ) : null}
                   {slot.type === 'business' && slot.business && (() => {
                     const b = normalizeBusiness(slot.business);
                     const bufLines: string[] = [];

@@ -7,7 +7,7 @@
 export const GAME_VERSION = '0.1.0' as const;
 
 /** Monotonic integer for persisted data migrations only. */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /** Economic simulation: one tick every 30 minutes of real time (48 ticks / 24h). */
 export const ECONOMIC_TICK_INTERVAL_MS = 30 * 60 * 1000;
@@ -36,10 +36,15 @@ export const DEFENSE_ENEMY_STRIKE_VS_WALL_MAX = 12;
 /** Retreat from front line at or below this fraction of max session HP. */
 export const DEFENSE_RETREAT_HP_FRACTION = 0.5;
 
-/** Raid: civilians lost per remaining threat point after breach. */
-export const RAID_CIVILIANS_PER_THREAT_POINT = 40;
-/** Raid: threat points consumed per destroyed business slot. */
-export const RAID_THREAT_PER_BUSINESS = 3;
+/**
+ * Raid march (post-breach): HP damage applied to each business along the march path per tile:
+ * floor(threatCount * RAID_THREAT_TO_BUSINESS_HP_DAMAGE). Threat is not consumed by marching.
+ */
+export const RAID_THREAT_TO_BUSINESS_HP_DAMAGE = 4;
+/** Default max (and implicit current) structural HP for business slots without explicit data. */
+export const DEFAULT_BUSINESS_STRUCTURE_MAX_HP = 100;
+/** Prefeitura civic building max HP (P3 siege); migration fills missing values. */
+export const PREFECTURE_STRUCTURE_MAX_HP = 100;
 
 /** Integrity points restored per repair action. */
 export const WALL_REPAIR_INTEGRITY_PER_ACTION = 25;

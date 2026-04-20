@@ -58,6 +58,8 @@ export interface DailyDefenseState {
   participants: DefenseParticipant[];
   /** Anchor for scaling (e.g. days since founding). */
   gameDayIndex: number;
+  /** Breach raid entry hex for this wave (axial key); march proceeds toward Centro. */
+  targetHexId: string;
   phase: NightlyDefensePhase;
   outcome: NightlyDefenseOutcome;
   /** Snapshot per fight; filled when combat starts. */

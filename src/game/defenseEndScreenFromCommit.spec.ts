@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { HOME_HEX_ID } from '../domain/constants.ts';
 import type { WallState } from '../domain/types/defense.ts';
 import { defenseEndScreenFromCommit } from './defenseEndScreenFromCommit.ts';
 import type { NightlyDefenseAdvanceCommit } from './nightlyDefenseAdvance.ts';
@@ -35,6 +36,7 @@ describe('defenseEndScreenFromCommit', () => {
         attackedSection: 'north',
         participants: [],
         gameDayIndex: 0,
+        targetHexId: HOME_HEX_ID,
         phase: 'ended',
         outcome: 'breach',
         defenderLine: [],
@@ -64,6 +66,7 @@ describe('defenseEndScreenFromCommit', () => {
         attackedSection: 'north',
         participants: [],
         gameDayIndex: 0,
+        targetHexId: HOME_HEX_ID,
         phase: 'ended',
         outcome: 'victory',
         defenderLine: [

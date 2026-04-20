@@ -15,7 +15,12 @@ import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useCityStore } from '../stores/useCityStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
-import { PLAYER_BASE_MAX_HP } from '../domain/constants.ts';
+import {
+  DEFAULT_BUSINESS_STRUCTURE_MAX_HP,
+  HOME_HEX_ID,
+  PLAYER_BASE_MAX_HP,
+  PREFECTURE_STRUCTURE_MAX_HP,
+} from '../domain/constants.ts';
 import { runEconomicCatchUp } from './economicCatchUp.ts';
 import type { DailyDefenseState, GameMetaState } from '../domain/types/index.ts';
 
@@ -75,8 +80,53 @@ function ensureDailyDefenseShape(): void {
     patch.victoryLootPool = [];
     needsPatch = true;
   }
+  if (d.targetHexId === undefined || typeof d.targetHexId !== 'string') {
+    patch.targetHexId = HOME_HEX_ID;
+    needsPatch = true;
+  }
   if (needsPatch) {
     patchDailyDefense(patch as Partial<DailyDefenseState>);
+  }
+}
+
+/** Older saves omit structural HP used by raid march / Prefeitura siege. */
+function ensureHexMapStructureDefaults(): void {
+  const hexMap = useWorldStore.getState().hexMap;
+  if (!hexMap) return;
+
+  let changed = false;
+  const hexes = { ...hexMap.hexes };
+
+  for (const hid of Object.keys(hexes)) {
+    const hex = hexes[hid]!;
+    const placeSlots = hex.placeSlots.map((slot) => {
+      if (slot.type === 'business' && slot.business && slot.structureHp === undefined) {
+        changed = true;
+        return {
+          ...slot,
+          structureHp: {
+            current: DEFAULT_BUSINESS_STRUCTURE_MAX_HP,
+            max: DEFAULT_BUSINESS_STRUCTURE_MAX_HP,
+          },
+        };
+      }
+      if (slot.type === 'prefeitura' && slot.structureHp === undefined) {
+        changed = true;
+        return {
+          ...slot,
+          structureHp: {
+            current: PREFECTURE_STRUCTURE_MAX_HP,
+            max: PREFECTURE_STRUCTURE_MAX_HP,
+          },
+        };
+      }
+      return slot;
+    });
+    hexes[hid] = { ...hex, placeSlots };
+  }
+
+  if (changed) {
+    useWorldStore.getState().setHexMap({ ...hexMap, hexes });
   }
 }
 
@@ -177,6 +227,7 @@ export async function bootstrapGame(): Promise<void> {
   }
 
   ensureDailyDefenseShape();
+  ensureHexMapStructureDefaults();
   fixInvalidCurrentCharacter();
   ensureCharacterCurrentHex();
   ensureCharacterAutoEnlist();

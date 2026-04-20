@@ -4,6 +4,7 @@ export type PlaceSlotType =
   | 'empty'
   | 'home'
   | 'business'
+  | 'ruin'
   | 'market'
   | 'prefeitura'
   | 'quartel'
@@ -17,6 +18,8 @@ export interface PlaceSlot {
   ownedBy: string;
   type: PlaceSlotType;
   business?: Business;
+  /** Structural integrity for raids / siege (business & prefeitura). */
+  structureHp?: { current: number; max: number };
   priceToBuy: number;
 }
 

@@ -7,6 +7,7 @@ import {
   NPC_OWNER_PARENTS_HOME,
   NPC_OWNER_PREFEITURA,
   NPC_OWNER_QUARTEL,
+  PREFECTURE_STRUCTURE_MAX_HP,
 } from '../constants.ts';
 import {
   axialDistance,
@@ -57,6 +58,10 @@ function buildCenterSlots(params: {
       hexId: params.centerHexId,
       ownedBy: NPC_OWNER_PREFEITURA,
       type: 'prefeitura',
+      structureHp: {
+        current: PREFECTURE_STRUCTURE_MAX_HP,
+        max: PREFECTURE_STRUCTURE_MAX_HP,
+      },
       priceToBuy: 0,
     },
     {

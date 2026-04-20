@@ -58,7 +58,7 @@ export interface NightlyDefenseAdvanceCommit {
   victoryLootGrants?: Array<{ characterId: string; items: Item[] }>;
   /** `skipped` = breach but no hex map (raid not simulated). */
   breachRaid?: { civilianPopulation: number; hexMap: HexMap } | 'skipped';
-  /** Terminal run after raid (e.g. Prefeitura destroyed). Applied last. */
+  /** Terminal state (e.g. Prefeitura siege defeat in P3). Applied last. */
   declareGameOver?: { reason: GameOverReason; at: number };
 }
 
@@ -134,6 +134,7 @@ export function buildNightlyDefenseAdvanceCommit(
       civilianPopulation: snapshot.civilianPopulation,
       hexMap: snapshot.hexMap,
       rng,
+      targetHexId: nextDaily.targetHexId,
     });
 
     let mergedLog = combatLog;
@@ -157,8 +158,6 @@ export function buildNightlyDefenseAdvanceCommit(
       dailyDefense: {
         ...nextDaily,
         combatLog: mergedLog,
-        enemies: [],
-        totalEnemyPoints: 0,
         victoryLootPool: [],
       },
       defenderHpSync,
@@ -166,9 +165,6 @@ export function buildNightlyDefenseAdvanceCommit(
         civilianPopulation: raid.civilianPopulation,
         hexMap: raid.hexMap,
       },
-      declareGameOver: raid.prefeituraDestroyed
-        ? { reason: 'prefeitura_fallen', at: now }
-        : undefined,
     };
   }
 

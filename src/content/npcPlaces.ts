@@ -22,6 +22,8 @@ export function placeSlotDisplayTitle(slot: PlaceSlot): string {
         : 'Owned empty lot';
     case 'business':
       return slot.business?.name ?? 'Business';
+    case 'ruin':
+      return 'Ruins';
     case 'other':
       return 'Plot';
     default:
@@ -39,6 +41,8 @@ export function placeSlotNpcBlurb(slot: PlaceSlot): string | null {
       return 'City-fixed buy/sell — use the Market screen.';
     case 'prefeitura':
       return 'Repairs & bureaucracy (more later).';
+    case 'ruin':
+      return 'Collapsed structure — nothing to operate here.';
     default:
       return null;
   }

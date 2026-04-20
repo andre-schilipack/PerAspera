@@ -142,6 +142,7 @@ export function runNightlyDefenseCatchUp(nowMs: number): NightlyDefenseCatchUpRe
           gameDayIndex: dd.gameDayIndex + 1,
           startHour: dd.startHour,
           rng,
+          hexMap: useWorldStore.getState().hexMap ?? undefined,
         }),
       );
       continue;
