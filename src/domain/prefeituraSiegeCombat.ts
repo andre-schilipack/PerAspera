@@ -8,7 +8,6 @@ import {
   DEFENSE_GUARD_DAMAGE_MIN,
   DEFENSE_NPC_GUARD_IDS,
   DEFENSE_NPC_TOWER_LABEL,
-  DEFENSE_RETREAT_HP_FRACTION,
   DEFENSE_TOWER_DAMAGE_MAX,
   DEFENSE_TOWER_DAMAGE_MIN,
   CENTER_HEX_ID,
@@ -62,15 +61,16 @@ function applyFinalDamageToFirstLiving(
   return next;
 }
 
-function applyRetreatRules(entry: DefenderLineEntry): DefenderLineEntry {
-  const threshold = Math.ceil(entry.maxHp * DEFENSE_RETREAT_HP_FRACTION);
-  if (entry.currentHp <= threshold && entry.currentHp > 0) {
-    return { ...entry, retreated: true };
-  }
-  return entry;
+/** Last stand: everyone still alive holds the line (ignore retreat flags from wall phase). */
+function defenderLineForPrefeituraSiege(
+  line: DefenderLineEntry[],
+): DefenderLineEntry[] {
+  return line.map((d) =>
+    d.currentHp > 0 ? { ...d, retreated: false } : d,
+  );
 }
 
-/** Same order as perimeter defense: living defenders in line, then the civic seat. */
+/** Living defenders in line order, then the Prefeitura (retreat does not apply here). */
 function buildPrefeituraSiegeStrikeCycle(
   defenderLine: DefenderLineEntry[],
 ): Array<
@@ -81,7 +81,7 @@ function buildPrefeituraSiegeStrikeCycle(
   > = [];
   for (let i = 0; i < defenderLine.length; i++) {
     const d = defenderLine[i]!;
-    if (!d.retreated && d.currentHp > 0) {
+    if (d.currentHp > 0) {
       cycle.push({ kind: 'defender', lineIndex: i });
     }
   }
@@ -175,7 +175,7 @@ export function advancePrefeituraSiegeRound(
   const t0 = Date.now();
   const lines: Omit<CombatLogEntry, 'id'>[] = [];
   let enemies = [...daily.enemies];
-  let defenderLine = daily.defenderLine.map((d) => ({ ...d }));
+  let defenderLine = defenderLineForPrefeituraSiege(daily.defenderLine);
   let workingMap = hexMap;
 
   lines.push({
@@ -220,7 +220,7 @@ export function advancePrefeituraSiegeRound(
   }
 
   for (const def of defenderLine) {
-    if (def.retreated || def.currentHp <= 0) continue;
+    if (def.currentHp <= 0) continue;
     if (firstLivingEnemyIndex(enemies) < 0) break;
     const raw = rollIntInclusive(rng, 5, 12);
     const hit = resolveIncomingMeleeDamage(raw, rng);
@@ -273,7 +273,7 @@ export function advancePrefeituraSiegeRound(
 
     const di = slot.lineIndex;
     const d = defenderLine[di]!;
-    if (d.retreated || d.currentHp <= 0) {
+    if (d.currentHp <= 0) {
       const rawFallback = rollIntInclusive(
         rng,
         DEFENSE_ENEMY_STRIKE_VS_WALL_MIN,
@@ -308,8 +308,7 @@ export function advancePrefeituraSiegeRound(
     const nextHp = strike.flags.dodged
       ? d.currentHp
       : Math.max(0, d.currentHp - strike.finalDamage);
-    let nextD: DefenderLineEntry = { ...d, currentHp: nextHp };
-    nextD = applyRetreatRules(nextD);
+    const nextD: DefenderLineEntry = { ...d, currentHp: nextHp };
     const rep = [...defenderLine];
     rep[di] = nextD;
     defenderLine = rep;

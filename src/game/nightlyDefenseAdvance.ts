@@ -268,6 +268,9 @@ export function buildNightlyDefenseAdvanceCommit(
     const threatPts = sumLivingThreatPoints(afterRaidDaily.enemies);
 
     if (threatPts > 0) {
+      const defenderLineLastStand = afterRaidDaily.defenderLine.map((d) =>
+        d.currentHp > 0 ? { ...d, retreated: false } : d,
+      );
       return {
         ...base,
         nextCombatLogEntryId: nextId,
@@ -276,6 +279,7 @@ export function buildNightlyDefenseAdvanceCommit(
           outcome: 'prefeitura_siege',
           phase: 'fighting',
           isCompleted: false,
+          defenderLine: defenderLineLastStand,
         },
         defenderHpSync,
         breachRaid: {

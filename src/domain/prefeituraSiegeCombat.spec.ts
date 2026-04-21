@@ -65,6 +65,29 @@ describe('advancePrefeituraSiegeRound', () => {
     expect(pref.structureHp?.current).toBe(0);
   });
 
+  it('clears retreat so previously fallen-back defenders fight at the Prefeitura', () => {
+    const wall = createInitialWallState();
+    const daily = baseSiegeDaily({
+      defenderLine: [
+        {
+          characterId: 'c1',
+          name: 'Hero',
+          currentHp: 30,
+          maxHp: 42,
+          retreated: true,
+        },
+      ],
+    });
+    const hexMap = mapWithPrefeitura({ current: 100, max: 100 });
+    const r = advancePrefeituraSiegeRound(daily, wall, hexMap, () => 0.5);
+    expect(r.nextDaily.defenderLine[0]!.retreated).toBe(false);
+    expect(
+      r.newLogLines.some(
+        (l) => l.type === 'player' && l.text.includes('Hero'),
+      ),
+    ).toBe(true);
+  });
+
   it('declares victory when the siege wave is already empty', () => {
     const wall = createInitialWallState();
     const daily = baseSiegeDaily({ enemies: [], totalEnemyPoints: 0 });
