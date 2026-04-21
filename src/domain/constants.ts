@@ -137,6 +137,25 @@ export const BASE_MELEE_BLOCK_CHANCE = 0.1;
 /** Damage multiplier when a hit is blocked (mitigated). */
 export const BLOCK_DAMAGE_FACTOR = 0.5;
 
+/** Ally morale / cohesion during mass defense (0–100). */
+export const ALLY_SPIRIT_INITIAL = 58;
+export const ALLY_SPIRIT_MAX = 100;
+/** Per hostile eliminated during the allied phase. */
+export const ALLY_SPIRIT_PER_KILL = 4;
+/** When a defender takes HP damage from an enemy strike. */
+export const ALLY_SPIRIT_DEFENDER_HIT = -3;
+/** When the wall or Prefeitura takes structural pressure from this strike pass. */
+export const ALLY_SPIRIT_STRUCTURE_HIT = -2;
+/** No living hostiles left in the front bucket while others remain. */
+export const ALLY_SPIRIT_FRONT_GAP = -9;
+/** Support-role defender stabilizes the line when they connect. */
+export const ALLY_SPIRIT_SUPPORT_CONNECT = 5;
+/** Below this spirit, morale shock can trigger (ally-side drama). */
+export const ALLY_SPIRIT_MORALE_SHOCK_THRESHOLD = 28;
+export const MORALE_SHOCK_DURATION_TURNS = 2;
+/** Outgoing player defender damage multiplier while shock is active. */
+export const MORALE_SHOCK_OUTGOING_DAMAGE_FACTOR = 0.88;
+
 /** STA spent to lock participation in nightly defense. */
 export const DEFENSE_LOCK_STA_COST = 50;
 

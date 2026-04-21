@@ -16,11 +16,16 @@ import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useCityStore } from '../stores/useCityStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 import {
+  ALLY_SPIRIT_INITIAL,
   DEFAULT_BUSINESS_STRUCTURE_MAX_HP,
   HOME_HEX_ID,
   PLAYER_BASE_MAX_HP,
   PREFECTURE_STRUCTURE_MAX_HP,
 } from '../domain/constants.ts';
+import {
+  defenderBucketForLineIndex,
+  enemyBucketForSpawnIndex,
+} from '../domain/defenseTactics.ts';
 import { runEconomicCatchUp } from './economicCatchUp.ts';
 import type { DailyDefenseState, GameMetaState } from '../domain/types/index.ts';
 
@@ -84,6 +89,61 @@ function ensureDailyDefenseShape(): void {
     patch.targetHexId = HOME_HEX_ID;
     needsPatch = true;
   }
+  if (typeof d.allySpirit !== 'number') {
+    patch.allySpirit = ALLY_SPIRIT_INITIAL;
+    needsPatch = true;
+  }
+  if (typeof d.moraleShockTurnsRemaining !== 'number') {
+    patch.moraleShockTurnsRemaining = 0;
+    needsPatch = true;
+  }
+
+  const rawEnemies = d.enemies;
+  if (Array.isArray(rawEnemies)) {
+    let migEnemy = false;
+    const enemies = rawEnemies.map(
+      (e: Record<string, unknown>, i: number) => {
+        const curHp = Number(e.currentHealth);
+        const row = { ...e };
+        if (typeof row.tacticalBucket !== 'string') {
+          migEnemy = true;
+          row.tacticalBucket = enemyBucketForSpawnIndex(i);
+        }
+        if (typeof row.maxHealth !== 'number') {
+          migEnemy = true;
+          row.maxHealth = Math.max(
+            Number.isFinite(curHp) ? curHp : 1,
+            1,
+          );
+        }
+        return row;
+      },
+    );
+    if (migEnemy) {
+      patch.enemies = enemies;
+      needsPatch = true;
+    }
+  }
+
+  const rawLine = d.defenderLine;
+  if (Array.isArray(rawLine)) {
+    let migLine = false;
+    const defenderLine = rawLine.map(
+      (entry: Record<string, unknown>, i: number) => {
+        const row = { ...entry };
+        if (typeof row.tacticalBucket !== 'string') {
+          migLine = true;
+          row.tacticalBucket = defenderBucketForLineIndex(i);
+        }
+        return row;
+      },
+    );
+    if (migLine) {
+      patch.defenderLine = defenderLine;
+      needsPatch = true;
+    }
+  }
+
   if (needsPatch) {
     patchDailyDefense(patch as Partial<DailyDefenseState>);
   }

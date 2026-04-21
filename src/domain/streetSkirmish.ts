@@ -74,6 +74,7 @@ export function createStreetSkirmish(
       enemyId: STREET_DRONE_ID,
       currentHealth: baseHp,
       maxHealth: baseHp,
+      tacticalBucket: 'front',
       buffs: {},
     },
   ];

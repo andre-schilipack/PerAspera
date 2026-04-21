@@ -11,11 +11,16 @@ export interface Enemy {
   moves: string[];
 }
 
+/** Formation bucket for many-vs-many defense (aggregated targeting). */
+export type DefenseTacticalBucket = 'front' | 'ranged' | 'support';
+
 export interface EnemyInstance {
   enemyId: string;
   currentHealth: number;
   /** Spawn max HP (used for HP fractions and UI). Preserved when applying damage. */
   maxHealth: number;
+  /** Hostile role for strike targeting and defensive picks. */
+  tacticalBucket?: DefenseTacticalBucket;
   buffs: Record<string, number>;
 }
 

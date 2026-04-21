@@ -11,6 +11,7 @@ export type {
   CombatLogEntry,
   DefenseParticipant,
   DefenseParticipantKind,
+  DefenseTacticalBucket,
   DefenseSide,
   Enemy,
   EnemyInstance,

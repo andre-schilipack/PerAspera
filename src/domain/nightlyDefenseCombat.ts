@@ -1,5 +1,9 @@
-import { resolveIncomingMeleeDamage } from './combatResolution.ts';
 import {
+  ALLY_SPIRIT_DEFENDER_HIT,
+  ALLY_SPIRIT_PER_KILL,
+  ALLY_SPIRIT_STRUCTURE_HIT,
+  ALLY_SPIRIT_SUPPORT_CONNECT,
+  ALLY_SPIRIT_INITIAL,
   DEFENSE_ENEMY_STRIKE_VS_PLAYER_MAX,
   DEFENSE_ENEMY_STRIKE_VS_PLAYER_MIN,
   DEFENSE_ENEMY_STRIKE_VS_WALL_MAX,
@@ -12,6 +16,25 @@ import {
   DEFENSE_TOWER_DAMAGE_MAX,
   DEFENSE_TOWER_DAMAGE_MIN,
 } from './constants.ts';
+import {
+  allySpiritOutgoingDamageMultiplier,
+  clampAllySpirit,
+  decrementMoraleShock,
+  evaluateFrontGapSpiritDelta,
+  maybeTriggerMoraleShock,
+} from './defenseAllySpirit.ts';
+import {
+  applyDamageToEnemyAt,
+  countLivingInBucket,
+  defenderBucketForLineIndex,
+  enemyBucketForSpawnIndex,
+  livingEnemyCount,
+  pickLivingEnemyIndexPreferBucket,
+  resolveDefenderStrikeLineIndex,
+  rollGuardTargetBucket,
+  rollTowerTargetBucket,
+} from './defenseTactics.ts';
+import { resolveIncomingMeleeDamage } from './combatResolution.ts';
 import { sumLivingThreatPoints } from './enemyThreat.ts';
 import { applyDamageToWallSection } from './wallIntegrity.ts';
 import type { CombatLogEntry, EnemyInstance } from './types/combat.ts';
@@ -21,6 +44,12 @@ import type {
   NightlyDefenseOutcome,
   WallState,
 } from './types/defense.ts';
+import {
+  lineAllySpiritShift,
+  lineBucketPressureSnapshot,
+  lineMoraleShockHits,
+  lineSupportStabilizes,
+} from '../content/defenseSpiritLines.ts';
 
 export interface NightlyCombatWallResult {
   wall: WallState;
@@ -53,17 +82,28 @@ function firstLivingEnemyIndex(enemies: readonly EnemyInstance[]): number {
   return -1;
 }
 
-function applyFinalDamageToFirstLiving(
-  enemies: EnemyInstance[],
-  finalDamage: number,
-): EnemyInstance[] {
-  const idx = firstLivingEnemyIndex(enemies);
-  if (idx < 0) return enemies;
-  const e = enemies[idx]!;
-  const nh = Math.max(0, e.currentHealth - finalDamage);
-  const next = [...enemies];
-  next[idx] = { ...e, currentHealth: nh };
-  return next;
+function normalizeDefenderLine(
+  line: readonly DefenderLineEntry[],
+): DefenderLineEntry[] {
+  return line.map((d, i) => ({
+    ...d,
+    tacticalBucket: d.tacticalBucket ?? defenderBucketForLineIndex(i),
+  }));
+}
+
+function normalizeEnemies(list: readonly EnemyInstance[]): EnemyInstance[] {
+  return list.map((e, i) => ({
+    ...e,
+    tacticalBucket: e.tacticalBucket ?? enemyBucketForSpawnIndex(i),
+  }));
+}
+
+function applyRetreatRules(entry: DefenderLineEntry): DefenderLineEntry {
+  const threshold = Math.ceil(entry.maxHp * DEFENSE_RETREAT_HP_FRACTION);
+  if (entry.currentHp <= threshold && entry.currentHp > 0) {
+    return { ...entry, retreated: true };
+  }
+  return entry;
 }
 
 /**
@@ -83,14 +123,6 @@ function buildEnemyStrikeCycle(
   }
   cycle.push({ kind: 'wall' });
   return cycle;
-}
-
-function applyRetreatRules(entry: DefenderLineEntry): DefenderLineEntry {
-  const threshold = Math.ceil(entry.maxHp * DEFENSE_RETREAT_HP_FRACTION);
-  if (entry.currentHp <= threshold && entry.currentHp > 0) {
-    return { ...entry, retreated: true };
-  }
-  return entry;
 }
 
 /**
@@ -141,10 +173,22 @@ export function advanceNightlyDefenseRound(
   const turn = daily.currentTurn + 1;
   const t0 = Date.now();
   const lines: Omit<CombatLogEntry, 'id'>[] = [];
-  let enemies = [...daily.enemies];
-  let defenderLine = daily.defenderLine.map((d) => ({ ...d }));
+  let enemies = normalizeEnemies(daily.enemies);
+  let defenderLine = normalizeDefenderLine(daily.defenderLine);
   let nextWall = wall;
   let breached = false;
+
+  let allySpirit = clampAllySpirit(
+    daily.allySpirit ?? ALLY_SPIRIT_INITIAL,
+  );
+  let moraleShockTurnsRemaining = decrementMoraleShock(
+    daily.moraleShockTurnsRemaining ?? 0,
+  );
+
+  const spiritBeforeRound = allySpirit;
+  let killsThisRound = 0;
+  let defenderHitsThisRound = 0;
+  let structureHitsThisRound = 0;
 
   lines.push({
     turn,
@@ -153,19 +197,41 @@ export function advanceNightlyDefenseRound(
     type: 'system',
   });
 
+  lines.push({
+    turn,
+    timestamp: t0,
+    text: lineBucketPressureSnapshot({
+      front: countLivingInBucket(enemies, 'front'),
+      ranged: countLivingInBucket(enemies, 'ranged'),
+      support: countLivingInBucket(enemies, 'support'),
+    }),
+    type: 'system',
+  });
+
+  const outgoingMul = allySpiritOutgoingDamageMultiplier(
+    moraleShockTurnsRemaining,
+  );
+
   const towerRaw = rollIntInclusive(
     rng,
     DEFENSE_TOWER_DAMAGE_MIN,
     DEFENSE_TOWER_DAMAGE_MAX,
   );
+  const towerBucket = rollTowerTargetBucket(rng);
+  const towerIdx = pickLivingEnemyIndexPreferBucket(enemies, towerBucket, rng);
   const towerHit = resolveIncomingMeleeDamage(towerRaw, rng);
-  enemies = applyFinalDamageToFirstLiving(enemies, towerHit.finalDamage);
+  const towerBefore = livingEnemyCount(enemies);
+  if (towerIdx >= 0) {
+    enemies = applyDamageToEnemyAt(enemies, towerIdx, towerHit.finalDamage);
+    const towerAfter = livingEnemyCount(enemies);
+    killsThisRound += Math.max(0, towerBefore - towerAfter);
+  }
   lines.push({
     turn,
     timestamp: t0,
     text: towerHit.flags.dodged
       ? `${DEFENSE_NPC_TOWER_LABEL}: shot evaded by hostiles.`
-      : `${DEFENSE_NPC_TOWER_LABEL} fires for ${String(towerHit.finalDamage)} damage.`,
+      : `${DEFENSE_NPC_TOWER_LABEL} fires (${towerBucket}) for ${String(towerHit.finalDamage)} damage.`,
     type: 'guarda',
   });
 
@@ -175,14 +241,21 @@ export function advanceNightlyDefenseRound(
       DEFENSE_GUARD_DAMAGE_MIN,
       DEFENSE_GUARD_DAMAGE_MAX,
     );
+    const grBucket = rollGuardTargetBucket(rng);
+    const gIdx = pickLivingEnemyIndexPreferBucket(enemies, grBucket, rng);
     const gh = resolveIncomingMeleeDamage(graw, rng);
-    enemies = applyFinalDamageToFirstLiving(enemies, gh.finalDamage);
+    const gBefore = livingEnemyCount(enemies);
+    if (gIdx >= 0) {
+      enemies = applyDamageToEnemyAt(enemies, gIdx, gh.finalDamage);
+      const gAfter = livingEnemyCount(enemies);
+      killsThisRound += Math.max(0, gBefore - gAfter);
+    }
     lines.push({
       turn,
       timestamp: t0,
       text: gh.flags.dodged
         ? `Rifle guard: burst evaded.`
-        : `Rifle guard fires for ${String(gh.finalDamage)} damage.`,
+        : `Rifle guard fires (${grBucket}) for ${String(gh.finalDamage)} damage.`,
       type: 'guarda',
     });
   }
@@ -190,20 +263,50 @@ export function advanceNightlyDefenseRound(
   for (const def of defenderLine) {
     if (def.retreated || def.currentHp <= 0) continue;
     if (firstLivingEnemyIndex(enemies) < 0) break;
-    const raw = rollIntInclusive(rng, 5, 12);
+    let raw = rollIntInclusive(rng, 5, 12);
+    raw = Math.max(1, Math.floor(raw * outgoingMul));
+
+    let supportBoost = false;
+    if (def.tacticalBucket === 'support' && rng() < 0.38) {
+      allySpirit = clampAllySpirit(allySpirit + ALLY_SPIRIT_SUPPORT_CONNECT);
+      supportBoost = true;
+      raw = Math.max(1, Math.floor(raw * 0.72));
+      lines.push({
+        turn,
+        timestamp: t0,
+        text: lineSupportStabilizes(),
+        type: 'system',
+        highlight: true,
+      });
+    }
+
+    const prefBucket = def.tacticalBucket ?? 'front';
+    const hitIdx = pickLivingEnemyIndexPreferBucket(enemies, prefBucket, rng);
     const hit = resolveIncomingMeleeDamage(raw, rng);
-    enemies = applyFinalDamageToFirstLiving(enemies, hit.finalDamage);
+    const beforeHits = livingEnemyCount(enemies);
+    if (hitIdx >= 0) {
+      enemies = applyDamageToEnemyAt(enemies, hitIdx, hit.finalDamage);
+      const afterHits = livingEnemyCount(enemies);
+      killsThisRound += Math.max(0, beforeHits - afterHits);
+    }
     lines.push({
       turn,
       timestamp: t0,
       text: hit.flags.dodged
-        ? `${def.name}'s strike is evaded.`
-        : `${def.name} hits for ${String(hit.finalDamage)} damage.`,
+        ? `${def.name}'s strike is evaded${supportBoost ? ' (support net).' : '.'}`
+        : `${def.name} (${prefBucket}) hits for ${String(hit.finalDamage)} damage.`,
       type: 'player',
     });
   }
 
   enemies = enemies.filter((e) => e.currentHealth > 0);
+
+  allySpirit = clampAllySpirit(
+    allySpirit + killsThisRound * ALLY_SPIRIT_PER_KILL,
+  );
+  allySpirit = clampAllySpirit(
+    allySpirit + evaluateFrontGapSpiritDelta(enemies),
+  );
 
   const strikeCycle = buildEnemyStrikeCycle(defenderLine);
 
@@ -213,6 +316,7 @@ export function advanceNightlyDefenseRound(
     const slot = strikeCycle[ei % strikeCycle.length]!;
 
     const hitWall = (): void => {
+      structureHitsThisRound += 1;
       const raw = rollIntInclusive(
         rng,
         DEFENSE_ENEMY_STRIKE_VS_WALL_MIN,
@@ -238,7 +342,7 @@ export function advanceNightlyDefenseRound(
       continue;
     }
 
-    const di = slot.lineIndex;
+    let di = resolveDefenderStrikeLineIndex(e, defenderLine, slot.lineIndex);
     const d = defenderLine[di]!;
     if (d.retreated || d.currentHp <= 0) {
       lines.push({
@@ -260,6 +364,9 @@ export function advanceNightlyDefenseRound(
     const nextHp = strike.flags.dodged
       ? d.currentHp
       : Math.max(0, d.currentHp - strike.finalDamage);
+    if (!strike.flags.dodged && strike.finalDamage > 0) {
+      defenderHitsThisRound += 1;
+    }
     let nextD: DefenderLineEntry = { ...d, currentHp: nextHp };
     nextD = applyRetreatRules(nextD);
     const rep = [...defenderLine];
@@ -272,8 +379,41 @@ export function advanceNightlyDefenseRound(
         ? `${e.enemyId} lunges at ${d.name} — evaded.`
         : strike.flags.blocked
           ? `${e.enemyId} hits ${d.name} (blocked) for ${String(strike.finalDamage)}.`
-          : `${e.enemyId} hits ${d.name} for ${String(strike.finalDamage)}.`,
+          : `${e.enemyId} (${e.tacticalBucket ?? 'front'}) hits ${d.name} for ${String(strike.finalDamage)}.`,
       type: 'enemy',
+    });
+  }
+
+  allySpirit = clampAllySpirit(
+    allySpirit +
+      defenderHitsThisRound * ALLY_SPIRIT_DEFENDER_HIT +
+      structureHitsThisRound * ALLY_SPIRIT_STRUCTURE_HIT,
+  );
+
+  const shockRoll = maybeTriggerMoraleShock({
+    allySpirit,
+    moraleShockTurnsRemaining,
+    rng,
+    defenderHitsThisRound,
+  });
+  moraleShockTurnsRemaining = shockRoll.moraleShockTurnsRemaining;
+  if (shockRoll.triggered) {
+    lines.push({
+      turn,
+      timestamp: Date.now(),
+      text: lineMoraleShockHits(),
+      type: 'system',
+      highlight: true,
+    });
+  }
+
+  const spiritDelta = allySpirit - spiritBeforeRound;
+  if (spiritDelta !== 0 || shockRoll.triggered) {
+    lines.push({
+      turn,
+      timestamp: Date.now(),
+      text: lineAllySpiritShift(spiritDelta, allySpirit),
+      type: 'system',
     });
   }
 
@@ -291,6 +431,7 @@ export function advanceNightlyDefenseRound(
       timestamp: Date.now(),
       text: 'The wall gives — city breach!',
       type: 'system',
+      highlight: true,
     });
   } else if (enemies.length === 0) {
     outcome = 'victory';
@@ -301,6 +442,7 @@ export function advanceNightlyDefenseRound(
       timestamp: Date.now(),
       text: 'Hostiles routed — perimeter holds.',
       type: 'system',
+      highlight: true,
     });
   }
 
@@ -315,6 +457,8 @@ export function advanceNightlyDefenseRound(
     isCompleted,
     phase,
     victoryLootPool: daily.victoryLootPool,
+    allySpirit,
+    moraleShockTurnsRemaining,
   };
 
   return {
@@ -341,6 +485,7 @@ export function buildDefenderLineFromLocks(
       currentHp: ch.health.current,
       maxHp: ch.health.max,
       retreated: false,
+      tacticalBucket: defenderBucketForLineIndex(out.length),
     });
   }
   return out;

@@ -38,7 +38,13 @@ function mapWithPrefeitura(hp: { current: number; max: number }): HexMap {
 function baseSiegeDaily(over: Partial<DailyDefenseState> = {}): DailyDefenseState {
   const d = createEmptyDailyDefense({ date: '2026-04-01' });
   const enemies = over.enemies ?? [
-    { enemyId: 'stalker_1', currentHealth: 500, maxHealth: 500, buffs: {} },
+    {
+      enemyId: 'stalker_1',
+      currentHealth: 500,
+      maxHealth: 500,
+      tacticalBucket: 'front',
+      buffs: {},
+    },
   ];
   return {
     ...d,
@@ -75,6 +81,7 @@ describe('advancePrefeituraSiegeRound', () => {
           currentHp: 30,
           maxHp: 42,
           retreated: true,
+          tacticalBucket: 'front',
         },
       ],
     });

@@ -1,5 +1,9 @@
-import { resolveIncomingMeleeDamage } from './combatResolution.ts';
 import {
+  ALLY_SPIRIT_DEFENDER_HIT,
+  ALLY_SPIRIT_INITIAL,
+  ALLY_SPIRIT_PER_KILL,
+  ALLY_SPIRIT_STRUCTURE_HIT,
+  ALLY_SPIRIT_SUPPORT_CONNECT,
   DEFENSE_ENEMY_STRIKE_VS_PLAYER_MAX,
   DEFENSE_ENEMY_STRIKE_VS_PLAYER_MIN,
   DEFENSE_ENEMY_STRIKE_VS_WALL_MAX,
@@ -13,6 +17,25 @@ import {
   CENTER_HEX_ID,
   PREFECTURE_STRUCTURE_MAX_HP,
 } from './constants.ts';
+import {
+  allySpiritOutgoingDamageMultiplier,
+  clampAllySpirit,
+  decrementMoraleShock,
+  evaluateFrontGapSpiritDelta,
+  maybeTriggerMoraleShock,
+} from './defenseAllySpirit.ts';
+import {
+  applyDamageToEnemyAt,
+  countLivingInBucket,
+  defenderBucketForLineIndex,
+  enemyBucketForSpawnIndex,
+  livingEnemyCount,
+  pickLivingEnemyIndexPreferBucket,
+  resolveDefenderStrikeLineIndex,
+  rollGuardTargetBucket,
+  rollTowerTargetBucket,
+} from './defenseTactics.ts';
+import { resolveIncomingMeleeDamage } from './combatResolution.ts';
 import { sumLivingThreatPoints } from './enemyThreat.ts';
 import type { CombatLogEntry, EnemyInstance } from './types/combat.ts';
 import type {
@@ -24,6 +47,12 @@ import type {
 import type { HexMap, PlaceSlot } from './types/map.ts';
 
 import type { NightlyCombatWallResult } from './nightlyDefenseCombat.ts';
+import {
+  lineAllySpiritShift,
+  lineBucketPressureSnapshot,
+  lineMoraleShockHits,
+  lineSupportStabilizes,
+} from '../content/defenseSpiritLines.ts';
 
 export interface AdvancePrefeituraSiegeResult {
   nextDaily: DailyDefenseState;
@@ -48,24 +77,35 @@ function firstLivingEnemyIndex(enemies: readonly EnemyInstance[]): number {
   return -1;
 }
 
-function applyFinalDamageToFirstLiving(
+function applyDamageToEnemyAtPref(
   enemies: EnemyInstance[],
-  finalDamage: number,
+  index: number,
+  damage: number,
 ): EnemyInstance[] {
-  const idx = firstLivingEnemyIndex(enemies);
-  if (idx < 0) return enemies;
-  const e = enemies[idx]!;
-  const nh = Math.max(0, e.currentHealth - finalDamage);
-  const next = [...enemies];
-  next[idx] = { ...e, currentHealth: nh };
-  return next;
+  return applyDamageToEnemyAt(enemies, index, damage);
+}
+
+function normalizeEnemies(list: readonly EnemyInstance[]): EnemyInstance[] {
+  return list.map((e, i) => ({
+    ...e,
+    tacticalBucket: e.tacticalBucket ?? enemyBucketForSpawnIndex(i),
+  }));
+}
+
+function normalizeDefenderLinePref(
+  line: readonly DefenderLineEntry[],
+): DefenderLineEntry[] {
+  return line.map((d, i) => ({
+    ...d,
+    tacticalBucket: d.tacticalBucket ?? defenderBucketForLineIndex(i),
+  }));
 }
 
 /** Last stand: everyone still alive holds the line (ignore retreat flags from wall phase). */
 function defenderLineForPrefeituraSiege(
   line: DefenderLineEntry[],
 ): DefenderLineEntry[] {
-  return line.map((d) =>
+  return normalizeDefenderLinePref(line).map((d) =>
     d.currentHp > 0 ? { ...d, retreated: false } : d,
   );
 }
@@ -174,9 +214,21 @@ export function advancePrefeituraSiegeRound(
   const turn = daily.currentTurn + 1;
   const t0 = Date.now();
   const lines: Omit<CombatLogEntry, 'id'>[] = [];
-  let enemies = [...daily.enemies];
+  let enemies = normalizeEnemies(daily.enemies);
   let defenderLine = defenderLineForPrefeituraSiege(daily.defenderLine);
   let workingMap = hexMap;
+
+  let allySpirit = clampAllySpirit(
+    daily.allySpirit ?? ALLY_SPIRIT_INITIAL,
+  );
+  let moraleShockTurnsRemaining = decrementMoraleShock(
+    daily.moraleShockTurnsRemaining ?? 0,
+  );
+
+  const spiritBeforeRound = allySpirit;
+  let killsThisRound = 0;
+  let defenderHitsThisRound = 0;
+  let structureHitsThisRound = 0;
 
   lines.push({
     turn,
@@ -185,19 +237,43 @@ export function advancePrefeituraSiegeRound(
     type: 'system',
   });
 
+  lines.push({
+    turn,
+    timestamp: t0,
+    text: lineBucketPressureSnapshot({
+      front: countLivingInBucket(enemies, 'front'),
+      ranged: countLivingInBucket(enemies, 'ranged'),
+      support: countLivingInBucket(enemies, 'support'),
+    }),
+    type: 'system',
+  });
+
+  const outgoingMul = allySpiritOutgoingDamageMultiplier(
+    moraleShockTurnsRemaining,
+  );
+
   const towerRaw = rollIntInclusive(
     rng,
     DEFENSE_TOWER_DAMAGE_MIN,
     DEFENSE_TOWER_DAMAGE_MAX,
   );
+  const towerBucket = rollTowerTargetBucket(rng);
+  const towerIdx = pickLivingEnemyIndexPreferBucket(enemies, towerBucket, rng);
   const towerHit = resolveIncomingMeleeDamage(towerRaw, rng);
-  enemies = applyFinalDamageToFirstLiving(enemies, towerHit.finalDamage);
+  const tBefore = livingEnemyCount(enemies);
+  if (towerIdx >= 0) {
+    enemies = applyDamageToEnemyAtPref(enemies, towerIdx, towerHit.finalDamage);
+    killsThisRound += Math.max(
+      0,
+      tBefore - livingEnemyCount(enemies),
+    );
+  }
   lines.push({
     turn,
     timestamp: t0,
     text: towerHit.flags.dodged
       ? `${DEFENSE_NPC_TOWER_LABEL}: shot evaded by hostiles.`
-      : `${DEFENSE_NPC_TOWER_LABEL} fires for ${String(towerHit.finalDamage)} damage.`,
+      : `${DEFENSE_NPC_TOWER_LABEL} fires (${towerBucket}) for ${String(towerHit.finalDamage)} damage.`,
     type: 'guarda',
   });
 
@@ -207,14 +283,23 @@ export function advancePrefeituraSiegeRound(
       DEFENSE_GUARD_DAMAGE_MIN,
       DEFENSE_GUARD_DAMAGE_MAX,
     );
+    const grBucket = rollGuardTargetBucket(rng);
+    const gIdx = pickLivingEnemyIndexPreferBucket(enemies, grBucket, rng);
     const gh = resolveIncomingMeleeDamage(graw, rng);
-    enemies = applyFinalDamageToFirstLiving(enemies, gh.finalDamage);
+    const gBefore = livingEnemyCount(enemies);
+    if (gIdx >= 0) {
+      enemies = applyDamageToEnemyAtPref(enemies, gIdx, gh.finalDamage);
+      killsThisRound += Math.max(
+        0,
+        gBefore - livingEnemyCount(enemies),
+      );
+    }
     lines.push({
       turn,
       timestamp: t0,
       text: gh.flags.dodged
         ? `Rifle guard: burst evaded.`
-        : `Rifle guard fires for ${String(gh.finalDamage)} damage.`,
+        : `Rifle guard fires (${grBucket}) for ${String(gh.finalDamage)} damage.`,
       type: 'guarda',
     });
   }
@@ -222,20 +307,50 @@ export function advancePrefeituraSiegeRound(
   for (const def of defenderLine) {
     if (def.currentHp <= 0) continue;
     if (firstLivingEnemyIndex(enemies) < 0) break;
-    const raw = rollIntInclusive(rng, 5, 12);
+    let raw = rollIntInclusive(rng, 5, 12);
+    raw = Math.max(1, Math.floor(raw * outgoingMul));
+
+    if (def.tacticalBucket === 'support' && rng() < 0.38) {
+      allySpirit = clampAllySpirit(allySpirit + ALLY_SPIRIT_SUPPORT_CONNECT);
+      raw = Math.max(1, Math.floor(raw * 0.72));
+      lines.push({
+        turn,
+        timestamp: t0,
+        text: lineSupportStabilizes(),
+        type: 'system',
+        highlight: true,
+      });
+    }
+
+    const prefBucket = def.tacticalBucket ?? 'front';
+    const hitIdx = pickLivingEnemyIndexPreferBucket(enemies, prefBucket, rng);
     const hit = resolveIncomingMeleeDamage(raw, rng);
-    enemies = applyFinalDamageToFirstLiving(enemies, hit.finalDamage);
+    const hBefore = livingEnemyCount(enemies);
+    if (hitIdx >= 0) {
+      enemies = applyDamageToEnemyAtPref(enemies, hitIdx, hit.finalDamage);
+      killsThisRound += Math.max(
+        0,
+        hBefore - livingEnemyCount(enemies),
+      );
+    }
     lines.push({
       turn,
       timestamp: t0,
       text: hit.flags.dodged
         ? `${def.name}'s strike is evaded.`
-        : `${def.name} hits for ${String(hit.finalDamage)} damage.`,
+        : `${def.name} (${prefBucket}) hits for ${String(hit.finalDamage)} damage.`,
       type: 'player',
     });
   }
 
   enemies = enemies.filter((e) => e.currentHealth > 0);
+
+  allySpirit = clampAllySpirit(
+    allySpirit + killsThisRound * ALLY_SPIRIT_PER_KILL,
+  );
+  allySpirit = clampAllySpirit(
+    allySpirit + evaluateFrontGapSpiritDelta(enemies),
+  );
 
   const strikeCycle = buildPrefeituraSiegeStrikeCycle(defenderLine);
   let prefeituraCollapsed = false;
@@ -245,6 +360,7 @@ export function advancePrefeituraSiegeRound(
     const slot = strikeCycle[ei % strikeCycle.length]!;
 
     if (slot.kind === 'prefeitura') {
+      structureHitsThisRound += 1;
       const raw = rollIntInclusive(
         rng,
         DEFENSE_ENEMY_STRIKE_VS_WALL_MIN,
@@ -265,15 +381,17 @@ export function advancePrefeituraSiegeRound(
           timestamp: Date.now(),
           text: 'The Prefeitura has fallen.',
           type: 'system',
+          highlight: true,
         });
         break;
       }
       continue;
     }
 
-    const di = slot.lineIndex;
+    let di = resolveDefenderStrikeLineIndex(e, defenderLine, slot.lineIndex);
     const d = defenderLine[di]!;
     if (d.currentHp <= 0) {
+      structureHitsThisRound += 1;
       const rawFallback = rollIntInclusive(
         rng,
         DEFENSE_ENEMY_STRIKE_VS_WALL_MIN,
@@ -294,6 +412,7 @@ export function advancePrefeituraSiegeRound(
           timestamp: Date.now(),
           text: 'The Prefeitura has fallen.',
           type: 'system',
+          highlight: true,
         });
       }
       continue;
@@ -308,6 +427,9 @@ export function advancePrefeituraSiegeRound(
     const nextHp = strike.flags.dodged
       ? d.currentHp
       : Math.max(0, d.currentHp - strike.finalDamage);
+    if (!strike.flags.dodged && strike.finalDamage > 0) {
+      defenderHitsThisRound += 1;
+    }
     const nextD: DefenderLineEntry = { ...d, currentHp: nextHp };
     const rep = [...defenderLine];
     rep[di] = nextD;
@@ -319,8 +441,41 @@ export function advancePrefeituraSiegeRound(
         ? `${e.enemyId} lunges at ${d.name} — evaded.`
         : strike.flags.blocked
           ? `${e.enemyId} hits ${d.name} (blocked) for ${String(strike.finalDamage)}.`
-          : `${e.enemyId} hits ${d.name} for ${String(strike.finalDamage)}.`,
+          : `${e.enemyId} (${e.tacticalBucket ?? 'front'}) hits ${d.name} for ${String(strike.finalDamage)}.`,
       type: 'enemy',
+    });
+  }
+
+  allySpirit = clampAllySpirit(
+    allySpirit +
+      defenderHitsThisRound * ALLY_SPIRIT_DEFENDER_HIT +
+      structureHitsThisRound * ALLY_SPIRIT_STRUCTURE_HIT,
+  );
+
+  const shockRoll = maybeTriggerMoraleShock({
+    allySpirit,
+    moraleShockTurnsRemaining,
+    rng,
+    defenderHitsThisRound,
+  });
+  moraleShockTurnsRemaining = shockRoll.moraleShockTurnsRemaining;
+  if (shockRoll.triggered) {
+    lines.push({
+      turn,
+      timestamp: Date.now(),
+      text: lineMoraleShockHits(),
+      type: 'system',
+      highlight: true,
+    });
+  }
+
+  const spiritDelta = allySpirit - spiritBeforeRound;
+  if (spiritDelta !== 0 || shockRoll.triggered) {
+    lines.push({
+      turn,
+      timestamp: Date.now(),
+      text: lineAllySpiritShift(spiritDelta, allySpirit),
+      type: 'system',
     });
   }
 
@@ -342,6 +497,7 @@ export function advancePrefeituraSiegeRound(
       timestamp: Date.now(),
       text: 'Hostiles routed — downtown holds.',
       type: 'system',
+      highlight: true,
     });
   }
 
@@ -356,6 +512,8 @@ export function advancePrefeituraSiegeRound(
     isCompleted,
     phase,
     victoryLootPool: daily.victoryLootPool,
+    allySpirit,
+    moraleShockTurnsRemaining,
   };
 
   return {

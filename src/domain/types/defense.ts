@@ -1,6 +1,7 @@
 import type {
   CombatLogEntry,
   DefenseParticipant,
+  DefenseTacticalBucket,
   EnemyInstance,
 } from './combat.ts';
 import type { Item } from './items.ts';
@@ -38,6 +39,8 @@ export interface DefenderLineEntry {
   currentHp: number;
   maxHp: number;
   retreated: boolean;
+  /** Role on the abstract defense line (autoplay / strike bias). */
+  tacticalBucket?: DefenseTacticalBucket;
 }
 
 export interface DailyDefenseState {
@@ -65,6 +68,10 @@ export interface DailyDefenseState {
   outcome: NightlyDefenseOutcome;
   /** Snapshot per fight; filled when combat starts. */
   defenderLine: DefenderLineEntry[];
+  /** Ally-side cohesion meter (combat rounds only). */
+  allySpirit: number;
+  /** While > 0, defender melee pressure is suppressed (morale shock). */
+  moraleShockTurnsRemaining: number;
   /**
    * Rolled when the wave is seeded; split randomly among `defenderLine` on victory.
    */

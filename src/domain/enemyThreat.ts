@@ -1,3 +1,4 @@
+import { enemyBucketForSpawnIndex } from './defenseTactics.ts';
 import type { EnemyInstance } from './types/combat.ts';
 import type { WallCardinal } from './types/defense.ts';
 
@@ -58,6 +59,7 @@ export function composeWaveFromBudget(
   let remaining = b;
   const id = 'drone_scout';
   const per = threatPointsForEnemyId(id);
+  let spawnIndex = 0;
 
   while (remaining >= per) {
     const hp = DEFAULT_DRONE_HP + Math.floor(rng() * 10);
@@ -65,8 +67,10 @@ export function composeWaveFromBudget(
       enemyId: id,
       currentHealth: hp,
       maxHealth: hp,
+      tacticalBucket: enemyBucketForSpawnIndex(spawnIndex),
       buffs: {},
     });
+    spawnIndex += 1;
     remaining -= per;
   }
   return out;
