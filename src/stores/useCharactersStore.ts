@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import { normalizeCharacter } from '../domain/characterNormalize.ts';
+import type { LegacyCharacterShape } from '../domain/characterNormalize.ts';
 import type { Character, Item } from '../domain/types/index.ts';
 
 interface CharactersActions {
@@ -153,6 +155,20 @@ export const useCharactersStore = create<CharactersStore>()(
     }),
     {
       name: 'peraspera-characters',
+      version: 1,
+      migrate: (persistedState, fromVersion) => {
+        if (fromVersion < 1 && persistedState && typeof persistedState === 'object') {
+          const p = persistedState as Partial<CharactersState>;
+          if (p.characters && typeof p.characters === 'object') {
+            const next: Record<string, Character> = {};
+            for (const [id, raw] of Object.entries(p.characters)) {
+              next[id] = normalizeCharacter(raw as LegacyCharacterShape);
+            }
+            return { ...p, characters: next };
+          }
+        }
+        return persistedState as CharactersState;
+      },
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         characters: state.characters,

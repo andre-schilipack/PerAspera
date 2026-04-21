@@ -1,4 +1,10 @@
-export type { Character, CharacterHealth, StaminaState } from './character.ts';
+export type {
+  Character,
+  CharacterHealth,
+  CombatLoadout,
+  StaminaState,
+} from './character.ts';
+export type { CoreAttributeKey, CoreAttributes } from './attributes.ts';
 export type {
   CombatLogActor,
   CombatLogEntry,
@@ -7,9 +13,12 @@ export type {
   DefenseSide,
   Enemy,
   EnemyInstance,
-  Move,
   MoveDamageKind,
+  MovePower,
+  MoveTag,
   MoveTargetScope,
+  MoveTemplate,
+  MoveTemplateId,
 } from './combat.ts';
 export type {
   Business,

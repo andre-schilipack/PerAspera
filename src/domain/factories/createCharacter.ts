@@ -4,6 +4,8 @@ import {
   STAMINA_MAX_BASE,
   STARTING_CREDS,
 } from '../constants.ts';
+import { DEFAULT_COMBAT_LOADOUT } from '../characterNormalize.ts';
+import { DEFAULT_CORE_ATTRIBUTES } from '../types/attributes.ts';
 import type { Character } from '../types/index.ts';
 
 export interface CreateCharacterParams {
@@ -51,7 +53,13 @@ export function createCharacter(params: CreateCharacterParams): Character {
     reputation: 0,
     homeHexId,
     currentHexId: currentHexId ?? homeHexId,
-    availableMoves: ['basic_attack'],
+    coreAttributes: { ...DEFAULT_CORE_ATTRIBUTES },
+    combatLoadout: {
+      skillIds: [...DEFAULT_COMBAT_LOADOUT.skillIds],
+      equippedItemInstanceIds: [
+        ...DEFAULT_COMBAT_LOADOUT.equippedItemInstanceIds,
+      ],
+    },
     currentDefenseContribution: 0,
     autoEnlistNightlyDefense: true,
     inventory: [],

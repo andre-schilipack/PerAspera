@@ -1,3 +1,5 @@
+import type { CoreAttributeKey } from './attributes.ts';
+
 export type EnemyKind = 'robotic' | 'organic' | 'hybrid';
 
 export interface Enemy {
@@ -17,16 +19,52 @@ export interface EnemyInstance {
 
 export type MoveTargetScope = 'single' | 'multi' | 'all';
 
-export type MoveDamageKind = 'physical' | 'neon' | 'hack' | 'organic';
+export type MoveDamageKind =
+  | 'physical'
+  | 'fire'
+  | 'chemical'
+  | 'electric'
+  | 'energy'
+  | 'ice'
+  | 'hack';
 
-export interface Move {
-  id: string;
+/** Stable id for {@link MoveTemplate} rows (catalog keys). */
+export type MoveTemplateId = string;
+
+export type MoveTag =
+  | 'burst'
+  | 'buff'
+  | 'debuff'
+  | 'cleanse'
+  | 'execute'
+  | 'aoe'
+  | 'single'
+  | 'control'
+  | 'hack';
+
+export type MovePower =
+  | { mode: 'flat'; basePower: number }
+  | {
+      mode: 'scaleAttribute';
+      attribute: CoreAttributeKey;
+      coefficient: number;
+      base?: number;
+    };
+
+/**
+ * Authoritative definition for a combat move (catalog row).
+ * Runtime combat uses templates + participant state (cooldowns, buffs).
+ */
+export interface MoveTemplate {
+  id: MoveTemplateId;
   name: string;
   description: string;
-  damage: number;
+  damageKind: MoveDamageKind;
   targets: MoveTargetScope;
+  /** Future: stamina or other combat-resource cost per use. */
   cost: number;
-  type: MoveDamageKind;
+  power: MovePower;
+  tags: MoveTag[];
 }
 
 export type CombatLogActor =
@@ -56,5 +94,6 @@ export interface DefenseParticipant {
   side: DefenseSide;
   currentHealth: number;
   maxHealth: number;
-  availableMoves: string[];
+  /** Move template ids equipped for autoplay (see {@link CombatLoadout}). */
+  skillIds: string[];
 }

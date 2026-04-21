@@ -113,6 +113,9 @@ export const PATROL_ENCOUNTER_DANGER_WEIGHT = 0.34;
 /** Maximum encounter chance per patrol step (avoid frustration). */
 export const PATROL_ENCOUNTER_CHANCE_CAP = 0.42;
 
+/** Max equipped combat skills per character (deck-style loadout). */
+export const MAX_COMBAT_SKILL_SLOTS = 6;
+
 /** Default max (and starting) HP for playable characters and street skirmish pool. */
 export const PLAYER_BASE_MAX_HP = 42;
 

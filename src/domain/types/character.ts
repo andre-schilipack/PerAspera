@@ -1,4 +1,8 @@
 import type { Item } from './items.ts';
+import type { CoreAttributes } from './attributes.ts';
+import type { MoveTemplateId } from './combat.ts';
+
+export type { CoreAttributes } from './attributes.ts';
 
 export interface StaminaState {
   current: number;
@@ -15,6 +19,16 @@ export interface CharacterHealth {
   lastUpdated: number;
 }
 
+/**
+ * Deck-style combat configuration. `skillIds` reference {@link MoveTemplateId} catalog keys.
+ * `equippedItemInstanceIds` reserved for weapon/gear hooks (inventory item ids).
+ */
+export interface CombatLoadout {
+  skillIds: MoveTemplateId[];
+  /** Future: gear that modifies autoplay / damage (item instance ids). */
+  equippedItemInstanceIds: string[];
+}
+
 export interface Character {
   id: string;
   name: string;
@@ -29,7 +43,9 @@ export interface Character {
   homeHexId: string;
   /** Current position on the hex map (axial key `q,r`). */
   currentHexId: string;
-  availableMoves: string[];
+  /** Baseline stats; scaling for exp/leveling comes later (MVP: all 1). */
+  coreAttributes: CoreAttributes;
+  combatLoadout: CombatLoadout;
   /** Resets with daily defense bookkeeping. */
   currentDefenseContribution: number;
   /**
