@@ -90,3 +90,10 @@ export type DefenseEndScreenState =
       kind: 'defeat';
       variant: 'breach';
     };
+
+/** One simulated calendar night after offline catch-up (bootstrap). */
+export interface DefenseCatchUpNightRow {
+  date: string;
+  gameDayIndex: number;
+  outcome: NightlyDefenseOutcome;
+}

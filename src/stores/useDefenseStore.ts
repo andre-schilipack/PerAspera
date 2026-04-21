@@ -14,6 +14,7 @@ import {
 } from '../game/nightlyDefenseAdvance.ts';
 import type {
   DailyDefenseState,
+  DefenseCatchUpNightRow,
   DefenseEndScreenState,
   WallState,
 } from '../domain/types/index.ts';
@@ -23,6 +24,13 @@ import { useCityStore } from './useCityStore.ts';
 import { useMetaStore } from './useMetaStore.ts';
 import { useWorldStore } from './useWorldStore.ts';
 
+/** Ephemeral aggregated modal after bootstrap catch-up (not persisted). */
+export interface DefenseCatchUpBatchPayload {
+  nightSummaries: DefenseCatchUpNightRow[];
+  nightsProcessed: number;
+  abortedOnGameOver: boolean;
+}
+
 interface DefenseActions {
   setDailyDefense: (dailyDefense: DailyDefenseState) => void;
   patchDailyDefense: (patch: Partial<DailyDefenseState>) => void;
@@ -30,6 +38,9 @@ interface DefenseActions {
   /** One combat round: domain commit + cross-store apply (centered here). */
   advanceNightlyDefenseRound: (rng?: () => number) => void;
   dismissDefenseEndScreen: () => void;
+  /** Shows once after offline night simulation; silences per-night defense modals. */
+  openDefenseCatchUpSummary: (payload: DefenseCatchUpBatchPayload) => void;
+  dismissDefenseCatchUpSummary: () => void;
   reset: () => void;
 }
 
@@ -38,6 +49,8 @@ type DefenseSlice = {
   wall: WallState;
   /** Ephemeral victory/defeat modal payload (excluded from persist). */
   defenseEndScreen: DefenseEndScreenState | null;
+  /** Bootstrap catch-up aggregate (excluded from persist). */
+  defenseCatchUpSummary: DefenseCatchUpBatchPayload | null;
 };
 
 type DefenseStore = DefenseSlice & DefenseActions;
@@ -53,6 +66,7 @@ function initialDefenseState(): DefenseSlice {
     }),
     wall: createInitialWallState(),
     defenseEndScreen: null,
+    defenseCatchUpSummary: null,
   };
 }
 
@@ -64,6 +78,13 @@ export const useDefenseStore = create<DefenseStore>()(
       patchDailyDefense: (patch) =>
         set((s) => ({ dailyDefense: { ...s.dailyDefense, ...patch } })),
       setWall: (wall) => set({ wall }),
+      openDefenseCatchUpSummary: (payload) =>
+        set({
+          defenseCatchUpSummary: payload,
+          defenseEndScreen: null,
+        }),
+      dismissDefenseCatchUpSummary: () =>
+        set({ defenseCatchUpSummary: null }),
       advanceNightlyDefenseRound: (rng = Math.random) => {
         const commit = buildNightlyDefenseAdvanceCommit(
           {
@@ -95,7 +116,11 @@ export const useDefenseStore = create<DefenseStore>()(
         }
       },
       dismissDefenseEndScreen: () => set({ defenseEndScreen: null }),
-      reset: () => set(initialDefenseState()),
+      reset: () =>
+        set({
+          ...initialDefenseState(),
+          defenseCatchUpSummary: null,
+        }),
     }),
     {
       name: 'peraspera-defense',

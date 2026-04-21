@@ -49,7 +49,11 @@ import {
 import { healthVisualCurrentAt } from '../domain/healthRegen.ts';
 import { staminaVisualCurrentAt } from '../domain/stamina.ts';
 import { makeBusinessId } from '../domain/ids.ts';
-import type { BusinessKind, WallCardinal } from '../domain/types/index.ts';
+import type {
+  BusinessKind,
+  NightlyDefenseOutcome,
+  WallCardinal,
+} from '../domain/types/index.ts';
 import type { Item } from '../domain/types/index.ts';
 import {
   scoreEntriesFromCharacters,
@@ -105,6 +109,23 @@ import {
   isScreenAvailableAtHex,
 } from './screenHexAccess.ts';
 import './game.css';
+
+function defenseCatchUpOutcomeLabelPt(o: NightlyDefenseOutcome): string {
+  switch (o) {
+    case 'victory':
+      return 'Vitória';
+    case 'breach':
+      return 'Brecha';
+    case 'prefeitura_siege':
+      return 'Cerco à Prefeitura (transitório)';
+    case 'loss':
+      return 'Derrota — Prefeitura';
+    case 'active':
+      return 'Activo';
+    default:
+      return o;
+  }
+}
 
 function useNowTick(ms: number): number {
   const [t, setT] = useState(() => Date.now());
@@ -163,6 +184,12 @@ export default function GameApp() {
   const defenseEndScreen = useDefenseStore((s) => s.defenseEndScreen);
   const dismissDefenseEndScreen = useDefenseStore(
     (s) => s.dismissDefenseEndScreen,
+  );
+  const defenseCatchUpSummary = useDefenseStore(
+    (s) => s.defenseCatchUpSummary,
+  );
+  const dismissDefenseCatchUpSummary = useDefenseStore(
+    (s) => s.dismissDefenseCatchUpSummary,
   );
   const cityCore = useCityStore((s) => s.cityCore);
   const civilianPopulation = useCityStore(
@@ -1598,7 +1625,47 @@ export default function GameApp() {
         </div>
       ) : null}
 
-      {defenseEndScreen ? (
+      {defenseCatchUpSummary ? (
+        <div
+          className="game-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="defense-catchup-title"
+        >
+          <div className="game-modal game-modal--catchup">
+            <h2 id="defense-catchup-title">Noites simuladas</h2>
+            <p className="game-muted">
+              Adiantamos automaticamente as defesas enquanto você esteve offline.
+              Abaixo está o resultado por dia civil (sem detalhes de recompensas individuais — o estado do jogo já foi atualizado).
+            </p>
+            <ul className="game-defense-catchup-list">
+              {defenseCatchUpSummary.nightSummaries.map((row) => (
+                <li key={`${row.date}-${row.gameDayIndex}`}>
+                  <strong>{row.date}</strong>
+                  {' · '}
+                  Dia {row.gameDayIndex}
+                  {' · '}
+                  {defenseCatchUpOutcomeLabelPt(row.outcome)}
+                </li>
+              ))}
+            </ul>
+            <p className="game-muted">
+              Noites processadas: {defenseCatchUpSummary.nightsProcessed}
+            </p>
+            {defenseCatchUpSummary.abortedOnGameOver ? (
+              <p className="game-muted" role="alert">
+                A última simulação terminou em falha catastrófica (game over).
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => dismissDefenseCatchUpSummary()}
+            >
+              Continuar
+            </button>
+          </div>
+        </div>
+      ) : defenseEndScreen ? (
         <div
           className="game-modal-backdrop"
           role="dialog"

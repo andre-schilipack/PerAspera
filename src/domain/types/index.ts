@@ -14,6 +14,7 @@ export type {
 export type { Business, BusinessKind, PassiveItemBuffer } from './economy.ts';
 export type {
   DailyDefenseState,
+  DefenseCatchUpNightRow,
   DefenseEndScreenState,
   DefenseVictoryParticipantSummary,
   DefenderLineEntry,

@@ -19,12 +19,16 @@ import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 
+import type { DefenseCatchUpNightRow } from '../domain/types/defense.ts';
+
 const MAX_FAST_FORWARD_ROUNDS = 8000;
 
 export interface NightlyDefenseCatchUpResult {
   /** Nights fully simulated (historical gap + optional same-day overdue). */
   nightsProcessed: number;
   abortedOnGameOver: boolean;
+  /** One row per simulated night (for aggregated catch-up UI). */
+  nightSummaries: DefenseCatchUpNightRow[];
 }
 
 function buildAdvanceSnapshot(): Parameters<typeof buildNightlyDefenseAdvanceCommit>[0] {
@@ -114,7 +118,17 @@ export function runNightlyDefenseCatchUp(nowMs: number): NightlyDefenseCatchUpRe
   const rng = Math.random;
   const todayStr = formatLocalDateString(new Date(nowMs));
   let nightsProcessed = 0;
+  const nightSummaries: DefenseCatchUpNightRow[] = [];
   let guard = 0;
+
+  function pushNightSummaryFromStore(): void {
+    const live = useDefenseStore.getState().dailyDefense;
+    nightSummaries.push({
+      date: live.date,
+      gameDayIndex: live.gameDayIndex,
+      outcome: live.outcome,
+    });
+  }
 
   while (
     !useMetaStore.getState().gameOver &&
@@ -150,6 +164,7 @@ export function runNightlyDefenseCatchUp(nowMs: number): NightlyDefenseCatchUpRe
 
     simulateIncompleteNight(rng, defenseInstant);
     nightsProcessed += 1;
+    pushNightSummaryFromStore();
   }
 
   if (!useMetaStore.getState().gameOver) {
@@ -166,6 +181,7 @@ export function runNightlyDefenseCatchUp(nowMs: number): NightlyDefenseCatchUpRe
       if (!(live.isCompleted || live.phase === 'ended')) {
         simulateIncompleteNight(rng, defenseInstant);
         nightsProcessed += 1;
+        pushNightSummaryFromStore();
       }
     }
   }
@@ -173,5 +189,6 @@ export function runNightlyDefenseCatchUp(nowMs: number): NightlyDefenseCatchUpRe
   return {
     nightsProcessed,
     abortedOnGameOver: useMetaStore.getState().gameOver,
+    nightSummaries,
   };
 }

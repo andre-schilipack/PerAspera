@@ -233,7 +233,14 @@ export async function bootstrapGame(): Promise<void> {
   ensureCharacterAutoEnlist();
   ensureCharacterHealth();
 
-  runNightlyDefenseCatchUp(now);
+  const catchUp = runNightlyDefenseCatchUp(now);
+  if (catchUp.nightSummaries.length > 0) {
+    useDefenseStore.getState().openDefenseCatchUpSummary({
+      nightSummaries: catchUp.nightSummaries,
+      nightsProcessed: catchUp.nightsProcessed,
+      abortedOnGameOver: catchUp.abortedOnGameOver,
+    });
+  }
 
   if (useMetaStore.getState().gameOver) {
     fixInvalidCurrentCharacter();
