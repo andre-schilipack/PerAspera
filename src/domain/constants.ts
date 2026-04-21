@@ -156,6 +156,11 @@ export const MORALE_SHOCK_DURATION_TURNS = 2;
 /** Outgoing player defender damage multiplier while shock is active. */
 export const MORALE_SHOCK_OUTGOING_DAMAGE_FACTOR = 0.88;
 
+/** Combat UI: delay between each revealed log line (cinematic pacing). */
+export const COMBAT_UI_LOG_LINE_MS = 840;
+/** Combat UI: interval between auto-battle rounds (street + nightly). */
+export const COMBAT_UI_ROUND_INTERVAL_MS = 5200;
+
 /** STA spent to lock participation in nightly defense. */
 export const DEFENSE_LOCK_STA_COST = 50;
 

@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react';
 
-import { combatActorTag } from '../content/combatLines.ts';
+import {
+  combatActorTag,
+  combatBeatPhaseTag,
+} from '../content/combatLines.ts';
 import type { CombatLogEntry } from '../domain/types/index.ts';
 
 export interface CombatLogListProps {
@@ -43,13 +46,20 @@ export function CombatLogList({
         <li
           key={e.id}
           ref={i === entries.length - 1 ? bottomRef : undefined}
-          className="game-combat-log__line"
+          className={`game-combat-log__line${e.highlight ? ' game-combat-log__line--highlight' : ''}`.trim()}
           data-actor={e.type}
+          data-beat={e.combatBeatPhase ?? undefined}
+          data-highlight={e.highlight ? 'true' : undefined}
         >
           <span className="game-combat-log__meta" aria-hidden="true">
             <span className="game-combat-log__tag">
               {combatActorTag(e.type)}
             </span>
+            {e.combatBeatPhase ? (
+              <span className="game-combat-log__beat" title="Tactical beat">
+                {combatBeatPhaseTag(e.combatBeatPhase)}
+              </span>
+            ) : null}
             <span className="game-combat-log__turn">T{e.turn}</span>
           </span>
           <span className="game-combat-log__text">{e.text}</span>

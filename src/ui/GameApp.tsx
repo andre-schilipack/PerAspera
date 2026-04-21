@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  ALLY_SPIRIT_INITIAL,
+  ALLY_SPIRIT_MAX,
   CENTER_HEX_ID,
+  COMBAT_UI_LOG_LINE_MS,
+  COMBAT_UI_ROUND_INTERVAL_MS,
   DEFAULT_BUSINESS_STRUCTURE_MAX_HP,
   DEFENSE_LOCK_STA_COST,
   DEFENSE_START_HOUR,
@@ -96,6 +100,7 @@ import {
 } from '../game/expansionContracts.ts';
 import { playCombatStartSound } from '../audio/playCombatStartSound.ts';
 import { applyAutoEnlistLocksForDefense } from '../game/applyAutoEnlistLocksForDefense.ts';
+import { countLivingInBucket } from '../domain/defenseTactics.ts';
 import { buildDefenderLineFromLocks } from '../domain/nightlyDefenseCombat.ts';
 import { runEconomicCatchUp } from '../game/economicCatchUp.ts';
 import { startNewGame } from '../game/startNewGame.ts';
@@ -109,6 +114,8 @@ import { useSkirmishStore } from '../stores/useSkirmishStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 
 import { CombatLogList } from './CombatLogList.tsx';
+import { CombatModal } from './CombatModal.tsx';
+import { useCombatLogReveal } from './useCombatLogReveal.ts';
 import { GameFabBar } from './GameFabBar.tsx';
 import { GameOverOverlay } from './GameOverOverlay.tsx';
 import {
@@ -278,6 +285,38 @@ export default function GameApp() {
   const character =
     inGame && currentId !== null ? characters[currentId] : null;
 
+  const [defenseCombatDismissed, setDefenseCombatDismissed] = useState(false);
+
+  useEffect(() => {
+    setDefenseCombatDismissed(false);
+  }, [dailyDefense.date]);
+
+  const skirmishRevealKey = skirmishSession
+    ? `sk-${skirmishSession.characterId}-${skirmishSession.hexId}-${String(skirmishSession.combatLog[0]?.id ?? 0)}`
+    : 'sk-idle';
+
+  const skirmishReveal = useCombatLogReveal(
+    skirmishSession?.combatLog ?? [],
+    skirmishRevealKey,
+    COMBAT_UI_LOG_LINE_MS,
+  );
+
+  const showDefenseCombatModal =
+    inGame &&
+    (dailyDefense.phase === 'preparing' ||
+      dailyDefense.phase === 'fighting' ||
+      (dailyDefense.phase === 'ended' &&
+        dailyDefense.isCompleted &&
+        !defenseCombatDismissed));
+
+  const defenseCombatSessionKey = `${dailyDefense.date}-${String(dailyDefense.gameDayIndex)}-${showDefenseCombatModal ? 'open' : 'idle'}`;
+
+  const defenseReveal = useCombatLogReveal(
+    showDefenseCombatModal ? dailyDefense.combatLog : [],
+    defenseCombatSessionKey,
+    COMBAT_UI_LOG_LINE_MS,
+  );
+
   useEffect(() => {
     if (!inGame || gameOver) return;
     const id = window.setInterval(() => {
@@ -324,9 +363,9 @@ export default function GameApp() {
       if (!s || s.isCompleted) {
         window.clearInterval(intervalId);
       }
-    }, 3000);
+    }, COMBAT_UI_ROUND_INTERVAL_MS);
     return () => window.clearInterval(intervalId);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- log/HP churn must not reset the 3s interval
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- log/HP churn must not reset the round interval
   }, [
     skirmishSession?.phase,
     skirmishSession?.isCompleted,
@@ -403,7 +442,7 @@ export default function GameApp() {
       if (s.isCompleted) {
         window.clearInterval(intervalId);
       }
-    }, 3000);
+    }, COMBAT_UI_ROUND_INTERVAL_MS);
     return () => window.clearInterval(intervalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -1470,8 +1509,8 @@ export default function GameApp() {
           ) : dailyDefense.phase === 'fighting' && !dailyDefense.isCompleted ? (
             <p className="game-muted" role="status">
               {dailyDefense.outcome === 'prefeitura_siege'
-                ? 'Prefeitura siege — auto round every 3 seconds.'
-                : 'Auto-battle: a new round every 3 seconds.'}
+                ? `Prefeitura siege — theater mode · ~${String(Math.round(COMBAT_UI_ROUND_INTERVAL_MS / 1000))}s per round.`
+                : `Theater mode · ~${String(Math.round(COMBAT_UI_ROUND_INTERVAL_MS / 1000))}s per round.`}
             </p>
           ) : null}
           {dailyDefense.defenderLine.length > 0 ? (
@@ -1513,10 +1552,16 @@ export default function GameApp() {
             </div>
           ))}
           <h3>Combat log</h3>
-          <CombatLogList
-            entries={dailyDefense.combatLog}
-            autoScroll={dailyDefense.phase === 'fighting'}
-          />
+          {showDefenseCombatModal ? (
+            <p className="game-muted" role="status">
+              Live fight is running in the combat theater overlay (full screen).
+            </p>
+          ) : (
+            <CombatLogList
+              entries={dailyDefense.combatLog}
+              autoScroll={dailyDefense.phase === 'fighting'}
+            />
+          )}
             </>
           )}
         </section>
@@ -1904,69 +1949,248 @@ export default function GameApp() {
       )}
 
       {skirmishSession ? (
-        <div
-          className="game-modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="skirmish-title"
-        >
-          <div className="game-modal">
-            <h2 id="skirmish-title">Street fight</h2>
-            <p className="game-muted">
+        <CombatModal
+          open
+          title="Street fight"
+          subtitle={
+            <>
               Hex {skirmishSession.hexId} · danger{' '}
               {Math.round(skirmishSession.danger)} ·{' '}
               {skirmishSession.characterName}
-            </p>
-            <p>
-              Your HP {skirmishSession.playerHealth}/
-              {skirmishSession.playerMaxHealth}
-            </p>
-            {skirmishSession.phase === 'preparing' ? (
-              <p className="game-muted" role="status">
-                Stand by — combat begins in a few seconds.
-              </p>
-            ) : skirmishSession.phase === 'fighting' &&
+            </>
+          }
+          hud={
+            <div className="game-combat-hud">
+              <div className="game-combat-hud__row">
+                <span>Your HP</span>
+                <strong>
+                  {skirmishSession.playerHealth}/
+                  {skirmishSession.playerMaxHealth}
+                </strong>
+              </div>
+              {skirmishSession.phase === 'fighting' &&
               !skirmishSession.isCompleted ? (
-              <p className="game-muted" role="status">
-                Auto-battle: a new round every 3 seconds.
-              </p>
-            ) : null}
-            {skirmishSession.enemies.length > 0 ? (
+                <p className="game-combat-hud__note" role="status">
+                  Round cadence ~{String(Math.round(COMBAT_UI_ROUND_INTERVAL_MS / 1000))}s · log lines appear one by one.
+                </p>
+              ) : null}
+              {skirmishReveal.pendingApprox > 0 ? (
+                <p className="game-combat-hud__pending" role="status">
+                  {String(skirmishReveal.pendingApprox)} line
+                  {skirmishReveal.pendingApprox === 1 ? '' : 's'} queued…
+                </p>
+              ) : null}
+            </div>
+          }
+          footer={
+            <>
+              {!skirmishSession.isCompleted ? (
+                <button
+                  type="button"
+                  className="game-combat-modal__secondary"
+                  onClick={() => skirmishReveal.flushPending()}
+                >
+                  Show all lines now
+                </button>
+              ) : null}
+              {skirmishSession.isCompleted ? (
+                <>
+                  {skirmishSession.outcome === 'win' ? (
+                    <p className="game-skirmish-result">
+                      Victory — +{STREET_SKIRMISH_SCRAP_REWARD_QTY} scrap metal, +
+                      {STREET_SKIRMISH_WIN_SCORE} score (already applied).
+                    </p>
+                  ) : (
+                    <p className="game-skirmish-result">
+                      You went down. Heal up and keep patrolling.
+                    </p>
+                  )}
+                  <button type="button" onClick={() => dismissSkirmish()}>
+                    Close
+                  </button>
+                </>
+              ) : null}
+            </>
+          }
+        >
+          {skirmishSession.enemies.length > 0 ? (
+            <ul className="game-skirmish-enemies">
+              {skirmishSession.enemies.map((e, i) => (
+                <li key={`${e.enemyId}-${i}`}>
+                  {e.enemyId} ({e.tacticalBucket ?? 'front'}) — {e.currentHealth}{' '}
+                  HP
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="game-muted">No hostiles left.</p>
+          )}
+          {skirmishSession.phase === 'preparing' ? (
+            <p className="game-muted" role="status">
+              Stand by — combat begins in a few seconds.
+            </p>
+          ) : null}
+          <h3>Battle feed</h3>
+          <CombatLogList
+            entries={skirmishReveal.visibleEntries}
+            className="game-combat-log--skirmish game-combat-log--theater"
+            autoScroll={skirmishSession.phase === 'fighting'}
+          />
+        </CombatModal>
+      ) : null}
+
+      {showDefenseCombatModal ? (
+        <CombatModal
+          open
+          title={
+            dailyDefense.outcome === 'prefeitura_siege'
+              ? 'Prefeitura siege'
+              : 'Nightly defense'
+          }
+          subtitle={
+            <>
+              Night {dailyDefense.date} · game day {dailyDefense.gameDayIndex} ·
+              threat {dailyDefense.totalEnemyPoints} · phase{' '}
+              <strong>{dailyDefense.phase}</strong>
+              {dailyDefense.outcome !== 'active' ? (
+                <>
+                  {' '}
+                  · outcome <strong>{dailyDefense.outcome}</strong>
+                </>
+              ) : null}
+            </>
+          }
+          hud={
+            <div className="game-combat-hud">
+              <div className="game-combat-hud__spirit">
+                <div className="game-combat-hud__row">
+                  <span>Ally spirit</span>
+                  <strong>
+                    {dailyDefense.allySpirit ?? ALLY_SPIRIT_INITIAL}/
+                    {ALLY_SPIRIT_MAX}
+                  </strong>
+                </div>
+                <meter
+                  className="game-combat-spirit-meter"
+                  value={dailyDefense.allySpirit ?? ALLY_SPIRIT_INITIAL}
+                  min={0}
+                  max={ALLY_SPIRIT_MAX}
+                />
+                {(dailyDefense.moraleShockTurnsRemaining ?? 0) > 0 ? (
+                  <p className="game-combat-shock" role="status">
+                    Morale shock — defender pressure damped ·{' '}
+                    {String(dailyDefense.moraleShockTurnsRemaining ?? 0)} round
+                    {(dailyDefense.moraleShockTurnsRemaining ?? 0) === 1
+                      ? ''
+                      : 's'}{' '}
+                    left
+                  </p>
+                ) : null}
+              </div>
+              <div className="game-combat-hud__grid">
+                <div>
+                  <span className="game-muted">Round</span>
+                  <strong>{dailyDefense.currentTurn}</strong>
+                </div>
+                <div>
+                  <span className="game-muted">Focus wall</span>
+                  <strong>{dailyDefense.attackedSection}</strong>
+                </div>
+                <div>
+                  <span className="game-muted">Hostiles (F/R/S)</span>
+                  <strong>
+                    {countLivingInBucket(dailyDefense.enemies, 'front')}/
+                    {countLivingInBucket(dailyDefense.enemies, 'ranged')}/
+                    {countLivingInBucket(dailyDefense.enemies, 'support')}
+                  </strong>
+                </div>
+              </div>
+              <div className="game-combat-hud__wall">
+                <span className="game-muted">
+                  Wall {dailyDefense.attackedSection}
+                </span>
+                <meter
+                  value={wall.sections[dailyDefense.attackedSection].current}
+                  min={0}
+                  max={wall.sections[dailyDefense.attackedSection].max}
+                />
+              </div>
+              {defenseReveal.pendingApprox > 0 ? (
+                <p className="game-combat-hud__pending" role="status">
+                  {String(defenseReveal.pendingApprox)} line
+                  {defenseReveal.pendingApprox === 1 ? '' : 's'} queued…
+                </p>
+              ) : null}
+            </div>
+          }
+          footer={
+            <>
+              {!dailyDefense.isCompleted ? (
+                <button
+                  type="button"
+                  className="game-combat-modal__secondary"
+                  onClick={() => defenseReveal.flushPending()}
+                >
+                  Show all lines now
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setDefenseCombatDismissed(true)}
+                >
+                  Close theater
+                </button>
+              )}
+            </>
+          }
+        >
+          {dailyDefense.defenderLine.length > 0 ? (
+            <>
+              <h3>Defender line</h3>
               <ul className="game-skirmish-enemies">
-                {skirmishSession.enemies.map((e, i) => (
-                  <li key={`${e.enemyId}-${i}`}>
-                    {e.enemyId} — {e.currentHealth} HP
+                {dailyDefense.defenderLine.map((d) => (
+                  <li key={d.characterId}>
+                    {d.name} ({d.tacticalBucket ?? 'front'}) — {d.currentHp}/
+                    {d.maxHp} HP
+                    {d.retreated ? ' · fell back' : ''}
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="game-muted">No hostiles left.</p>
-            )}
-            <h3>Log</h3>
-            <CombatLogList
-              entries={skirmishSession.combatLog}
-              className="game-combat-log--skirmish"
-              autoScroll={skirmishSession.phase === 'fighting'}
-            />
-            {skirmishSession.isCompleted ? (
-              <>
-                {skirmishSession.outcome === 'win' ? (
-                  <p className="game-skirmish-result">
-                    Victory — +{STREET_SKIRMISH_SCRAP_REWARD_QTY} scrap metal, +
-                    {STREET_SKIRMISH_WIN_SCORE} score (already applied).
-                  </p>
-                ) : (
-                  <p className="game-skirmish-result">
-                    You went down. Heal up and keep patrolling.
-                  </p>
-                )}
-                <button type="button" onClick={() => dismissSkirmish()}>
-                  Close
-                </button>
-              </>
-            ) : null}
-          </div>
-        </div>
+            </>
+          ) : null}
+          {dailyDefense.enemies.length > 0 ? (
+            <>
+              <h3>Hostile pressure</h3>
+              <ul className="game-skirmish-enemies">
+                {dailyDefense.enemies.map((e, i) => (
+                  <li key={`${e.enemyId}-${i}`}>
+                    {e.enemyId} ({e.tacticalBucket ?? 'front'}) —{' '}
+                    {e.currentHealth}/{e.maxHealth} HP
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="game-muted">No hostiles in this wave.</p>
+          )}
+          {dailyDefense.phase === 'preparing' ? (
+            <p className="game-muted" role="status">
+              Stand by — positions lock — first round incoming.
+            </p>
+          ) : dailyDefense.phase === 'fighting' && !dailyDefense.isCompleted ? (
+            <p className="game-muted" role="status">
+              Rounds advance ~ every {String(Math.round(COMBAT_UI_ROUND_INTERVAL_MS / 1000))}s; each line appears ~ every {String(Math.round(COMBAT_UI_LOG_LINE_MS / 1000))}s.
+            </p>
+          ) : null}
+          <h3>Battle feed</h3>
+          <CombatLogList
+            entries={defenseReveal.visibleEntries}
+            className="game-combat-log--theater"
+            autoScroll={
+              dailyDefense.phase === 'fighting' || dailyDefense.phase === 'ended'
+            }
+          />
+        </CombatModal>
       ) : null}
 
       {defenseCatchUpSummary ? (
