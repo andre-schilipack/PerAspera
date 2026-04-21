@@ -6,13 +6,19 @@ export type BusinessKind =
   | 'outro';
 
 /** Industria: raw material → processed material (passive transform). */
-export type IndustrialRecipeId = 'scrap_to_metal' | 'tronco_to_madeira';
+export type IndustrialRecipeId = 'scrap_to_metal' | 'wood_log_to_lumber';
 
 /** Fabrica: multiple materials → finished stackable item. */
 export type FabricaRecipeId = 'construction_bundle';
 
 /** Pending passive item quantities (float); templateId → units. */
 export type PassiveItemBuffer = Record<string, number>;
+
+/** One warehouse slot at a business; same template merges when depositing (see domain logic). */
+export type BusinessInventorySlot = {
+  templateId: string;
+  quantity: number;
+} | null;
 
 export interface Business {
   id: string;
@@ -35,4 +41,6 @@ export interface Business {
   industrialRecipe?: IndustrialRecipeId;
   /** Fabrica only: assembled output recipe. */
   fabricaRecipe?: FabricaRecipeId;
+  /** Fixed-length warehouse for inputs (and optional stock); empty slot = null. */
+  inventorySlots: BusinessInventorySlot[];
 }

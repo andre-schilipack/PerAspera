@@ -31,7 +31,7 @@ interface SkirmishActions {
 
 type SkirmishStore = {
   session: StreetSkirmishState | null;
-  /** templateId → used (spray de contusão, 1 per street skirmish). */
+  /** templateId → used (bruise spray, 1 per street skirmish). */
   perSkirmishConsumableUsed: Record<string, boolean>;
 } & SkirmishActions;
 

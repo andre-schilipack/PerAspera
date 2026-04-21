@@ -55,7 +55,7 @@ export function computeWorkPayout(business: Business): BusinessWorkYield {
             templateId: 'food_ration',
             name: 'Food',
             type: 'consumable',
-            rarity: 'comum',
+            rarity: 'common',
             value: 6,
             effects: { staminaBoost: 10 },
             quantity: Math.max(1, Math.floor(rate / 8)),
@@ -69,7 +69,7 @@ export function computeWorkPayout(business: Business): BusinessWorkYield {
       };
     case 'industria': {
       const rid = b.industrialRecipe ?? 'scrap_to_metal';
-      const rawTid = rid === 'tronco_to_madeira' ? 'tronco_madeira' : 'scrap_metal';
+      const rawTid = rid === 'wood_log_to_lumber' ? 'wood_log' : 'scrap_metal';
       const stub = itemGrantTemplate(rawTid);
       if (!stub) return { creds: 0, itemGrants: [] };
       return {
@@ -83,7 +83,7 @@ export function computeWorkPayout(business: Business): BusinessWorkYield {
       };
     }
     case 'fabrica': {
-      const stub = itemGrantTemplate('materiais_construcao');
+      const stub = itemGrantTemplate('construction_supplies');
       if (!stub) return { creds: 0, itemGrants: [] };
       return {
         creds: 0,

@@ -15,7 +15,7 @@ export function rollVictoryLootPoolForWave(
       templateId: 'scrap_metal',
       name: 'Scrap Metal',
       type: 'material',
-      rarity: 'comum',
+      rarity: 'common',
       value: 8,
       effects: {},
       quantity: qty,

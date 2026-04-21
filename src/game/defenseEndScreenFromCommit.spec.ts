@@ -96,7 +96,7 @@ describe('defenseEndScreenFromCommit', () => {
               id: 'loot1',
               name: 'Scrap Metal',
               type: 'material',
-              rarity: 'comum',
+              rarity: 'common',
               value: 8,
               effects: {},
               quantity: 2,

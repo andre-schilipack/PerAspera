@@ -6,7 +6,7 @@ export type ItemType =
   | 'upgrade'
   | 'repair_material';
 
-export type ItemRarity = 'comum' | 'raro' | 'épico';
+export type ItemRarity = 'common' | 'rare' | 'epic';
 
 export interface Item {
   id: string;

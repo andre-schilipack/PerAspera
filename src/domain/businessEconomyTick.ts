@@ -5,6 +5,7 @@ import {
   DEFAULT_WAGE_PER_DAY,
   DEFAULT_WORKER_SLOTS,
 } from './constants.ts';
+import { normalizeBusinessInventorySlots } from './businessInventorySlots.ts';
 import { applyPassiveRecipeBuffers } from './businessPassiveRecipes.ts';
 import type { Business, BusinessKind, PassiveItemBuffer } from './types/economy.ts';
 import type { Character } from './types/character.ts';
@@ -30,6 +31,7 @@ export function normalizeBusiness(b: Business): Business {
     credsPending: b.credsPending ?? 0,
     industrialRecipe,
     fabricaRecipe,
+    inventorySlots: normalizeBusinessInventorySlots(b.type, b.inventorySlots),
   };
 }
 

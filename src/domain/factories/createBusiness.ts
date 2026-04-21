@@ -1,7 +1,11 @@
 import {
   DEFAULT_WAGE_PER_DAY,
   DEFAULT_WORKER_SLOTS,
+  defaultBusinessInventorySlotCount,
 } from '../constants.ts';
+import {
+  createEmptyBusinessInventorySlots,
+} from '../businessInventorySlots.ts';
 import type { Business, BusinessKind } from '../types/economy.ts';
 
 export function createNewBusiness(params: {
@@ -23,5 +27,8 @@ export function createNewBusiness(params: {
     wagePerDay: DEFAULT_WAGE_PER_DAY,
     passiveItemBuffer: {},
     credsPending: 0,
+    inventorySlots: createEmptyBusinessInventorySlots(
+      defaultBusinessInventorySlotCount(params.type),
+    ),
   };
 }

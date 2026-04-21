@@ -3,6 +3,8 @@
  * Tune here before scattering magic numbers across stores.
  */
 
+import type { BusinessKind } from './types/economy.ts';
+
 /** App semver string mirrored in save metadata (human-readable). */
 export const GAME_VERSION = '0.1.0' as const;
 
@@ -69,6 +71,24 @@ export const SHOP_SIMULATED_CREDS_PER_DAY_PER_WORKER = 24;
 
 /** Default max workers per business slot. */
 export const DEFAULT_WORKER_SLOTS = 2;
+
+/** Warehouse slots per business kind (production buildings hold inputs). */
+export function defaultBusinessInventorySlotCount(kind: BusinessKind): number {
+  switch (kind) {
+    case 'fabrica':
+      return 12;
+    case 'industria':
+      return 12;
+    case 'fazenda':
+      return 8;
+    case 'loja':
+      return 6;
+    case 'outro':
+      return 8;
+    default:
+      return 8;
+  }
+}
 
 export const DEFAULT_WAGE_PER_DAY = 8;
 

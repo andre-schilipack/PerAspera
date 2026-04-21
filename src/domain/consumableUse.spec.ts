@@ -37,15 +37,15 @@ describe('consumableUse', () => {
   it('inferTemplateIdFromItem prefers explicit templateId', () => {
     const item: Item = {
       id: 'legacy_id',
-      templateId: 'cha_mate',
+      templateId: 'mate_tea',
       name: 'Chá mate',
       type: 'consumable',
-      rarity: 'comum',
+      rarity: 'common',
       value: 10,
       effects: { staminaBoost: 20 },
       quantity: 1,
     };
-    expect(inferTemplateIdFromItem(item)).toBe('cha_mate');
+    expect(inferTemplateIdFromItem(item)).toBe('mate_tea');
   });
 
   it('inferTemplateIdFromItem parses id prefix by longest template match', () => {
@@ -53,7 +53,7 @@ describe('consumableUse', () => {
       id: 'scrap_metal_skirmish_123',
       name: 'Scrap Metal',
       type: 'material',
-      rarity: 'comum',
+      rarity: 'common',
       value: 8,
       effects: {},
       quantity: 2,
@@ -63,15 +63,15 @@ describe('consumableUse', () => {
 
   it('daily consumable applies stamina and sets cooldown', () => {
     const nowMs = 1_800_000_000_000;
-    const cha = getMarketCatalogEntry('cha_mate');
+    const cha = getMarketCatalogEntry('mate_tea');
     expect(cha).toBeDefined();
     const character = baseCharacter({ stamina: { current: 50, max: 240, lastUpdated: nowMs } });
     const item: Item = {
-      id: `cha_mate_${String(nowMs)}_0`,
-      templateId: 'cha_mate',
+      id: `mate_tea_${String(nowMs)}_0`,
+      templateId: 'mate_tea',
       name: 'Chá mate',
       type: 'consumable',
-      rarity: 'comum',
+      rarity: 'common',
       value: 10,
       effects: { staminaBoost: 20 },
       quantity: 1,
@@ -88,7 +88,7 @@ describe('consumableUse', () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.characterPatch.stamina?.current).toBe(70);
-    expect(r.characterPatch.consumableCooldownUntilMs?.cha_mate).toBe(
+    expect(r.characterPatch.consumableCooldownUntilMs?.mate_tea).toBe(
       nowMs + ONE_DAY_MS,
     );
     expect(r.cooldownKind).toBe('daily');
@@ -96,16 +96,16 @@ describe('consumableUse', () => {
 
   it('blocks daily consumable while on cooldown', () => {
     const nowMs = 1_800_000_000_000;
-    const cha = getMarketCatalogEntry('cha_mate')!;
+    const cha = getMarketCatalogEntry('mate_tea')!;
     const character = baseCharacter({
-      consumableCooldownUntilMs: { cha_mate: nowMs + ONE_DAY_MS },
+      consumableCooldownUntilMs: { mate_tea: nowMs + ONE_DAY_MS },
     });
     const item: Item = {
-      id: `cha_mate_${String(nowMs)}_0`,
-      templateId: 'cha_mate',
+      id: `mate_tea_${String(nowMs)}_0`,
+      templateId: 'mate_tea',
       name: 'Chá mate',
       type: 'consumable',
-      rarity: 'comum',
+      rarity: 'common',
       value: 10,
       effects: { staminaBoost: 20 },
       quantity: 1,
@@ -126,14 +126,14 @@ describe('consumableUse', () => {
 
   it('per_skirmish consumable requires active skirmish for same character', () => {
     const nowMs = 1_800_000_000_000;
-    const spray = getMarketCatalogEntry('spray_contusao')!;
+    const spray = getMarketCatalogEntry('bruise_spray')!;
     const character = baseCharacter({ id: 'hero' });
     const item: Item = {
-      id: `spray_contusao_${String(nowMs)}_0`,
-      templateId: 'spray_contusao',
+      id: `bruise_spray_${String(nowMs)}_0`,
+      templateId: 'bruise_spray',
       name: 'Spray de contusão',
       type: 'consumable',
-      rarity: 'comum',
+      rarity: 'common',
       value: 18,
       effects: { healthBoost: 20 },
       quantity: 1,

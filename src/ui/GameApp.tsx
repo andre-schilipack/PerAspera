@@ -75,13 +75,18 @@ import {
   startSublineParents,
 } from '../content/lore.ts';
 import {
+  depositIntoBusinessSlots,
+  withdrawFromBusinessSlotAt,
+} from '../domain/businessInventorySlots.ts';
+import {
   describeUseConsumableFailure,
+  inferTemplateIdFromItem,
   isDailyConsumableOnCooldown,
   resolveMarketEntryForItem,
   tryUseConsumable,
 } from '../domain/consumableUse.ts';
 import type { MarketCatalogEntry } from '../domain/marketCatalog.ts';
-import { MARKET_CATALOG } from '../domain/marketCatalog.ts';
+import { getMarketCatalogEntry, MARKET_CATALOG } from '../domain/marketCatalog.ts';
 import { addCharacterToWorld } from '../game/addCharacterToWorld.ts';
 import { applyHealthRegenToAllCharacters } from '../game/healthRegenTick.ts';
 import { applyStaminaRegenToAllCharacters } from '../game/staminaRegenTick.ts';
@@ -118,7 +123,7 @@ import {
 } from './screenHexAccess.ts';
 import './game.css';
 
-function defenseCatchUpOutcomeLabelPt(o: NightlyDefenseOutcome): string {
+function defenseCatchUpOutcomeLabel(o: NightlyDefenseOutcome): string {
   switch (o) {
     case 'victory':
       return 'Vitória';
@@ -214,6 +219,9 @@ export default function GameApp() {
   const removeItem = useCharactersStore((s) => s.removeItemFromInventory);
   const consumeOneUnitFromInventory = useCharactersStore(
     (s) => s.consumeOneUnitFromInventory,
+  );
+  const consumeQuantityFromInventory = useCharactersStore(
+    (s) => s.consumeQuantityFromInventory,
   );
   const updateHex = useWorldStore((s) => s.updateHex);
 
@@ -738,6 +746,86 @@ export default function GameApp() {
         };
       }),
     }));
+  }
+
+  function depositToBusinessWarehouse(
+    hexId: string,
+    placeSlotId: string,
+    itemId: string,
+    qty: number,
+  ) {
+    if (!character || !itemId || qty <= 0) return;
+    const live = useCharactersStore.getState().characters[character.id];
+    const item = live?.inventory.find((i) => i.id === itemId);
+    if (!item) return;
+    const tid = inferTemplateIdFromItem(item);
+    if (!tid) return;
+    const take = Math.min(qty, item.quantity);
+    updateHex(hexId, (h) => ({
+      ...h,
+      placeSlots: h.placeSlots.map((p) => {
+        if (p.id !== placeSlotId || p.type !== 'business' || !p.business)
+          return p;
+        const b = normalizeBusiness(p.business);
+        const { slots, deposited } = depositIntoBusinessSlots(
+          b.inventorySlots,
+          tid,
+          take,
+        );
+        if (deposited <= 0) return p;
+        consumeQuantityFromInventory(character.id, itemId, deposited);
+        return { ...p, business: { ...b, inventorySlots: slots } };
+      }),
+    }));
+  }
+
+  function withdrawFromBusinessWarehouse(
+    hexId: string,
+    placeSlotId: string,
+    slotIndex: number,
+    qty: number,
+  ) {
+    if (!character) return;
+    const wm = useWorldStore.getState().hexMap;
+    const hex = wm?.hexes[hexId];
+    const slot = hex?.placeSlots.find((s) => s.id === placeSlotId);
+    if (!slot?.business) return;
+    const b = normalizeBusiness(slot.business);
+    const cell = b.inventorySlots[slotIndex];
+    if (!cell || qty <= 0) return;
+    const take = Math.min(qty, cell.quantity);
+    const { slots, taken } = withdrawFromBusinessSlotAt(
+      b.inventorySlots,
+      slotIndex,
+      take,
+    );
+    if (taken <= 0) return;
+    const stub = itemGrantTemplate(cell.templateId);
+    if (!stub) return;
+    updateHex(hexId, (h) => ({
+      ...h,
+      placeSlots: h.placeSlots.map((p) => {
+        if (p.id !== placeSlotId || !p.business) return p;
+        return {
+          ...p,
+          business: {
+            ...normalizeBusiness(p.business),
+            inventorySlots: slots,
+          },
+        };
+      }),
+    }));
+    const grant: Item = {
+      id: `${stub.templateId}_${Date.now()}_${purchaseSeq.current++}`,
+      templateId: stub.templateId,
+      name: stub.name,
+      type: stub.type,
+      rarity: stub.rarity,
+      value: stub.value,
+      effects: { ...stub.effects },
+      quantity: taken,
+    };
+    addItem(character.id, grant);
   }
 
   function buyEmptyLot(hexId: string, slotId: string) {
@@ -1661,6 +1749,85 @@ export default function GameApp() {
                             Buffer: {bufLines.join(' · ')}
                           </p>
                         ) : null}
+                        <div className="game-business-warehouse">
+                          <strong>Warehouse</strong>
+                          <ul className="game-business-slots">
+                            {b.inventorySlots.map((cell, idx) => (
+                              <li key={idx}>
+                                {cell ? (
+                                  <>
+                                    {getMarketCatalogEntry(cell.templateId)
+                                      ?.name ?? cell.templateId}{' '}
+                                    ×{cell.quantity}{' '}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        withdrawFromBusinessWarehouse(
+                                          character.currentHexId,
+                                          slot.id,
+                                          idx,
+                                          cell.quantity,
+                                        )
+                                      }
+                                    >
+                                      Withdraw all
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span className="game-muted">(empty)</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                          <form
+                            className="game-business-deposit"
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              if (!character) return;
+                              const fd = new FormData(e.currentTarget);
+                              const itemId = String(fd.get('itemId') ?? '');
+                              const qty = Number(fd.get('qty'));
+                              if (
+                                !itemId ||
+                                !Number.isFinite(qty) ||
+                                qty < 1
+                              ) {
+                                return;
+                              }
+                              depositToBusinessWarehouse(
+                                character.currentHexId,
+                                slot.id,
+                                itemId,
+                                Math.floor(qty),
+                              );
+                              e.currentTarget.reset();
+                            }}
+                          >
+                            <select
+                              name="itemId"
+                              required
+                              aria-label="Item to deposit"
+                              defaultValue=""
+                            >
+                              <option value="" disabled>
+                                — From inventory —
+                              </option>
+                              {character.inventory.map((it) => (
+                                <option key={it.id} value={it.id}>
+                                  {it.name} ×{it.quantity}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              name="qty"
+                              type="number"
+                              min={1}
+                              defaultValue={1}
+                              aria-label="Quantity"
+                            />
+                            <button type="submit">Deposit</button>
+                          </form>
+                        </div>
                         <div className="game-business-actions">
                           {b.type === 'industria' ? (
                             <label className="game-business-recipe">
@@ -1678,7 +1845,7 @@ export default function GameApp() {
                                 <option value="scrap_to_metal">
                                   Sucata metálica → metal
                                 </option>
-                                <option value="tronco_to_madeira">
+                                <option value="wood_log_to_lumber">
                                   Tronco → madeira
                                 </option>
                               </select>
@@ -1822,7 +1989,7 @@ export default function GameApp() {
                   {' · '}
                   Dia {row.gameDayIndex}
                   {' · '}
-                  {defenseCatchUpOutcomeLabelPt(row.outcome)}
+                  {defenseCatchUpOutcomeLabel(row.outcome)}
                 </li>
               ))}
             </ul>

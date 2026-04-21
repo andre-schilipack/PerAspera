@@ -13,6 +13,7 @@ export type {
 } from './combat.ts';
 export type {
   Business,
+  BusinessInventorySlot,
   BusinessKind,
   FabricaRecipeId,
   IndustrialRecipeId,

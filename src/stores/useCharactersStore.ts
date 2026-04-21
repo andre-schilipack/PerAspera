@@ -15,6 +15,12 @@ interface CharactersActions {
   removeItemFromInventory: (characterId: string, itemId: string) => void;
   /** Decrement stack by 1; removes the row when quantity reaches 0. */
   consumeOneUnitFromInventory: (characterId: string, itemId: string) => void;
+  /** Remove up to `qty` units from one stack; returns units removed. */
+  consumeQuantityFromInventory: (
+    characterId: string,
+    itemId: string,
+    qty: number,
+  ) => number;
   reset: () => void;
 }
 
@@ -116,6 +122,33 @@ export const useCharactersStore = create<CharactersStore>()(
             },
           };
         }),
+      consumeQuantityFromInventory: (characterId, itemId, qty) => {
+        let removed = 0;
+        set((s) => {
+          const ch = s.characters[characterId];
+          if (!ch) return s;
+          const idx = ch.inventory.findIndex((i) => i.id === itemId);
+          if (idx < 0) return s;
+          const it = ch.inventory[idx];
+          const take = Math.min(Math.max(0, qty), it.quantity);
+          if (take <= 0) return s;
+          removed = take;
+          let inventory: Item[];
+          if (it.quantity <= take) {
+            inventory = ch.inventory.filter((_, i) => i !== idx);
+          } else {
+            inventory = [...ch.inventory];
+            inventory[idx] = { ...it, quantity: it.quantity - take };
+          }
+          return {
+            characters: {
+              ...s.characters,
+              [characterId]: { ...ch, inventory },
+            },
+          };
+        });
+        return removed;
+      },
       reset: () => set(initialCharactersState()),
     }),
     {

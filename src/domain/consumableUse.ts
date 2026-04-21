@@ -9,7 +9,7 @@ import {
 
 import { ONE_DAY_MS } from './constants.ts';
 
-/** User-facing PT-BR strings for inventory UI (caller may override). */
+/** User-facing Portuguese strings for inventory UI (caller may override). */
 export function describeUseConsumableFailure(
   reason: UseConsumableFailureReason,
 ): string {
