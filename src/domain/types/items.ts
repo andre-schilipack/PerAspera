@@ -10,6 +10,8 @@ export type ItemRarity = 'comum' | 'raro' | 'épico';
 
 export interface Item {
   id: string;
+  /** Stable catalog key when created from the municipal catalog or grants. */
+  templateId?: string;
   name: string;
   type: ItemType;
   rarity: ItemRarity;

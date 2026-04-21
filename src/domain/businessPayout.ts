@@ -2,6 +2,8 @@ import type { Business } from './types/economy.ts';
 import type { ItemRarity, ItemType } from './types/items.ts';
 import type { Hex } from './types/map.ts';
 
+import { getMarketCatalogEntry } from './marketCatalog.ts';
+
 /** Output of one Work action on a single owned business on the current hex. */
 export interface BusinessWorkYield {
   creds: number;
@@ -23,28 +25,16 @@ export interface ItemGrant {
 export function itemGrantTemplate(
   templateId: string,
 ): Omit<ItemGrant, 'quantity'> | null {
-  switch (templateId) {
-    case 'food_ration':
-      return {
-        templateId: 'food_ration',
-        name: 'Food',
-        type: 'consumable',
-        rarity: 'comum',
-        value: 6,
-        effects: { staminaBoost: 10 },
-      };
-    case 'scrap_metal':
-      return {
-        templateId: 'scrap_metal',
-        name: 'Scrap Metal',
-        type: 'material',
-        rarity: 'comum',
-        value: 8,
-        effects: {},
-      };
-    default:
-      return null;
-  }
+  const entry = getMarketCatalogEntry(templateId);
+  if (!entry) return null;
+  return {
+    templateId: entry.templateId,
+    name: entry.name,
+    type: entry.type,
+    rarity: entry.rarity,
+    value: entry.value,
+    effects: { ...entry.effects },
+  };
 }
 
 /**

@@ -37,6 +37,11 @@ export interface Character {
    * nightly defense starts if stamina allows. Persisted; older saves omit → treated as true.
    */
   autoEnlistNightlyDefense?: boolean;
+  /**
+   * Consumable daily limits: templateId → unix ms when the item can be used again.
+   * Not visible as inventory; cleared implicitly when timestamps pass.
+   */
+  consumableCooldownUntilMs?: Record<string, number>;
   inventory: Item[];
   createdAt: number;
 }

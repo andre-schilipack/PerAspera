@@ -11,7 +11,6 @@ import {
   axialNeighbors,
   hexKeyFromAxial,
   parseHexKey,
-  type AxialCoord,
 } from './hex.ts';
 import type { HexMap, PlaceSlot } from './types/map.ts';
 

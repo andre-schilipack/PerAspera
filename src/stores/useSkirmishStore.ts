@@ -22,12 +22,16 @@ interface SkirmishActions {
   setPhase: (phase: StreetSkirmishPhase) => void;
   /** One round of player + enemy actions. */
   advanceRound: () => void;
+  /** Per-skirmish consumable (e.g. spray) — templateId already used this fight. */
+  markSkirmishConsumableUsed: (templateId: string) => void;
   /** Close modal, sync HP to character, drop volatile session. */
   dismiss: () => void;
 }
 
 type SkirmishStore = {
   session: StreetSkirmishState | null;
+  /** templateId → used (spray de contusão, 1 per street skirmish). */
+  perSkirmishConsumableUsed: Record<string, boolean>;
 } & SkirmishActions;
 
 function assignLogIds(
@@ -39,6 +43,7 @@ function assignLogIds(
 
 export const useSkirmishStore = create<SkirmishStore>()((set, get) => ({
   session: null,
+  perSkirmishConsumableUsed: {},
 
   startFromPatrol: (params) => {
     const ch = useCharactersStore.getState().characters[params.characterId];
@@ -57,8 +62,19 @@ export const useSkirmishStore = create<SkirmishStore>()((set, get) => ({
       text: 'Rust and eyes — something steps out of the dark.',
       type: 'system',
     };
-    set({ session: { ...initial, combatLog: [opening] } });
+    set({
+      session: { ...initial, combatLog: [opening] },
+      perSkirmishConsumableUsed: {},
+    });
   },
+
+  markSkirmishConsumableUsed: (templateId) =>
+    set((s) => ({
+      perSkirmishConsumableUsed: {
+        ...s.perSkirmishConsumableUsed,
+        [templateId]: true,
+      },
+    })),
 
   setPhase: (phase) => {
     const s = get().session;
@@ -87,6 +103,7 @@ export const useSkirmishStore = create<SkirmishStore>()((set, get) => ({
       if (ch) {
         const scrap: Item = {
           id: `scrap_metal_skirmish_${Date.now()}`,
+          templateId: 'scrap_metal',
           name: 'Scrap Metal',
           type: 'material',
           rarity: 'comum',
@@ -123,6 +140,6 @@ export const useSkirmishStore = create<SkirmishStore>()((set, get) => ({
         });
       }
     }
-    set({ session: null });
+    set({ session: null, perSkirmishConsumableUsed: {} });
   },
 }));

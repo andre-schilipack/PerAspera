@@ -13,6 +13,8 @@ interface CharactersActions {
   ) => void;
   addItemToInventory: (characterId: string, item: Item) => void;
   removeItemFromInventory: (characterId: string, itemId: string) => void;
+  /** Decrement stack by 1; removes the row when quantity reaches 0. */
+  consumeOneUnitFromInventory: (characterId: string, itemId: string) => void;
   reset: () => void;
 }
 
@@ -82,6 +84,31 @@ export const useCharactersStore = create<CharactersStore>()(
           if (idx < 0) return s;
           const inventory = [...ch.inventory];
           inventory.splice(idx, 1);
+          return {
+            characters: {
+              ...s.characters,
+              [characterId]: { ...ch, inventory },
+            },
+          };
+        }),
+      consumeOneUnitFromInventory: (characterId, itemId) =>
+        set((s) => {
+          const ch = s.characters[characterId];
+          if (!ch) return s;
+          const idx = ch.inventory.findIndex((i) => i.id === itemId);
+          if (idx < 0) return s;
+          const it = ch.inventory[idx];
+          if (it.quantity <= 1) {
+            const inventory = ch.inventory.filter((_, i) => i !== idx);
+            return {
+              characters: {
+                ...s.characters,
+                [characterId]: { ...ch, inventory },
+              },
+            };
+          }
+          const inventory = [...ch.inventory];
+          inventory[idx] = { ...it, quantity: it.quantity - 1 };
           return {
             characters: {
               ...s.characters,

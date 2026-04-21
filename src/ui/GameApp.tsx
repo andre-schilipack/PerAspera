@@ -73,7 +73,14 @@ import {
   startPitchLines,
   startSublineParents,
 } from '../content/lore.ts';
-import { MARKET_CATALOG } from '../game/marketCatalog.ts';
+import {
+  describeUseConsumableFailure,
+  isDailyConsumableOnCooldown,
+  resolveMarketEntryForItem,
+  tryUseConsumable,
+} from '../domain/consumableUse.ts';
+import type { MarketCatalogEntry } from '../domain/marketCatalog.ts';
+import { MARKET_CATALOG } from '../domain/marketCatalog.ts';
 import { addCharacterToWorld } from '../game/addCharacterToWorld.ts';
 import { applyHealthRegenToAllCharacters } from '../game/healthRegenTick.ts';
 import { applyStaminaRegenToAllCharacters } from '../game/staminaRegenTick.ts';
@@ -144,6 +151,32 @@ function formatTime(d: Date): string {
   });
 }
 
+/** Short subtitle for inventory rows (gear stats, tools, cooldown hints use separate UI). */
+function catalogItemSubtitle(entry: MarketCatalogEntry | undefined): string {
+  if (!entry) return '';
+  const fx = entry.effects;
+  const bits: string[] = [];
+  if (fx.minLevel != null && fx.minLevel > 0) {
+    bits.push(`nível ≥ ${String(fx.minLevel)}`);
+  }
+  if (fx.attackBonus != null && fx.attackBonus > 0) {
+    bits.push(`+${String(fx.attackBonus)} ataque`);
+  }
+  if (fx.damageBonus != null && fx.damageBonus > 0) {
+    bits.push(`+${String(fx.damageBonus)} dano`);
+  }
+  if (fx.defenseBonus != null && fx.defenseBonus > 0) {
+    bits.push(`+${String(fx.defenseBonus)} defesa`);
+  }
+  if (fx.mobileCarrySlots != null && fx.mobileCarrySlots > 0) {
+    bits.push(`transporte ×${String(fx.mobileCarrySlots)}`);
+  }
+  if (fx.futureMining != null && fx.futureMining > 0) {
+    bits.push('mineração (breve)');
+  }
+  return bits.join(' · ');
+}
+
 export default function GameApp() {
   const [screen, setScreen] = useState<GameScreen>('map');
   const [newName, setNewName] = useState('');
@@ -158,10 +191,16 @@ export default function GameApp() {
   const [expansionEnlistFeedback, setExpansionEnlistFeedback] = useState<
     string | null
   >(null);
+  const [inventoryUseFeedback, setInventoryUseFeedback] = useState<
+    string | null
+  >(null);
 
   const skirmishSession = useSkirmishStore((s) => s.session);
   const startSkirmishFromPatrol = useSkirmishStore((s) => s.startFromPatrol);
   const dismissSkirmish = useSkirmishStore((s) => s.dismiss);
+  const markSkirmishConsumableUsed = useSkirmishStore(
+    (s) => s.markSkirmishConsumableUsed,
+  );
 
   const hexMap = useWorldStore((s) => s.hexMap);
   const characters = useCharactersStore((s) => s.characters);
@@ -172,6 +211,9 @@ export default function GameApp() {
   const updateCharacter = useCharactersStore((s) => s.updateCharacter);
   const addItem = useCharactersStore((s) => s.addItemToInventory);
   const removeItem = useCharactersStore((s) => s.removeItemFromInventory);
+  const consumeOneUnitFromInventory = useCharactersStore(
+    (s) => s.consumeOneUnitFromInventory,
+  );
   const updateHex = useWorldStore((s) => s.updateHex);
 
   const dailyDefense = useDefenseStore((s) => s.dailyDefense);
@@ -606,6 +648,7 @@ export default function GameApp() {
       if (!stub) continue;
       const item: Item = {
         id: `${chunk.templateId}_${t}_${seq++}`,
+        templateId: chunk.templateId,
         name: stub.name,
         type: stub.type,
         rarity: stub.rarity,
@@ -624,6 +667,7 @@ export default function GameApp() {
     if (character.creds < entry.value) return;
     const item: Item = {
       id: `${entry.templateId}_${now}_${purchaseSeq.current++}`,
+      templateId: entry.templateId,
       name: entry.name,
       type: entry.type,
       rarity: entry.rarity,
@@ -640,6 +684,40 @@ export default function GameApp() {
     const gain = item.value * item.quantity;
     removeItem(character.id, item.id);
     updateCharacter(character.id, { creds: character.creds + gain });
+  }
+
+  function useInventoryConsumable(item: Item) {
+    if (!character) return;
+    const entry = resolveMarketEntryForItem(item);
+    if (!entry || entry.type !== 'consumable') return;
+    const live = useCharactersStore.getState().characters[character.id];
+    if (!live) return;
+    const sk = useSkirmishStore.getState();
+    const skirmishActive =
+      sk.session != null &&
+      !sk.session.isCompleted &&
+      sk.session.characterId === character.id;
+    const result = tryUseConsumable({
+      character: live,
+      item,
+      catalog: entry,
+      nowMs: Date.now(),
+      skirmishActive,
+      skirmishCharacterId: sk.session?.characterId ?? null,
+      perSkirmishUsed: sk.perSkirmishConsumableUsed,
+    });
+    if (!result.ok) {
+      setInventoryUseFeedback(describeUseConsumableFailure(result.reason));
+      window.setTimeout(() => setInventoryUseFeedback(null), 4000);
+      return;
+    }
+    updateCharacter(character.id, result.characterPatch);
+    if (result.cooldownKind === 'per_skirmish') {
+      markSkirmishConsumableUsed(result.templateId);
+    }
+    consumeOneUnitFromInventory(character.id, item.id);
+    setInventoryUseFeedback(`Usaste ${entry.name}.`);
+    window.setTimeout(() => setInventoryUseFeedback(null), 3500);
   }
 
   function buyEmptyLot(hexId: string, slotId: string) {
@@ -741,6 +819,7 @@ export default function GameApp() {
     for (const g of merged) {
       const item: Item = {
         id: `${g.templateId}_${t}_${seq++}`,
+        templateId: g.templateId,
         name: g.name,
         type: g.type,
         rarity: g.rarity,
@@ -988,15 +1067,59 @@ export default function GameApp() {
       {resolvedScreen === 'inventory' && (
         <section className="game-panel">
           <h2>Inventory</h2>
+          {inventoryUseFeedback ? (
+            <p className="game-muted">{inventoryUseFeedback}</p>
+          ) : null}
           {character.inventory.length === 0 ? (
             <p className="game-muted">Empty</p>
           ) : (
             <ul>
-              {character.inventory.map((it) => (
-                <li key={it.id}>
-                  {it.name} ×{it.quantity} ({it.value}c)
-                </li>
-              ))}
+              {character.inventory.map((it) => {
+                const cat = resolveMarketEntryForItem(it);
+                const sub = catalogItemSubtitle(cat);
+                const tid = cat?.templateId;
+                const dailyBlocked =
+                  !!tid &&
+                  cat?.consumableCooldown === 'daily' &&
+                  isDailyConsumableOnCooldown(character, tid, now);
+                const dailyCd =
+                  dailyBlocked && tid
+                    ? ` · cooldown ~${Math.max(
+                        1,
+                        Math.ceil(
+                          ((character.consumableCooldownUntilMs?.[tid] ?? 0) -
+                            now) /
+                            3_600_000,
+                        ),
+                      )}h`
+                    : '';
+                return (
+                  <li key={it.id}>
+                    <strong>{it.name}</strong> ×{it.quantity} ({it.value}c)
+                    {sub ? (
+                      <>
+                        {' '}
+                        <span className="game-muted">({sub})</span>
+                      </>
+                    ) : null}
+                    {dailyCd ? (
+                      <span className="game-muted">{dailyCd}</span>
+                    ) : null}
+                    {cat?.type === 'consumable' ? (
+                      <>
+                        {' '}
+                        <button
+                          type="button"
+                          onClick={() => useInventoryConsumable(it)}
+                          disabled={dailyBlocked}
+                        >
+                          Use
+                        </button>
+                      </>
+                    ) : null}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

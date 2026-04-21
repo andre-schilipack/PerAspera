@@ -12,6 +12,7 @@ export function rollVictoryLootPoolForWave(
     const qty = 1 + Math.floor(rng() * 4);
     out.push({
       id: `${idPrefix}_loot_${i}_${Math.floor(rng() * 1e9)}`,
+      templateId: 'scrap_metal',
       name: 'Scrap Metal',
       type: 'material',
       rarity: 'comum',
