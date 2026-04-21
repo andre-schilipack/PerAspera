@@ -14,6 +14,8 @@ export interface Enemy {
 export interface EnemyInstance {
   enemyId: string;
   currentHealth: number;
+  /** Spawn max HP (used for HP fractions and UI). Preserved when applying damage. */
+  maxHealth: number;
   buffs: Record<string, number>;
 }
 
@@ -74,6 +76,9 @@ export type CombatLogActor =
   | 'enemy'
   | 'system';
 
+/** Narrative beat for autoplay pacing (race-like arc). */
+export type CombatBeatPhase = 'approach' | 'contact' | 'endgame';
+
 export interface CombatLogEntry {
   /** Monotonic counter from meta `nextIds`, not a UUID. */
   id: number;
@@ -81,6 +86,10 @@ export interface CombatLogEntry {
   timestamp: number;
   text: string;
   type: CombatLogActor;
+  /** Optional: which tactical beat this line belongs to (UI / future animation hooks). */
+  combatBeatPhase?: CombatBeatPhase;
+  /** Optional: decisive moment for emphasis in the log UI. */
+  highlight?: boolean;
 }
 
 export type DefenseSide = 'norte' | 'sul' | 'leste' | 'oeste' | 'centro';

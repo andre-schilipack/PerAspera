@@ -64,6 +64,7 @@ export function composeWaveFromBudget(
     out.push({
       enemyId: id,
       currentHealth: hp,
+      maxHealth: hp,
       buffs: {},
     });
     remaining -= per;

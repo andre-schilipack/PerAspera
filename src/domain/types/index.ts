@@ -6,6 +6,7 @@ export type {
 } from './character.ts';
 export type { CoreAttributeKey, CoreAttributes } from './attributes.ts';
 export type {
+  CombatBeatPhase,
   CombatLogActor,
   CombatLogEntry,
   DefenseParticipant,

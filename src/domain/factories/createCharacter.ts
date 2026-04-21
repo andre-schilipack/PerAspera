@@ -20,7 +20,7 @@ export interface CreateCharacterParams {
 }
 
 /**
- * New playable character: age 16, level 1, baseline stamina (200/240) and one move.
+ * New playable character: age 16, level 1, baseline stamina (200/240) and starter loadout.
  */
 export function createCharacter(params: CreateCharacterParams): Character {
   const {

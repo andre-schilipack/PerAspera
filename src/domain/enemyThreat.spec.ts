@@ -17,8 +17,8 @@ describe('enemyThreat', () => {
   it('sumLivingThreatPoints sums only living', () => {
     expect(
       sumLivingThreatPoints([
-        { enemyId: 'drone_scout', currentHealth: 5, buffs: {} },
-        { enemyId: 'drone_scout', currentHealth: 0, buffs: {} },
+        { enemyId: 'drone_scout', currentHealth: 5, maxHealth: 5, buffs: {} },
+        { enemyId: 'drone_scout', currentHealth: 0, maxHealth: 5, buffs: {} },
       ]),
     ).toBe(1);
   });

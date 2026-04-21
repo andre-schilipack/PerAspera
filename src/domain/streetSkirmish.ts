@@ -1,13 +1,26 @@
 import {
   PLAYER_BASE_MAX_HP,
 } from './constants.ts';
-import { resolveIncomingMeleeDamage } from './combatResolution.ts';
-import type { CombatLogEntry, EnemyInstance } from './types/combat.ts';
+import {
+  combatBeatPhaseFromTurns,
+  computeRawPower,
+  pickAutoplaySkill,
+  resolveStrikeDamage,
+} from './autobattle/index.ts';
+import type { CombatBeatPhase } from './types/combat.ts';
 import type {
   StreetSkirmishOutcome,
   StreetSkirmishPhase,
   StreetSkirmishState,
 } from './types/skirmish.ts';
+import {
+  DEFAULT_CORE_ATTRIBUTES,
+  type CoreAttributes,
+} from './types/attributes.ts';
+import type { CombatLogEntry, EnemyInstance } from './types/combat.ts';
+import { DEFAULT_COMBAT_LOADOUT } from './characterNormalize.ts';
+import { getMoveTemplate } from '../content/catalogs/moves.ts';
+import { lineCombatBeatShift } from '../content/autobattleBeatLines.ts';
 import {
   lineEnemyAttack,
   lineEnemyAttackBlocked,
@@ -23,6 +36,9 @@ import {
 
 const STREET_DRONE_ID = 'street_drone';
 
+/** Rust drone uses baseline stats until enemy profiles exist. */
+const STREET_DRONE_ATTRIBUTES: CoreAttributes = DEFAULT_CORE_ATTRIBUTES;
+
 function enemyLabel(enemyId: string): string {
   return enemyId === STREET_DRONE_ID ? 'a rust drone' : enemyId;
 }
@@ -35,6 +51,10 @@ export interface CreateStreetSkirmishParams {
   /** From character.health; defaults to {@link PLAYER_BASE_MAX_HP}. */
   playerHealth?: number;
   playerMaxHealth?: number;
+  /** From character.coreAttributes; defaults to all 1s. */
+  coreAttributes?: CoreAttributes;
+  /** From character.combatLoadout.skillIds; defaults to starter deck. */
+  skillIds?: string[];
 }
 
 /**
@@ -53,15 +73,26 @@ export function createStreetSkirmish(
     {
       enemyId: STREET_DRONE_ID,
       currentHealth: baseHp,
+      maxHealth: baseHp,
       buffs: {},
     },
   ];
+
+  const coreAttributes =
+    params.coreAttributes ?? { ...DEFAULT_CORE_ATTRIBUTES };
+  const skillIds =
+    params.skillIds != null && params.skillIds.length > 0
+      ? [...params.skillIds]
+      : [...DEFAULT_COMBAT_LOADOUT.skillIds];
 
   return {
     hexId: params.hexId,
     danger: params.danger,
     characterId: params.characterId,
     characterName: params.characterName,
+    coreAttributes,
+    skillIds,
+    lastCombatBeatPhase: null,
     currentTurn: 0,
     enemies,
     playerHealth: curHp,
@@ -102,21 +133,78 @@ export function advanceStreetSkirmishRound(
   const newLogLines: Omit<CombatLogEntry, 'id'>[] = [];
   const now = Date.now();
 
+  let enemies = [...state.enemies];
+  let playerHealth = state.playerHealth;
+
+  const primary = enemies[0];
+  let beatPhase: CombatBeatPhase = 'contact';
+  let defenderHpFraction = 1;
+
+  if (primary) {
+    defenderHpFraction =
+      primary.maxHealth > 0 ? primary.currentHealth / primary.maxHealth : 0;
+    const attackerHpFraction =
+      state.playerMaxHealth > 0
+        ? playerHealth / state.playerMaxHealth
+        : 0;
+    beatPhase = combatBeatPhaseFromTurns({
+      turn,
+      attackerHpFraction,
+      defenderHpFraction,
+    });
+
+    if (beatPhase !== state.lastCombatBeatPhase) {
+      const shiftText = lineCombatBeatShift(beatPhase);
+      if (shiftText.length > 0) {
+        newLogLines.push({
+          turn,
+          timestamp: now,
+          text: shiftText,
+          type: 'system',
+          combatBeatPhase: beatPhase,
+        });
+      }
+    }
+  }
+
   newLogLines.push({
     turn,
     timestamp: now,
     text: lineRoundStart(turn),
     type: 'system',
+    combatBeatPhase: beatPhase,
   });
 
-  let enemies = [...state.enemies];
-  let playerHealth = state.playerHealth;
-
-  const primary = enemies[0];
   if (primary) {
-    const rawPlayer = 7 + Math.floor(rng() * 7);
+    const picked =
+      pickAutoplaySkill(
+        state.skillIds,
+        getMoveTemplate,
+        state.coreAttributes,
+        {
+          combatBeatPhase: beatPhase,
+          defenderHpFraction,
+          rng,
+        },
+      ) ?? getMoveTemplate('basic_attack');
+
+    const template = picked ?? getMoveTemplate('basic_attack');
+    if (!template) {
+      throw new Error('MOVE_CATALOG missing basic_attack');
+    }
+
+    const rawPlayer = computeRawPower(template, state.coreAttributes);
     const label = enemyLabel(primary.enemyId);
-    const resolved = resolveIncomingMeleeDamage(rawPlayer, rng);
+    const resolved = resolveStrikeDamage(
+      rawPlayer,
+      template.damageKind,
+      STREET_DRONE_ATTRIBUTES,
+      rng,
+    );
+
+    const highlightKill =
+      resolved.finalDamage >= primary.currentHealth &&
+      !resolved.flags.dodged;
 
     if (resolved.flags.dodged) {
       newLogLines.push({
@@ -124,6 +212,7 @@ export function advanceStreetSkirmishRound(
         timestamp: now,
         text: linePlayerAttackDodged(state.characterName, label),
         type: 'player',
+        combatBeatPhase: beatPhase,
       });
     } else if (resolved.flags.blocked) {
       newLogLines.push({
@@ -135,6 +224,7 @@ export function advanceStreetSkirmishRound(
           resolved.finalDamage,
         ),
         type: 'player',
+        combatBeatPhase: beatPhase,
       });
       const nh = primary.currentHealth - resolved.finalDamage;
       if (nh <= 0) {
@@ -143,10 +233,19 @@ export function advanceStreetSkirmishRound(
           timestamp: now,
           text: lineEnemyDefeated(label),
           type: 'system',
+          combatBeatPhase: beatPhase,
+          highlight: highlightKill,
         });
         enemies = enemies.slice(1);
       } else {
-        enemies = [{ ...primary, currentHealth: nh }, ...enemies.slice(1)];
+        enemies = [
+          {
+            ...primary,
+            currentHealth: nh,
+            maxHealth: primary.maxHealth,
+          },
+          ...enemies.slice(1),
+        ];
       }
     } else {
       newLogLines.push({
@@ -158,6 +257,7 @@ export function advanceStreetSkirmishRound(
           label,
         ),
         type: 'player',
+        combatBeatPhase: beatPhase,
       });
       const nh = primary.currentHealth - resolved.finalDamage;
       if (nh <= 0) {
@@ -166,10 +266,19 @@ export function advanceStreetSkirmishRound(
           timestamp: now,
           text: lineEnemyDefeated(label),
           type: 'system',
+          combatBeatPhase: beatPhase,
+          highlight: highlightKill,
         });
         enemies = enemies.slice(1);
       } else {
-        enemies = [{ ...primary, currentHealth: nh }, ...enemies.slice(1)];
+        enemies = [
+          {
+            ...primary,
+            currentHealth: nh,
+            maxHealth: primary.maxHealth,
+          },
+          ...enemies.slice(1),
+        ];
       }
     }
   }
@@ -187,36 +296,45 @@ export function advanceStreetSkirmishRound(
       timestamp: now,
       text: lineSkirmishWin(),
       type: 'system',
+      combatBeatPhase: beatPhase,
     });
   } else if (enemies.length > 0) {
     const atk = enemies[0];
     const rawEnemy = 3 + Math.floor(state.danger / 22);
     const el = enemyLabel(atk.enemyId);
-    const resolved = resolveIncomingMeleeDamage(rawEnemy, rng);
+    const resolvedEnemy = resolveStrikeDamage(
+      rawEnemy,
+      'physical',
+      state.coreAttributes,
+      rng,
+    );
 
-    if (resolved.flags.dodged) {
+    if (resolvedEnemy.flags.dodged) {
       newLogLines.push({
         turn,
         timestamp: now,
         text: lineEnemyAttackDodged(el),
         type: 'enemy',
+        combatBeatPhase: beatPhase,
       });
-    } else if (resolved.flags.blocked) {
+    } else if (resolvedEnemy.flags.blocked) {
       newLogLines.push({
         turn,
         timestamp: now,
-        text: lineEnemyAttackBlocked(el, resolved.finalDamage),
+        text: lineEnemyAttackBlocked(el, resolvedEnemy.finalDamage),
         type: 'enemy',
+        combatBeatPhase: beatPhase,
       });
-      playerHealth = Math.max(0, playerHealth - resolved.finalDamage);
+      playerHealth = Math.max(0, playerHealth - resolvedEnemy.finalDamage);
     } else {
       newLogLines.push({
         turn,
         timestamp: now,
-        text: lineEnemyAttack(el, resolved.finalDamage),
+        text: lineEnemyAttack(el, resolvedEnemy.finalDamage),
         type: 'enemy',
+        combatBeatPhase: beatPhase,
       });
-      playerHealth = Math.max(0, playerHealth - resolved.finalDamage);
+      playerHealth = Math.max(0, playerHealth - resolvedEnemy.finalDamage);
     }
 
     if (playerHealth <= 0) {
@@ -228,6 +346,7 @@ export function advanceStreetSkirmishRound(
         timestamp: now,
         text: lineSkirmishLoss(),
         type: 'system',
+        combatBeatPhase: beatPhase,
       });
     }
   }
@@ -237,6 +356,7 @@ export function advanceStreetSkirmishRound(
     currentTurn: turn,
     enemies,
     playerHealth,
+    lastCombatBeatPhase: beatPhase,
     combatLog: [...state.combatLog],
     isCompleted,
     outcome,

@@ -52,6 +52,8 @@ export const useSkirmishStore = create<SkirmishStore>()((set, get) => ({
       ...params,
       playerHealth: ch?.health?.current,
       playerMaxHealth: ch?.health?.max,
+      coreAttributes: ch?.coreAttributes,
+      skillIds: ch?.combatLoadout?.skillIds,
     });
     const meta = useMetaStore.getState();
     const openId = meta.nextIds.combatLogEntry + 1;

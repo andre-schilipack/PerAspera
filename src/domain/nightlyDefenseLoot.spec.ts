@@ -53,8 +53,8 @@ describe('distributeItemsAmongParticipants', () => {
 describe('rollVictoryLootPoolForWave', () => {
   it('creates one loot stack per enemy', () => {
     const enemies = [
-      { enemyId: 'drone_scout', currentHealth: 10, buffs: {} },
-      { enemyId: 'drone_scout', currentHealth: 10, buffs: {} },
+      { enemyId: 'drone_scout', currentHealth: 10, maxHealth: 10, buffs: {} },
+      { enemyId: 'drone_scout', currentHealth: 10, maxHealth: 10, buffs: {} },
     ];
     const pool = rollVictoryLootPoolForWave(enemies, () => 0.5, 'test');
     expect(pool.length).toBe(2);

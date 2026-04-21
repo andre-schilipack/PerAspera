@@ -9,7 +9,7 @@ import {
 
 /** Starter skills when none are persisted (catalog must define these ids). */
 export const DEFAULT_COMBAT_LOADOUT: CombatLoadout = {
-  skillIds: ['basic_attack'],
+  skillIds: ['basic_attack', 'int_spike'],
   equippedItemInstanceIds: [],
 };
 
