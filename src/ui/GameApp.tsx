@@ -51,6 +51,7 @@ import { staminaVisualCurrentAt } from '../domain/stamina.ts';
 import { makeBusinessId } from '../domain/ids.ts';
 import type {
   BusinessKind,
+  IndustrialRecipeId,
   NightlyDefenseOutcome,
   WallCardinal,
 } from '../domain/types/index.ts';
@@ -720,6 +721,25 @@ export default function GameApp() {
     window.setTimeout(() => setInventoryUseFeedback(null), 3500);
   }
 
+  function setBusinessIndustrialRecipe(
+    hexId: string,
+    slotId: string,
+    recipe: IndustrialRecipeId,
+  ) {
+    updateHex(hexId, (h) => ({
+      ...h,
+      placeSlots: h.placeSlots.map((p) => {
+        if (p.id !== slotId || p.type !== 'business' || !p.business) return p;
+        const b = normalizeBusiness(p.business);
+        if (b.type !== 'industria') return p;
+        return {
+          ...p,
+          business: { ...b, industrialRecipe: recipe },
+        };
+      }),
+    }));
+  }
+
   function buyEmptyLot(hexId: string, slotId: string) {
     if (!character || !hexMap) return;
     const hex = hexMap.hexes[hexId];
@@ -752,7 +772,8 @@ export default function GameApp() {
     patchNextIds({ business: bizNum });
     const labels: Record<BusinessKind, string> = {
       loja: 'Corner Shop',
-      industria: 'Chip Foundry',
+      industria: 'Indústria',
+      fabrica: 'Fábrica',
       fazenda: 'Neon Farm',
       outro: 'Venue',
     };
@@ -1575,23 +1596,28 @@ export default function GameApp() {
                       <span>
                         {' '}
                         Owned — build:{' '}
-                        {(['loja', 'industria', 'fazenda'] as const).map(
-                          (k) => (
-                            <button
-                              key={k}
-                              type="button"
-                              onClick={() =>
-                                establishBusiness(
-                                  character.currentHexId,
-                                  slot.id,
-                                  k,
-                                )
-                              }
-                            >
-                              {k}
-                            </button>
-                          ),
-                        )}
+                        {(
+                          [
+                            'loja',
+                            'industria',
+                            'fabrica',
+                            'fazenda',
+                          ] as const
+                        ).map((k) => (
+                          <button
+                            key={k}
+                            type="button"
+                            onClick={() =>
+                              establishBusiness(
+                                character.currentHexId,
+                                slot.id,
+                                k,
+                              )
+                            }
+                          >
+                            {k}
+                          </button>
+                        ))}
                       </span>
                     )}
                   {slot.type === 'ruin' ? (
@@ -1636,6 +1662,34 @@ export default function GameApp() {
                           </p>
                         ) : null}
                         <div className="game-business-actions">
+                          {b.type === 'industria' ? (
+                            <label className="game-business-recipe">
+                              Recipe:{' '}
+                              <select
+                                value={b.industrialRecipe ?? 'scrap_to_metal'}
+                                onChange={(e) =>
+                                  setBusinessIndustrialRecipe(
+                                    character.currentHexId,
+                                    slot.id,
+                                    e.target.value as IndustrialRecipeId,
+                                  )
+                                }
+                              >
+                                <option value="scrap_to_metal">
+                                  Sucata metálica → metal
+                                </option>
+                                <option value="tronco_to_madeira">
+                                  Tronco → madeira
+                                </option>
+                              </select>
+                            </label>
+                          ) : null}
+                          {b.type === 'fabrica' ? (
+                            <span className="game-muted game-business-recipe">
+                              Recipe: metal + madeira + cimento → materiais de
+                              construção
+                            </span>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() =>

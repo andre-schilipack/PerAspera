@@ -1,3 +1,4 @@
+import { normalizeBusiness } from './businessEconomyTick.ts';
 import type { Business } from './types/economy.ts';
 import type { ItemRarity, ItemType } from './types/items.ts';
 import type { Hex } from './types/map.ts';
@@ -43,8 +44,9 @@ export function itemGrantTemplate(
  */
 export function computeWorkPayout(business: Business): BusinessWorkYield {
   const rate = Math.max(1, business.productionRate);
+  const b = normalizeBusiness(business);
 
-  switch (business.type) {
+  switch (b.type) {
     case 'fazenda':
       return {
         creds: 0,
@@ -65,37 +67,48 @@ export function computeWorkPayout(business: Business): BusinessWorkYield {
         creds: 0,
         itemGrants: [],
       };
-    case 'industria':
+    case 'industria': {
+      const rid = b.industrialRecipe ?? 'scrap_to_metal';
+      const rawTid = rid === 'tronco_to_madeira' ? 'tronco_madeira' : 'scrap_metal';
+      const stub = itemGrantTemplate(rawTid);
+      if (!stub) return { creds: 0, itemGrants: [] };
       return {
         creds: 0,
         itemGrants: [
           {
-            templateId: 'scrap_metal',
-            name: 'Scrap Metal',
-            type: 'material',
-            rarity: 'comum',
-            value: 8,
-            effects: {},
+            ...stub,
             quantity: Math.min(3, Math.max(1, Math.floor(rate / 12))),
           },
         ],
       };
-    case 'outro':
-    default:
+    }
+    case 'fabrica': {
+      const stub = itemGrantTemplate('materiais_construcao');
+      if (!stub) return { creds: 0, itemGrants: [] };
       return {
         creds: 0,
         itemGrants: [
           {
-            templateId: 'scrap_metal',
-            name: 'Scrap Metal',
-            type: 'material',
-            rarity: 'comum',
-            value: 8,
-            effects: {},
+            ...stub,
+            quantity: Math.min(2, Math.max(1, Math.floor(rate / 14))),
+          },
+        ],
+      };
+    }
+    case 'outro':
+    default: {
+      const stub = itemGrantTemplate('scrap_metal');
+      if (!stub) return { creds: 0, itemGrants: [] };
+      return {
+        creds: 0,
+        itemGrants: [
+          {
+            ...stub,
             quantity: Math.max(1, Math.floor(rate / 10)),
           },
         ],
       };
+    }
   }
 }
 

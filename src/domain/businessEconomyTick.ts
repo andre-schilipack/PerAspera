@@ -5,6 +5,7 @@ import {
   DEFAULT_WAGE_PER_DAY,
   DEFAULT_WORKER_SLOTS,
 } from './constants.ts';
+import { applyPassiveRecipeBuffers } from './businessPassiveRecipes.ts';
 import type { Business, BusinessKind, PassiveItemBuffer } from './types/economy.ts';
 import type { Character } from './types/character.ts';
 import type { HexMap } from './types/map.ts';
@@ -12,6 +13,14 @@ import type { HexMap } from './types/map.ts';
 /** Normalize persisted businesses from older saves. */
 export function normalizeBusiness(b: Business): Business {
   const legacyWorkers = (b as unknown as { workers?: number }).workers;
+  let industrialRecipe = b.industrialRecipe;
+  if (b.type === 'industria' && industrialRecipe == null) {
+    industrialRecipe = 'scrap_to_metal';
+  }
+  let fabricaRecipe = b.fabricaRecipe;
+  if (b.type === 'fabrica' && fabricaRecipe == null) {
+    fabricaRecipe = 'construction_bundle';
+  }
   return {
     ...b,
     workerSlots: b.workerSlots ?? DEFAULT_WORKER_SLOTS,
@@ -19,6 +28,8 @@ export function normalizeBusiness(b: Business): Business {
     wagePerDay: b.wagePerDay ?? DEFAULT_WAGE_PER_DAY,
     passiveItemBuffer: b.passiveItemBuffer ?? {},
     credsPending: b.credsPending ?? 0,
+    industrialRecipe,
+    fabricaRecipe,
   };
 }
 
@@ -26,9 +37,10 @@ export function passiveItemTemplateForKind(kind: BusinessKind): string | null {
   switch (kind) {
     case 'fazenda':
       return 'food_ration';
-    case 'industria':
     case 'outro':
       return 'scrap_metal';
+    case 'industria':
+    case 'fabrica':
     case 'loja':
       return null;
     default:
@@ -93,6 +105,12 @@ export function applyPassiveBuffersOneTick(hexMap: HexMap): HexMap {
           ...b,
           credsPending: b.credsPending + perTick,
         };
+        changed = true;
+        return { ...slot, business: b };
+      }
+
+      if (b.type === 'industria' || b.type === 'fabrica') {
+        b = applyPassiveRecipeBuffers(b);
         changed = true;
         return { ...slot, business: b };
       }

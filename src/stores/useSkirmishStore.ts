@@ -4,6 +4,7 @@ import {
   STREET_SKIRMISH_SCRAP_REWARD_QTY,
   STREET_SKIRMISH_WIN_SCORE,
 } from '../domain/constants.ts';
+import { itemGrantTemplate } from '../domain/businessPayout.ts';
 import {
   advanceStreetSkirmishRound,
   createStreetSkirmish,
@@ -101,17 +102,20 @@ export const useSkirmishStore = create<SkirmishStore>()((set, get) => ({
     if (next.outcome === 'win' && next.isCompleted) {
       const ch = useCharactersStore.getState().characters[next.characterId];
       if (ch) {
-        const scrap: Item = {
-          id: `scrap_metal_skirmish_${Date.now()}`,
-          templateId: 'scrap_metal',
-          name: 'Scrap Metal',
-          type: 'material',
-          rarity: 'comum',
-          value: 8,
-          effects: {},
-          quantity: STREET_SKIRMISH_SCRAP_REWARD_QTY,
-        };
-        useCharactersStore.getState().addItemToInventory(next.characterId, scrap);
+        const stub = itemGrantTemplate('scrap_metal');
+        if (stub) {
+          const scrap: Item = {
+            id: `scrap_metal_skirmish_${Date.now()}`,
+            templateId: stub.templateId,
+            name: stub.name,
+            type: stub.type,
+            rarity: stub.rarity,
+            value: stub.value,
+            effects: { ...stub.effects },
+            quantity: STREET_SKIRMISH_SCRAP_REWARD_QTY,
+          };
+          useCharactersStore.getState().addItemToInventory(next.characterId, scrap);
+        }
         useCharactersStore.getState().updateCharacter(next.characterId, {
           score: ch.score + STREET_SKIRMISH_WIN_SCORE,
         });

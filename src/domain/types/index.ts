@@ -11,7 +11,13 @@ export type {
   MoveDamageKind,
   MoveTargetScope,
 } from './combat.ts';
-export type { Business, BusinessKind, PassiveItemBuffer } from './economy.ts';
+export type {
+  Business,
+  BusinessKind,
+  FabricaRecipeId,
+  IndustrialRecipeId,
+  PassiveItemBuffer,
+} from './economy.ts';
 export type {
   DailyDefenseState,
   DefenseCatchUpNightRow,
