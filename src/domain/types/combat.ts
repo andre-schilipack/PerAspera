@@ -47,7 +47,8 @@ export type MoveTag =
   | 'aoe'
   | 'single'
   | 'control'
-  | 'hack';
+  | 'hack'
+  | 'ranged';
 
 export type MovePower =
   | { mode: 'flat'; basePower: number }

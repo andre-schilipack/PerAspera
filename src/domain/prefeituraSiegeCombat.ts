@@ -35,6 +35,10 @@ import {
   rollGuardTargetBucket,
   rollTowerTargetBucket,
 } from './defenseTactics.ts';
+import {
+  resolveGuardDisparoStrike,
+  resolveTowerRajadaStrike,
+} from './defenseNpcMoves.ts';
 import { resolveIncomingMeleeDamage } from './combatResolution.ts';
 import { sumLivingThreatPoints } from './enemyThreat.ts';
 import type { CombatLogEntry, EnemyInstance } from './types/combat.ts';
@@ -268,7 +272,7 @@ export function advancePrefeituraSiegeRound(
   );
   const towerBucket = rollTowerTargetBucket(rng);
   const towerIdx = pickLivingEnemyIndexPreferBucket(enemies, towerBucket, rng);
-  const towerHit = resolveIncomingMeleeDamage(towerRaw, rng);
+  const towerHit = resolveTowerRajadaStrike(towerRaw, rng);
   const tBefore = livingEnemyCount(enemies);
   if (towerIdx >= 0) {
     enemies = applyDamageToEnemyAtPref(enemies, towerIdx, towerHit.finalDamage);
@@ -294,7 +298,7 @@ export function advancePrefeituraSiegeRound(
     );
     const grBucket = rollGuardTargetBucket(rng);
     const gIdx = pickLivingEnemyIndexPreferBucket(enemies, grBucket, rng);
-    const gh = resolveIncomingMeleeDamage(graw, rng);
+    const gh = resolveGuardDisparoStrike(graw, rng);
     const gBefore = livingEnemyCount(enemies);
     if (gIdx >= 0) {
       enemies = applyDamageToEnemyAtPref(enemies, gIdx, gh.finalDamage);
@@ -397,7 +401,7 @@ export function advancePrefeituraSiegeRound(
       continue;
     }
 
-    let di = resolveDefenderStrikeLineIndex(e, defenderLine, slot.lineIndex);
+    const di = resolveDefenderStrikeLineIndex(e, defenderLine, slot.lineIndex);
     const d = defenderLine[di]!;
     if (d.currentHp <= 0) {
       structureHitsThisRound += 1;

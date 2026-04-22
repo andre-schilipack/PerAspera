@@ -1,5 +1,11 @@
 import type { MoveTemplate, MoveTemplateId } from '../../domain/types/combat.ts';
 
+/** Stable id for tower ranged move (damage band still rolled in defense combat). */
+export const MOVE_ID_TOWER_RAJADA = 'tower_rajada' as const satisfies MoveTemplateId;
+
+/** Stable id for guard ranged move (damage band still rolled in defense combat). */
+export const MOVE_ID_GUARD_DISPARO = 'guard_disparo' as const satisfies MoveTemplateId;
+
 /** Catalog of combat move templates (stable id → definition). Extend in future iterations. */
 export const MOVE_CATALOG: Record<string, MoveTemplate> = {
   basic_attack: {
@@ -27,6 +33,27 @@ export const MOVE_CATALOG: Record<string, MoveTemplate> = {
       base: 4,
     },
     tags: ['hack', 'single'],
+  },
+  /** Midpoint ~ band for docs; nightly defense rolls raw damage before resolve. */
+  [MOVE_ID_TOWER_RAJADA]: {
+    id: MOVE_ID_TOWER_RAJADA,
+    name: 'Rajada',
+    description: 'Heavy emplacement burst toward hostile buckets.',
+    damageKind: 'physical',
+    targets: 'single',
+    cost: 0,
+    power: { mode: 'flat', basePower: 11 },
+    tags: ['burst', 'ranged', 'single'],
+  },
+  [MOVE_ID_GUARD_DISPARO]: {
+    id: MOVE_ID_GUARD_DISPARO,
+    name: 'Disparo',
+    description: 'Rifle shot at a hostile bucket.',
+    damageKind: 'physical',
+    targets: 'single',
+    cost: 0,
+    power: { mode: 'flat', basePower: 7 },
+    tags: ['ranged', 'single'],
   },
 };
 

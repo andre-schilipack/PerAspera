@@ -34,6 +34,10 @@ import {
   rollGuardTargetBucket,
   rollTowerTargetBucket,
 } from './defenseTactics.ts';
+import {
+  resolveGuardDisparoStrike,
+  resolveTowerRajadaStrike,
+} from './defenseNpcMoves.ts';
 import { resolveIncomingMeleeDamage } from './combatResolution.ts';
 import { sumLivingThreatPoints } from './enemyThreat.ts';
 import { applyDamageToWallSection } from './wallIntegrity.ts';
@@ -228,7 +232,7 @@ export function advanceNightlyDefenseRound(
   );
   const towerBucket = rollTowerTargetBucket(rng);
   const towerIdx = pickLivingEnemyIndexPreferBucket(enemies, towerBucket, rng);
-  const towerHit = resolveIncomingMeleeDamage(towerRaw, rng);
+  const towerHit = resolveTowerRajadaStrike(towerRaw, rng);
   const towerBefore = livingEnemyCount(enemies);
   if (towerIdx >= 0) {
     enemies = applyDamageToEnemyAt(enemies, towerIdx, towerHit.finalDamage);
@@ -252,7 +256,7 @@ export function advanceNightlyDefenseRound(
     );
     const grBucket = rollGuardTargetBucket(rng);
     const gIdx = pickLivingEnemyIndexPreferBucket(enemies, grBucket, rng);
-    const gh = resolveIncomingMeleeDamage(graw, rng);
+    const gh = resolveGuardDisparoStrike(graw, rng);
     const gBefore = livingEnemyCount(enemies);
     if (gIdx >= 0) {
       enemies = applyDamageToEnemyAt(enemies, gIdx, gh.finalDamage);
@@ -351,7 +355,7 @@ export function advanceNightlyDefenseRound(
       continue;
     }
 
-    let di = resolveDefenderStrikeLineIndex(e, defenderLine, slot.lineIndex);
+    const di = resolveDefenderStrikeLineIndex(e, defenderLine, slot.lineIndex);
     const d = defenderLine[di]!;
     if (d.retreated || d.currentHp <= 0) {
       lines.push({
