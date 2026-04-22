@@ -26,9 +26,11 @@ import {
   maybeTriggerMoraleShock,
 } from './defenseAllySpirit.ts';
 import {
+  DEFENSE_HOSTILE_FIRE_DEFENDER_ATTRIBUTES,
   resolveGuardDisparoStrike,
   resolveTowerRajadaStrike,
 } from './defenseNpcMoves.ts';
+import { resolveStrikeDamage } from './autobattle/index.ts';
 import {
   applyDamageToEnemyAt,
   countLivingInBucket,
@@ -326,7 +328,15 @@ export function runMassDefenseCombatRound(
 
     const prefBucket = def.tacticalBucket ?? 'front';
     const hitIdx = pickLivingEnemyIndexPreferBucket(enemies, prefBucket, rng);
-    const hit = resolveIncomingMeleeDamage(raw, rng);
+    const hit =
+      def.coreAttributes !== undefined
+        ? resolveStrikeDamage(
+            raw,
+            'physical',
+            DEFENSE_HOSTILE_FIRE_DEFENDER_ATTRIBUTES,
+            rng,
+          )
+        : resolveIncomingMeleeDamage(raw, rng);
     const beforeHits = livingEnemyCount(enemies);
     if (hitIdx >= 0) {
       enemies = applyDamageToEnemyAt(enemies, hitIdx, hit.finalDamage);

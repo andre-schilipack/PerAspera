@@ -1,9 +1,11 @@
 import type { CombatLogEntry } from './types/combat.ts';
+import type { CoreAttributes } from './types/attributes.ts';
 import type {
   DailyDefenseState,
   DefenderLineEntry,
   WallState,
 } from './types/defense.ts';
+import type { MoveTemplateId } from './types/combat.ts';
 import {
   massCombatStructuralPresenceNightlyWall,
   type MassCombatStructuralPresence,
@@ -95,13 +97,22 @@ export function advanceNightlyDefenseRound(
 export function buildDefenderLineFromLocks(
   lockedIds: string[],
   getCharacter: (id: string) =>
-    | { name: string; health: { current: number; max: number } }
+    | {
+        name: string;
+        health: { current: number; max: number };
+        coreAttributes?: CoreAttributes;
+        combatLoadout?: { skillIds: readonly MoveTemplateId[] };
+      }
     | undefined,
 ): DefenderLineEntry[] {
   const out: DefenderLineEntry[] = [];
   for (const id of lockedIds) {
     const ch = getCharacter(id);
     if (!ch) continue;
+    const skillIds =
+      ch.combatLoadout?.skillIds != null && ch.combatLoadout.skillIds.length > 0
+        ? [...ch.combatLoadout.skillIds]
+        : undefined;
     out.push({
       characterId: id,
       name: ch.name,
@@ -109,6 +120,11 @@ export function buildDefenderLineFromLocks(
       maxHp: ch.health.max,
       retreated: false,
       tacticalBucket: defenderBucketForLineIndex(out.length),
+      coreAttributes:
+        ch.coreAttributes !== undefined
+          ? { ...ch.coreAttributes }
+          : undefined,
+      skillIds,
     });
   }
   return out;

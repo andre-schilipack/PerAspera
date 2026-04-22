@@ -1,8 +1,10 @@
+import type { CoreAttributes } from './attributes.ts';
 import type {
   CombatLogEntry,
   DefenseParticipant,
   DefenseTacticalBucket,
   EnemyInstance,
+  MoveTemplateId,
 } from './combat.ts';
 import type { Item } from './items.ts';
 
@@ -41,6 +43,15 @@ export interface DefenderLineEntry {
   retreated: boolean;
   /** Role on the abstract defense line (autoplay / strike bias). */
   tacticalBucket?: DefenseTacticalBucket;
+  /**
+   * When set (snapshot from character), defender outgoing strikes use the unified
+   * strike pipeline (`resolveStrikeDamage`); when omitted, legacy melee resolve only.
+   */
+  coreAttributes?: CoreAttributes;
+  /**
+   * Deck for future autoplay on the line ({@link pickAutoplaySkill}); optional until wired.
+   */
+  skillIds?: MoveTemplateId[];
 }
 
 export interface DailyDefenseState {
