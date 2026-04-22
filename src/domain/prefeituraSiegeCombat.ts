@@ -44,6 +44,10 @@ import type {
   NightlyDefenseOutcome,
   WallState,
 } from './types/defense.ts';
+import {
+  massCombatStructuralPresencePrefeituraSiege,
+  type MassCombatStructuralPresence,
+} from './types/massCombat.ts';
 import type { HexMap, PlaceSlot } from './types/map.ts';
 
 import type { NightlyCombatWallResult } from './nightlyDefenseCombat.ts';
@@ -53,6 +57,10 @@ import {
   lineMoraleShockHits,
   lineSupportStabilizes,
 } from '../content/defenseSpiritLines.ts';
+
+/** Downtown Prefeitura siege theater — structural + ally strikes (see mass combat types). */
+export const PREFECTURE_SIEGE_STRUCTURAL_PRESENCE: MassCombatStructuralPresence =
+  massCombatStructuralPresencePrefeituraSiege();
 
 export interface AdvancePrefeituraSiegeResult {
   nextDaily: DailyDefenseState;
@@ -189,6 +197,7 @@ export function advancePrefeituraSiegeRound(
   }
 
   if (daily.enemies.length === 0) {
+    const roundTs = Date.now();
     return {
       nextDaily: {
         ...daily,
@@ -202,7 +211,7 @@ export function advancePrefeituraSiegeRound(
       newLogLines: [
         {
           turn: daily.currentTurn,
-          timestamp: Date.now(),
+          timestamp: roundTs,
           text: 'No hostiles downtown — Prefeitura secured.',
           type: 'system',
         },
@@ -378,7 +387,7 @@ export function advancePrefeituraSiegeRound(
         prefeituraCollapsed = true;
         lines.push({
           turn,
-          timestamp: Date.now(),
+          timestamp: t0,
           text: 'The Prefeitura has fallen.',
           type: 'system',
           highlight: true,
@@ -409,7 +418,7 @@ export function advancePrefeituraSiegeRound(
         prefeituraCollapsed = true;
         lines.push({
           turn,
-          timestamp: Date.now(),
+          timestamp: t0,
           text: 'The Prefeitura has fallen.',
           type: 'system',
           highlight: true,
@@ -462,7 +471,7 @@ export function advancePrefeituraSiegeRound(
   if (shockRoll.triggered) {
     lines.push({
       turn,
-      timestamp: Date.now(),
+      timestamp: t0,
       text: lineMoraleShockHits(),
       type: 'system',
       highlight: true,
@@ -473,7 +482,7 @@ export function advancePrefeituraSiegeRound(
   if (spiritDelta !== 0 || shockRoll.triggered) {
     lines.push({
       turn,
-      timestamp: Date.now(),
+      timestamp: t0,
       text: lineAllySpiritShift(spiritDelta, allySpirit),
       type: 'system',
     });
@@ -494,7 +503,7 @@ export function advancePrefeituraSiegeRound(
     phase = 'ended';
     lines.push({
       turn,
-      timestamp: Date.now(),
+      timestamp: t0,
       text: 'Hostiles routed — downtown holds.',
       type: 'system',
       highlight: true,

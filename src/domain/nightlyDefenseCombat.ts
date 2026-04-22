@@ -45,11 +45,19 @@ import type {
   WallState,
 } from './types/defense.ts';
 import {
+  massCombatStructuralPresenceNightlyWall,
+  type MassCombatStructuralPresence,
+} from './types/massCombat.ts';
+import {
   lineAllySpiritShift,
   lineBucketPressureSnapshot,
   lineMoraleShockHits,
   lineSupportStabilizes,
 } from '../content/defenseSpiritLines.ts';
+
+/** Theater for nightly wall combat — structural + ally strike cycle (see mass combat types). */
+export const NIGHTLY_DEFENSE_STRUCTURAL_PRESENCE: MassCombatStructuralPresence =
+  massCombatStructuralPresenceNightlyWall();
 
 export interface NightlyCombatWallResult {
   wall: WallState;
@@ -149,6 +157,7 @@ export function advanceNightlyDefenseRound(
   }
 
   if (daily.enemies.length === 0) {
+    const roundTs = Date.now();
     return {
       nextDaily: {
         ...daily,
@@ -162,7 +171,7 @@ export function advanceNightlyDefenseRound(
       newLogLines: [
         {
           turn: daily.currentTurn,
-          timestamp: Date.now(),
+          timestamp: roundTs,
           text: 'No hostiles — defense stands down.',
           type: 'system',
         },
@@ -400,7 +409,7 @@ export function advanceNightlyDefenseRound(
   if (shockRoll.triggered) {
     lines.push({
       turn,
-      timestamp: Date.now(),
+      timestamp: t0,
       text: lineMoraleShockHits(),
       type: 'system',
       highlight: true,
@@ -411,7 +420,7 @@ export function advanceNightlyDefenseRound(
   if (spiritDelta !== 0 || shockRoll.triggered) {
     lines.push({
       turn,
-      timestamp: Date.now(),
+      timestamp: t0,
       text: lineAllySpiritShift(spiritDelta, allySpirit),
       type: 'system',
     });
@@ -428,7 +437,7 @@ export function advanceNightlyDefenseRound(
     phase = 'ended';
     lines.push({
       turn,
-      timestamp: Date.now(),
+      timestamp: t0,
       text: 'The wall gives — city breach!',
       type: 'system',
       highlight: true,
@@ -439,7 +448,7 @@ export function advanceNightlyDefenseRound(
     phase = 'ended';
     lines.push({
       turn,
-      timestamp: Date.now(),
+      timestamp: t0,
       text: 'Hostiles routed — perimeter holds.',
       type: 'system',
       highlight: true,

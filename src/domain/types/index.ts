@@ -57,3 +57,20 @@ export type {
 } from './meta.ts';
 export type { ScoreEntry } from './score.ts';
 export type { CityCoreState } from './city.ts';
+export type {
+  CombatStrikeTargetKind,
+  MassCombatModeFlags,
+  MassCombatRoundConfig,
+  MassCombatRoundResult,
+  MassCombatRoundResultBase,
+  MassCombatStructuralPresence,
+  MassCombatWallSnapshot,
+} from './massCombat.ts';
+export {
+  massCombatActiveStrikeTargets,
+  massCombatModeFlagsNightlyWall,
+  massCombatModeFlagsPrefeituraSiege,
+  massCombatStructuralPresent,
+  massCombatStructuralPresenceNightlyWall,
+  massCombatStructuralPresencePrefeituraSiege,
+} from './massCombat.ts';

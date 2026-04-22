@@ -56,7 +56,10 @@ export function applyDamageToEnemyAt(
 }
 
 export function countLivingInBucket(
-  enemies: readonly EnemyInstance[],
+  enemies: readonly {
+    currentHealth: number;
+    tacticalBucket?: DefenseTacticalBucket;
+  }[],
   bucket: DefenseTacticalBucket,
 ): number {
   let n = 0;
@@ -68,7 +71,9 @@ export function countLivingInBucket(
   return n;
 }
 
-export function livingEnemyCount(enemies: readonly EnemyInstance[]): number {
+export function livingEnemyCount(
+  enemies: readonly { currentHealth: number }[],
+): number {
   let n = 0;
   for (const e of enemies) {
     if (e.currentHealth > 0) n += 1;
@@ -92,7 +97,7 @@ export function resolveDefenderStrikeLineIndex(
   defenderLine: readonly {
     currentHp: number;
     retreated: boolean;
-    tacticalBucket: DefenseTacticalBucket;
+    tacticalBucket?: DefenseTacticalBucket;
   }[],
   suggestedLineIndex: number,
 ): number {
