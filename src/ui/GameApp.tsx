@@ -114,6 +114,7 @@ import { useSkirmishStore } from '../stores/useSkirmishStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 
 import { CombatLogList } from './CombatLogList.tsx';
+import { CombatLoadoutEditor } from './CombatLoadoutEditor.tsx';
 import { CombatModal } from './CombatModal.tsx';
 import { useCombatLogReveal } from './useCombatLogReveal.ts';
 import { GameFabBar } from './GameFabBar.tsx';
@@ -1204,6 +1205,17 @@ export default function GameApp() {
           <p>Score (defense) {character.score}</p>
           <p>Reputation {character.reputation}</p>
           <p>Home {character.homeHexId}</p>
+          <CombatLoadoutEditor
+            skillIds={character.combatLoadout.skillIds}
+            onChangeSkillIds={(skillIds) =>
+              updateCharacter(character.id, {
+                combatLoadout: {
+                  ...character.combatLoadout,
+                  skillIds,
+                },
+              })
+            }
+          />
           <p>
             <button type="button" onClick={goToCharacterSelection}>
               Switch character

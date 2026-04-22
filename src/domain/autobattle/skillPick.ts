@@ -38,6 +38,24 @@ export function scoreSkillTemplate(
   if (p.mode === 'scaleAttribute' && p.attribute === 'intelligence') {
     score += int * p.coefficient * 0.45;
   }
+  if (p.mode === 'scaleSum') {
+    for (const term of p.terms) {
+      if (term.attribute === 'intelligence') {
+        score += int * term.coefficient * 0.38;
+      }
+      if (term.attribute === 'charisma') {
+        score += attrs.charisma * term.coefficient * 0.28;
+      }
+      if (term.attribute === 'agility') {
+        score += attrs.agility * term.coefficient * 0.22;
+      }
+    }
+  }
+
+  const lowOffenseBuff =
+    template.tags.includes('buff') &&
+    estimated < 5 &&
+    !template.tags.includes('burst');
 
   switch (ctx.combatBeatPhase) {
     case 'approach':
@@ -53,6 +71,10 @@ export function scoreSkillTemplate(
       break;
     default:
       break;
+  }
+
+  if (lowOffenseBuff && ctx.combatBeatPhase !== 'approach') {
+    score *= 0.38;
   }
 
   return score;

@@ -57,6 +57,11 @@ export type MovePower =
       attribute: CoreAttributeKey;
       coefficient: number;
       base?: number;
+    }
+  | {
+      mode: 'scaleSum';
+      base?: number;
+      terms: readonly { attribute: CoreAttributeKey; coefficient: number }[];
     };
 
 /**
@@ -73,6 +78,10 @@ export interface MoveTemplate {
   cost: number;
   power: MovePower;
   tags: MoveTag[];
+  /** Turns before reuse (documented for UI / future cooldown rules). */
+  cooldownTurns?: number;
+  /** Buff/debuff duration (documented for UI / future duration rules). */
+  durationTurns?: number;
 }
 
 export type CombatLogActor =

@@ -132,6 +132,76 @@
   margin: 0 0 8px;
 }
 
+.combat-loadout-editor {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.combat-loadout-editor h3 {
+  font-size: 0.95rem;
+  margin: 0 0 8px;
+}
+
+.combat-loadout-subheading {
+  font-size: 0.85rem;
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.combat-loadout-columns {
+  display: grid;
+  gap: 16px;
+}
+
+@media (min-width: 560px) {
+  .combat-loadout-columns {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+.combat-loadout-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.combat-loadout-list li {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+}
+
+.combat-loadout-list button {
+  flex-shrink: 0;
+  font: inherit;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--accent-bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.combat-loadout-desc {
+  font-size: 0.78rem;
+  margin-top: 4px;
+  line-height: 1.35;
+}
+
+.combat-loadout-id {
+  font-size: 0.85rem;
+}
+
 .game-log {
   max-height: 220px;
   overflow: auto;

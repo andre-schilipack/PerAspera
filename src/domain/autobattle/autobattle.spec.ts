@@ -58,6 +58,14 @@ describe('computeRawPower', () => {
     };
     expect(computeRawPower(t2, highInt)).toBe(4 + 5 * 3);
   });
+
+  it('sums multiple attribute terms for scaleSum', () => {
+    const cure = MOVE_CATALOG.cure;
+    expect(cure.power.mode).toBe('scaleSum');
+    expect(computeRawPower(cure, DEFAULT_CORE_ATTRIBUTES)).toBe(
+      2 + 2 * 1 + 2 * 1,
+    );
+  });
 });
 
 describe('pickAutoplaySkill', () => {

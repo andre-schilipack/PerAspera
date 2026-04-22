@@ -20,7 +20,7 @@ export type LegacyCharacterShape = Partial<Character> & {
   availableMoves?: string[];
 };
 
-function clampSkillIds(ids: readonly string[]): string[] {
+export function clampCombatSkillIds(ids: readonly string[]): string[] {
   const dedup = [...new Set(ids)].filter(Boolean);
   return dedup.slice(0, MAX_COMBAT_SKILL_SLOTS);
 }
@@ -40,7 +40,7 @@ function mergeCombatLoadout(raw: LegacyCharacterShape): CombatLoadout {
   const fromLoadout = raw.combatLoadout;
   if (fromLoadout && Array.isArray(fromLoadout.skillIds)) {
     return {
-      skillIds: clampSkillIds(fromLoadout.skillIds),
+      skillIds: clampCombatSkillIds(fromLoadout.skillIds),
       equippedItemInstanceIds: Array.isArray(
         fromLoadout.equippedItemInstanceIds,
       )
@@ -51,13 +51,13 @@ function mergeCombatLoadout(raw: LegacyCharacterShape): CombatLoadout {
 
   if (raw.availableMoves && raw.availableMoves.length > 0) {
     return {
-      skillIds: clampSkillIds(raw.availableMoves),
+      skillIds: clampCombatSkillIds(raw.availableMoves),
       equippedItemInstanceIds: [],
     };
   }
 
   return {
-    skillIds: clampSkillIds(DEFAULT_COMBAT_LOADOUT.skillIds),
+    skillIds: clampCombatSkillIds(DEFAULT_COMBAT_LOADOUT.skillIds),
     equippedItemInstanceIds: [...DEFAULT_COMBAT_LOADOUT.equippedItemInstanceIds],
   };
 }

@@ -13,6 +13,14 @@ export function computeRawPower(
   if (p.mode === 'flat') {
     return Math.max(0, Math.floor(p.basePower));
   }
+  if (p.mode === 'scaleSum') {
+    const base = p.base ?? 0;
+    let sum = base;
+    for (const term of p.terms) {
+      sum += term.coefficient * attacker[term.attribute];
+    }
+    return Math.max(0, Math.floor(sum));
+  }
   const base = p.base ?? 0;
   const attrVal = attacker[p.attribute];
   return Math.max(0, Math.floor(base + p.coefficient * attrVal));
