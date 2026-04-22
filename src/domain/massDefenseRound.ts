@@ -31,8 +31,8 @@ import {
   resolveTowerRajadaStrike,
 } from './defenseNpcMoves.ts';
 import {
-  computeRawPower,
-  pickAutoplaySkill,
+  pickAutoplayMoveTemplate,
+  resolveMoveTemplateStrike,
   resolveStrikeDamage,
   type AutoplaySkillPickContext,
 } from './autobattle/index.ts';
@@ -430,24 +430,19 @@ export function runMassDefenseCombatRound(
         defenderLine,
         rng,
       );
-      const template =
-        pickAutoplaySkill(
-          def.skillIds!,
-          getMoveTemplate,
-          def.coreAttributes!,
-          skillCtx,
-        ) ?? getMoveTemplate('basic_attack');
-      if (!template) {
-        throw new Error('MOVE_CATALOG missing basic_attack');
-      }
+      const template = pickAutoplayMoveTemplate(
+        def.skillIds!,
+        getMoveTemplate,
+        def.coreAttributes!,
+        skillCtx,
+      );
       pickedMove = template;
-      let rawPower = computeRawPower(template, def.coreAttributes!);
-      rawPower = Math.max(1, Math.floor(rawPower * outgoingMul));
 
+      let strikePowerMultiplier = outgoingMul;
       if (def.tacticalBucket === 'support' && rng() < 0.38) {
         allySpirit = clampAllySpirit(allySpirit + ALLY_SPIRIT_SUPPORT_CONNECT);
         supportBoost = true;
-        rawPower = Math.max(1, Math.floor(rawPower * 0.72));
+        strikePowerMultiplier *= 0.72;
         lines.push({
           turn,
           timestamp: t0,
@@ -457,12 +452,13 @@ export function runMassDefenseCombatRound(
         });
       }
 
-      hit = resolveStrikeDamage(
-        rawPower,
-        template.damageKind,
-        DEFENSE_HOSTILE_FIRE_DEFENDER_ATTRIBUTES,
+      hit = resolveMoveTemplateStrike({
+        template,
+        attackerAttributes: def.coreAttributes!,
+        defenderReceivingStrike: DEFENSE_HOSTILE_FIRE_DEFENDER_ATTRIBUTES,
         rng,
-      );
+        strikePowerMultiplier,
+      });
     } else {
       let raw = rollIntInclusive(rng, 5, 12);
       raw = Math.max(1, Math.floor(raw * outgoingMul));

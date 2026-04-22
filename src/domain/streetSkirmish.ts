@@ -3,8 +3,8 @@ import {
 } from './constants.ts';
 import {
   combatBeatPhaseFromTurns,
-  computeRawPower,
-  pickAutoplaySkill,
+  pickAutoplayMoveTemplate,
+  resolveMoveTemplateStrike,
   resolveStrikeDamage,
 } from './autobattle/index.ts';
 import type { CombatBeatPhase } from './types/combat.ts';
@@ -177,31 +177,23 @@ export function advanceStreetSkirmishRound(
   });
 
   if (primary) {
-    const picked =
-      pickAutoplaySkill(
-        state.skillIds,
-        getMoveTemplate,
-        state.coreAttributes,
-        {
-          combatBeatPhase: beatPhase,
-          defenderHpFraction,
-          rng,
-        },
-      ) ?? getMoveTemplate('basic_attack');
-
-    const template = picked ?? getMoveTemplate('basic_attack');
-    if (!template) {
-      throw new Error('MOVE_CATALOG missing basic_attack');
-    }
-
-    const rawPlayer = computeRawPower(template, state.coreAttributes);
-    const label = enemyLabel(primary.enemyId);
-    const resolved = resolveStrikeDamage(
-      rawPlayer,
-      template.damageKind,
-      STREET_DRONE_ATTRIBUTES,
-      rng,
+    const template = pickAutoplayMoveTemplate(
+      state.skillIds,
+      getMoveTemplate,
+      state.coreAttributes,
+      {
+        combatBeatPhase: beatPhase,
+        defenderHpFraction,
+        rng,
+      },
     );
+    const label = enemyLabel(primary.enemyId);
+    const resolved = resolveMoveTemplateStrike({
+      template,
+      attackerAttributes: state.coreAttributes,
+      defenderReceivingStrike: STREET_DRONE_ATTRIBUTES,
+      rng,
+    });
 
     const highlightKill =
       resolved.finalDamage >= primary.currentHealth &&

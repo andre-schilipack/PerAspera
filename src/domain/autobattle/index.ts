@@ -11,3 +11,8 @@ export {
   scoreSkillTemplate,
   type AutoplaySkillPickContext,
 } from './skillPick.ts';
+export {
+  pickAutoplayMoveTemplate,
+  resolveMoveTemplateStrike,
+  type ResolveMoveTemplateStrikeParams,
+} from './autoplayStrike.ts';
