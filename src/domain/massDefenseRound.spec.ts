@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { createEmptyDailyDefense, createInitialWallState } from './factories/createDefenseSeed.ts';
 import { sumLivingThreatPoints } from './enemyThreat.ts';
+import { DEFAULT_CORE_ATTRIBUTES } from './types/attributes.ts';
 import {
   defenderLineForPrefeituraSiege,
+  massDefenseSkillPickContext,
   normalizeMassDefenseDefenderLine,
   runMassDefenseCombatRound,
 } from './massDefenseRound.ts';
@@ -71,5 +73,81 @@ describe('massDefenseRound', () => {
       true,
     );
     expect(r.hexMap).toBeUndefined();
+  });
+
+  it('massDefenseSkillPickContext uses endgame beat when hostiles are low', () => {
+    const ctx = massDefenseSkillPickContext(
+      2,
+      'nightly_wall',
+      [
+        {
+          enemyId: 'x',
+          currentHealth: 2,
+          maxHealth: 100,
+          tacticalBucket: 'front',
+          buffs: {},
+        },
+      ],
+      [
+        {
+          characterId: 'c',
+          name: 'Hero',
+          currentHp: 40,
+          maxHp: 40,
+          retreated: false,
+          tacticalBucket: 'front',
+        },
+      ],
+      () => 0.5,
+    );
+    expect(ctx.combatBeatPhase).toBe('endgame');
+    expect(ctx.defenderHpFraction).toBeLessThan(0.05);
+  });
+
+  it('defender autoplay logs catalog move name when skillIds present', () => {
+    const wall = createInitialWallState();
+    const base = createEmptyDailyDefense({ date: '2026-06-02' });
+    const enemies = [
+      {
+        enemyId: 'grunt',
+        currentHealth: 80,
+        maxHealth: 80,
+        tacticalBucket: 'front' as const,
+        buffs: {},
+      },
+    ];
+    const daily = {
+      ...base,
+      phase: 'fighting' as const,
+      outcome: 'active' as const,
+      isCompleted: false,
+      enemies,
+      totalEnemyPoints: sumLivingThreatPoints(enemies),
+      defenderLine: [],
+    };
+
+    const r = runMassDefenseCombatRound({
+      structureMode: 'nightly_wall',
+      daily,
+      wall,
+      rng: () => 0.55,
+      defenderLine: normalizeMassDefenseDefenderLine([
+        {
+          characterId: 'c1',
+          name: 'Vega',
+          currentHp: 30,
+          maxHp: 30,
+          retreated: false,
+          tacticalBucket: 'front',
+          coreAttributes: { ...DEFAULT_CORE_ATTRIBUTES },
+          skillIds: ['basic_attack'],
+        },
+      ]),
+    });
+
+    const playerLines = r.newLogLines.filter((l) => l.type === 'player');
+    expect(playerLines.some((l) => l.text.includes('Basic attack'))).toBe(
+      true,
+    );
   });
 });

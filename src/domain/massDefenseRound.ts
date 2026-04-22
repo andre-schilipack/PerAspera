@@ -30,7 +30,12 @@ import {
   resolveGuardDisparoStrike,
   resolveTowerRajadaStrike,
 } from './defenseNpcMoves.ts';
-import { resolveStrikeDamage } from './autobattle/index.ts';
+import {
+  computeRawPower,
+  pickAutoplaySkill,
+  resolveStrikeDamage,
+  type AutoplaySkillPickContext,
+} from './autobattle/index.ts';
 import {
   applyDamageToEnemyAt,
   countLivingInBucket,
@@ -42,10 +47,18 @@ import {
   rollGuardTargetBucket,
   rollTowerTargetBucket,
 } from './defenseTactics.ts';
-import { resolveIncomingMeleeDamage } from './combatResolution.ts';
+import {
+  resolveIncomingMeleeDamage,
+  type MeleeResolveResult,
+} from './combatResolution.ts';
 import { sumLivingThreatPoints } from './enemyThreat.ts';
 import { applyDamageToWallSection } from './wallIntegrity.ts';
-import type { CombatLogEntry, EnemyInstance } from './types/combat.ts';
+import type {
+  CombatBeatPhase,
+  CombatLogEntry,
+  EnemyInstance,
+  MoveTemplate,
+} from './types/combat.ts';
 import type {
   DailyDefenseState,
   DefenderLineEntry,
@@ -61,6 +74,7 @@ import {
   lineMoraleShockHits,
   lineSupportStabilizes,
 } from '../content/defenseSpiritLines.ts';
+import { getMoveTemplate } from '../content/catalogs/moves.ts';
 
 /** Which mass-defense theater this round resolves (wall perimeter vs downtown siege). */
 export type MassDefenseStructureMode = 'nightly_wall' | 'prefeitura_siege';
@@ -97,6 +111,94 @@ function rollIntInclusive(
   max: number,
 ): number {
   return min + Math.floor(rng() * (max - min + 1));
+}
+
+function averageLivingHostileHpFraction(
+  enemies: readonly EnemyInstance[],
+): number {
+  const living = enemies.filter((e) => e.currentHealth > 0);
+  if (living.length === 0) return 1;
+  let sum = 0;
+  for (const e of living) {
+    sum += e.maxHealth > 0 ? e.currentHealth / e.maxHealth : 0;
+  }
+  return sum / living.length;
+}
+
+function averageDefenderLineHpFraction(
+  line: readonly DefenderLineEntry[],
+  structureMode: MassDefenseStructureMode,
+): number {
+  const active = line.filter((d) => {
+    if (structureMode === 'nightly_wall') {
+      return !d.retreated && d.currentHp > 0;
+    }
+    return d.currentHp > 0;
+  });
+  if (active.length === 0) return 1;
+  let sum = 0;
+  for (const d of active) {
+    sum += d.maxHp > 0 ? d.currentHp / d.maxHp : 0;
+  }
+  return sum / active.length;
+}
+
+/**
+ * Beat phase + hostile HP fraction for autoplay scoring ({@link pickAutoplaySkill}).
+ * `defenderHpFraction` mirrors skirmish: pool health of opposing force (hostiles here).
+ */
+export function massDefenseSkillPickContext(
+  turn: number,
+  structureMode: MassDefenseStructureMode,
+  enemies: readonly EnemyInstance[],
+  defenderLine: readonly DefenderLineEntry[],
+  rng: () => number,
+): AutoplaySkillPickContext {
+  const hostileFrac = averageLivingHostileHpFraction(enemies);
+  const allyFrac = averageDefenderLineHpFraction(defenderLine, structureMode);
+  let combatBeatPhase: CombatBeatPhase = 'contact';
+  if (hostileFrac <= 0.28 || allyFrac <= 0.32) {
+    combatBeatPhase = 'endgame';
+  } else if (turn <= 3 && hostileFrac >= 0.72) {
+    combatBeatPhase = 'approach';
+  }
+  return {
+    combatBeatPhase,
+    defenderHpFraction: hostileFrac,
+    rng,
+  };
+}
+
+function formatDefenderStrikePlayerLog(params: {
+  def: DefenderLineEntry;
+  prefBucket: string;
+  hit: MeleeResolveResult;
+  supportBoost: boolean;
+  structureMode: MassDefenseStructureMode;
+  move?: MoveTemplate;
+}): string {
+  const { def, prefBucket, hit, supportBoost, structureMode, move } = params;
+  const nightly = structureMode === 'nightly_wall';
+  if (hit.flags.dodged) {
+    if (move) {
+      return nightly
+        ? `${def.name}'s ${move.name} is evaded${supportBoost ? ' (support net).' : '.'}`
+        : `${def.name}'s ${move.name} is evaded.`;
+    }
+    return nightly
+      ? `${def.name}'s strike is evaded${supportBoost ? ' (support net).' : '.'}`
+      : `${def.name}'s strike is evaded.`;
+  }
+  if (move) {
+    if (hit.flags.blocked) {
+      return `${def.name} (${prefBucket}) — ${move.name} (blocked): ${String(hit.finalDamage)} damage.`;
+    }
+    return `${def.name} (${prefBucket}) — ${move.name}: ${String(hit.finalDamage)} damage.`;
+  }
+  if (hit.flags.blocked) {
+    return `${def.name} (${prefBucket}) (blocked): ${String(hit.finalDamage)} damage.`;
+  }
+  return `${def.name} (${prefBucket}) hits for ${String(hit.finalDamage)} damage.`;
 }
 
 function firstLivingEnemyIndex(enemies: readonly EnemyInstance[]): number {
@@ -309,49 +411,104 @@ export function runMassDefenseCombatRound(
   for (const def of defenderLine) {
     if (skipDefender(def)) continue;
     if (firstLivingEnemyIndex(enemies) < 0) break;
-    let raw = rollIntInclusive(rng, 5, 12);
-    raw = Math.max(1, Math.floor(raw * outgoingMul));
-
-    let supportBoost = false;
-    if (def.tacticalBucket === 'support' && rng() < 0.38) {
-      allySpirit = clampAllySpirit(allySpirit + ALLY_SPIRIT_SUPPORT_CONNECT);
-      supportBoost = true;
-      raw = Math.max(1, Math.floor(raw * 0.72));
-      lines.push({
-        turn,
-        timestamp: t0,
-        text: lineSupportStabilizes(),
-        type: 'system',
-        highlight: true,
-      });
-    }
 
     const prefBucket = def.tacticalBucket ?? 'front';
+    const useSkillAutoplay =
+      def.coreAttributes !== undefined &&
+      def.skillIds !== undefined &&
+      def.skillIds.length > 0;
+
+    let supportBoost = false;
+    let hit: MeleeResolveResult;
+    let pickedMove: MoveTemplate | undefined;
+
+    if (useSkillAutoplay) {
+      const skillCtx = massDefenseSkillPickContext(
+        turn,
+        structureMode,
+        enemies,
+        defenderLine,
+        rng,
+      );
+      const template =
+        pickAutoplaySkill(
+          def.skillIds!,
+          getMoveTemplate,
+          def.coreAttributes!,
+          skillCtx,
+        ) ?? getMoveTemplate('basic_attack');
+      if (!template) {
+        throw new Error('MOVE_CATALOG missing basic_attack');
+      }
+      pickedMove = template;
+      let rawPower = computeRawPower(template, def.coreAttributes!);
+      rawPower = Math.max(1, Math.floor(rawPower * outgoingMul));
+
+      if (def.tacticalBucket === 'support' && rng() < 0.38) {
+        allySpirit = clampAllySpirit(allySpirit + ALLY_SPIRIT_SUPPORT_CONNECT);
+        supportBoost = true;
+        rawPower = Math.max(1, Math.floor(rawPower * 0.72));
+        lines.push({
+          turn,
+          timestamp: t0,
+          text: lineSupportStabilizes(),
+          type: 'system',
+          highlight: true,
+        });
+      }
+
+      hit = resolveStrikeDamage(
+        rawPower,
+        template.damageKind,
+        DEFENSE_HOSTILE_FIRE_DEFENDER_ATTRIBUTES,
+        rng,
+      );
+    } else {
+      let raw = rollIntInclusive(rng, 5, 12);
+      raw = Math.max(1, Math.floor(raw * outgoingMul));
+
+      if (def.tacticalBucket === 'support' && rng() < 0.38) {
+        allySpirit = clampAllySpirit(allySpirit + ALLY_SPIRIT_SUPPORT_CONNECT);
+        supportBoost = true;
+        raw = Math.max(1, Math.floor(raw * 0.72));
+        lines.push({
+          turn,
+          timestamp: t0,
+          text: lineSupportStabilizes(),
+          type: 'system',
+          highlight: true,
+        });
+      }
+
+      hit =
+        def.coreAttributes !== undefined
+          ? resolveStrikeDamage(
+              raw,
+              'physical',
+              DEFENSE_HOSTILE_FIRE_DEFENDER_ATTRIBUTES,
+              rng,
+            )
+          : resolveIncomingMeleeDamage(raw, rng);
+    }
+
     const hitIdx = pickLivingEnemyIndexPreferBucket(enemies, prefBucket, rng);
-    const hit =
-      def.coreAttributes !== undefined
-        ? resolveStrikeDamage(
-            raw,
-            'physical',
-            DEFENSE_HOSTILE_FIRE_DEFENDER_ATTRIBUTES,
-            rng,
-          )
-        : resolveIncomingMeleeDamage(raw, rng);
     const beforeHits = livingEnemyCount(enemies);
     if (hitIdx >= 0) {
       enemies = applyDamageToEnemyAt(enemies, hitIdx, hit.finalDamage);
       killsThisRound += Math.max(0, beforeHits - livingEnemyCount(enemies));
     }
 
-    const dodgePlayer =
-      structureMode === 'nightly_wall'
-        ? `${def.name}'s strike is evaded${supportBoost ? ' (support net).' : '.'}`
-        : `${def.name}'s strike is evaded.`;
-
     lines.push({
       turn,
       timestamp: t0,
-      text: hit.flags.dodged ? dodgePlayer : `${def.name} (${prefBucket}) hits for ${String(hit.finalDamage)} damage.`,
+      text: formatDefenderStrikePlayerLog({
+        def,
+        prefBucket,
+        hit,
+        supportBoost,
+        structureMode,
+        move: pickedMove,
+      }),
       type: 'player',
     });
   }
