@@ -7,4 +7,3 @@ export {
   useRemoveItemFromCurrentInventory,
 } from './useInventory.ts';
 export { useWorldStore } from './useWorldStore.ts';
-export { useSkirmishStore } from './useSkirmishStore.ts';

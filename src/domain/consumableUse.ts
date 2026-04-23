@@ -20,10 +20,6 @@ export function describeUseConsumableFailure(
       return 'Item não reconhecido — possível save antigo.';
     case 'daily_cooldown':
       return 'Em cooldown diário.';
-    case 'per_skirmish_requires_active_fight':
-      return 'Só pode usar durante uma briga de rua ativa.';
-    case 'per_skirmish_already_used':
-      return 'Já usaste isto nesta briga.';
     case 'no_effect':
       return 'Este item não tem efeitos aplicáveis.';
     default:
@@ -35,8 +31,6 @@ export type UseConsumableFailureReason =
   | 'not_consumable'
   | 'unknown_template'
   | 'daily_cooldown'
-  | 'per_skirmish_requires_active_fight'
-  | 'per_skirmish_already_used'
   | 'no_effect';
 
 export type UseConsumableResult =
@@ -44,7 +38,7 @@ export type UseConsumableResult =
       ok: true;
       characterPatch: Partial<Character>;
       templateId: string;
-      cooldownKind: 'daily' | 'per_skirmish' | null;
+      cooldownKind: 'daily' | null;
     }
   | { ok: false; reason: UseConsumableFailureReason };
 
@@ -117,17 +111,13 @@ function applyConsumableStatEffects(
 
 /**
  * Validates usage rules and returns character patches (stats + optional daily cooldown).
- * Caller applies inventory decrement and per-skirmish bookkeeping.
+ * Caller applies inventory decrement.
  */
 export function tryUseConsumable(params: {
   character: Character;
   item: Item;
   catalog: MarketCatalogEntry;
   nowMs: number;
-  /** Active street skirmish session for this character id. */
-  skirmishActive: boolean;
-  skirmishCharacterId: string | null;
-  perSkirmishUsed: Readonly<Record<string, boolean>>;
 }): UseConsumableResult {
   const { character, item, catalog, nowMs } = params;
 
@@ -148,18 +138,6 @@ export function tryUseConsumable(params: {
     }
   }
 
-  if (cooldown === 'per_skirmish') {
-    if (
-      !params.skirmishActive ||
-      params.skirmishCharacterId !== character.id
-    ) {
-      return { ok: false, reason: 'per_skirmish_requires_active_fight' };
-    }
-    if (params.perSkirmishUsed[templateId]) {
-      return { ok: false, reason: 'per_skirmish_already_used' };
-    }
-  }
-
   const stats = applyConsumableStatEffects(character, catalog.effects, nowMs);
   if (!stats) {
     return { ok: false, reason: 'no_effect' };
@@ -170,7 +148,7 @@ export function tryUseConsumable(params: {
     health: stats.health,
   };
 
-  let cooldownKind: 'daily' | 'per_skirmish' | null = null;
+  let cooldownKind: 'daily' | null = null;
 
   if (cooldown === 'daily') {
     cooldownKind = 'daily';
@@ -178,8 +156,6 @@ export function tryUseConsumable(params: {
       ...character.consumableCooldownUntilMs,
       [templateId]: nowMs + ONE_DAY_MS,
     };
-  } else if (cooldown === 'per_skirmish') {
-    cooldownKind = 'per_skirmish';
   }
 
   return {

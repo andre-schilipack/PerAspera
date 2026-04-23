@@ -15,7 +15,6 @@ export interface HexMapViewProps {
   neighborIds: ReadonlySet<string>;
   patrolStaCost: number;
   staminaCurrent: number;
-  encounterPctLabel: (danger: number) => string;
   onPatrolTo: (hexId: string) => void;
 }
 
@@ -32,7 +31,6 @@ export function HexMapView({
   neighborIds,
   patrolStaCost,
   staminaCurrent,
-  encounterPctLabel,
   onPatrolTo,
 }: HexMapViewProps) {
   const coords = hexes.map((h) => h.coordinates);
@@ -113,7 +111,7 @@ export function HexMapView({
                 textAnchor="middle"
                 fontSize={R * 0.24}
               >
-                dng {Math.round(h.danger)} enc~{encounterPctLabel(h.danger)}
+                dng {Math.round(h.danger)}
               </text>
               <text
                 className="hex-map-text hex-map-text-stat"

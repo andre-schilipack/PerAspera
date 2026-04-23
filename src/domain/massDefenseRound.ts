@@ -145,7 +145,7 @@ function averageDefenderLineHpFraction(
 
 /**
  * Beat phase + hostile HP fraction for autoplay scoring ({@link pickAutoplaySkill}).
- * `defenderHpFraction` mirrors skirmish: pool health of opposing force (hostiles here).
+ * `defenderHpFraction`: pool health of opposing force (hostiles here).
  */
 export function massDefenseSkillPickContext(
   turn: number,

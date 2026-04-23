@@ -11,7 +11,7 @@ export interface StaminaState {
   lastUpdated: number;
 }
 
-/** Persistent combat vitality (synced after skirmish / future systems). */
+/** Persistent combat vitality (HP regen and future combat hooks). */
 export interface CharacterHealth {
   current: number;
   max: number;

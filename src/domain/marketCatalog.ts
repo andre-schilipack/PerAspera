@@ -1,7 +1,7 @@
 import type { ItemRarity, ItemType } from './types/index.ts';
 
 /** Limits how often a consumable can be applied (see design doc). */
-export type ConsumableCooldown = 'daily' | 'per_skirmish';
+export type ConsumableCooldown = 'daily';
 
 export interface MarketCatalogEntry {
   templateId: string;
@@ -58,7 +58,7 @@ export const MARKET_CATALOG: readonly MarketCatalogEntry[] = [
     rarity: 'common',
     value: 18,
     effects: { healthBoost: 20 },
-    consumableCooldown: 'per_skirmish',
+    consumableCooldown: 'daily',
   },
   {
     templateId: 'scrap_metal',

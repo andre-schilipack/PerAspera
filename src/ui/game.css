@@ -234,10 +234,6 @@
   text-align: left;
 }
 
-.game-combat-log--skirmish {
-  max-height: 200px;
-}
-
 .game-combat-log--theater {
   max-height: min(48vh, 420px);
   min-height: 200px;
@@ -874,7 +870,7 @@
   margin: 12px 0 6px;
 }
 
-.game-skirmish-enemies {
+.game-combatant-list {
   margin: 8px 0;
   padding-left: 1.2rem;
   font-size: 0.88rem;
@@ -885,16 +881,6 @@
   padding-left: 1.2rem;
   list-style: disc;
   font-size: 0.85rem;
-}
-
-.game-log--skirmish {
-  max-height: 200px;
-}
-
-.game-skirmish-result {
-  margin: 12px 0 8px;
-  font-weight: 600;
-  color: var(--text-h);
 }
 
 .game-modal button[type='button'] {

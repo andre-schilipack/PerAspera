@@ -15,8 +15,6 @@ import {
   NPC_OWNER_CITY,
   PATROL_STA_COST,
   STAMINA_REGEN_UI_INTERVAL_MS,
-  STREET_SKIRMISH_SCRAP_REWARD_QTY,
-  STREET_SKIRMISH_WIN_SCORE,
   WALL_REPAIR_CREDS_COST,
   WALL_REPAIR_INTEGRITY_PER_ACTION,
   WORK_STA_COST,
@@ -41,10 +39,6 @@ import {
   mergeItemGrants,
   type ItemGrant,
 } from '../domain/businessPayout.ts';
-import {
-  formatEncounterChancePercent,
-  rollPatrolEncounter,
-} from '../domain/patrolEncounter.ts';
 import {
   axialNeighbors,
   isAxialNeighbor,
@@ -110,7 +104,6 @@ import { useContractsStore } from '../stores/useContractsStore.ts';
 import { useCityStore } from '../stores/useCityStore.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
-import { useSkirmishStore } from '../stores/useSkirmishStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 
 import { CombatLogList } from './CombatLogList.tsx';
@@ -209,13 +202,6 @@ export default function GameApp() {
     string | null
   >(null);
 
-  const skirmishSession = useSkirmishStore((s) => s.session);
-  const startSkirmishFromPatrol = useSkirmishStore((s) => s.startFromPatrol);
-  const dismissSkirmish = useSkirmishStore((s) => s.dismiss);
-  const markSkirmishConsumableUsed = useSkirmishStore(
-    (s) => s.markSkirmishConsumableUsed,
-  );
-
   const hexMap = useWorldStore((s) => s.hexMap);
   const characters = useCharactersStore((s) => s.characters);
   const currentId = useCharactersStore((s) => s.currentCharacterId);
@@ -292,16 +278,6 @@ export default function GameApp() {
     setDefenseCombatDismissed(false);
   }, [dailyDefense.date]);
 
-  const skirmishRevealKey = skirmishSession
-    ? `sk-${skirmishSession.characterId}-${skirmishSession.hexId}-${String(skirmishSession.combatLog[0]?.id ?? 0)}`
-    : 'sk-idle';
-
-  const skirmishReveal = useCombatLogReveal(
-    skirmishSession?.combatLog ?? [],
-    skirmishRevealKey,
-    COMBAT_UI_LOG_LINE_MS,
-  );
-
   const showDefenseCombatModal =
     inGame &&
     (dailyDefense.phase === 'preparing' ||
@@ -335,43 +311,6 @@ export default function GameApp() {
     }, ECONOMIC_TICK_INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [inGame, gameOver]);
-
-  /** Street skirmish: drum sting, then after 5s start fighting + first round; then every 3s. */
-  useEffect(() => {
-    if (!skirmishSession || skirmishSession.phase !== 'preparing') return;
-    playCombatStartSound();
-    const prepTimer = window.setTimeout(() => {
-      const store = useSkirmishStore.getState();
-      store.setPhase('fighting');
-      store.advanceRound();
-    }, 5000);
-    return () => window.clearTimeout(prepTimer);
-    // Intentionally omit skirmishSession: combatLog/HP updates must not restart the 5s prep timer.
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- session identity via hexId + characterId + phase
-  }, [skirmishSession?.phase, skirmishSession?.characterId, skirmishSession?.hexId]);
-
-  useEffect(() => {
-    if (
-      !skirmishSession ||
-      skirmishSession.phase !== 'fighting' ||
-      skirmishSession.isCompleted
-    ) {
-      return;
-    }
-    const intervalId = window.setInterval(() => {
-      useSkirmishStore.getState().advanceRound();
-      const s = useSkirmishStore.getState().session;
-      if (!s || s.isCompleted) {
-        window.clearInterval(intervalId);
-      }
-    }, COMBAT_UI_ROUND_INTERVAL_MS);
-    return () => window.clearInterval(intervalId);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- log/HP churn must not reset the round interval
-  }, [
-    skirmishSession?.phase,
-    skirmishSession?.isCompleted,
-    skirmishSession?.characterId,
-  ]);
 
   function beginNightlyDefense() {
     const dd = useDefenseStore.getState().dailyDefense;
@@ -456,7 +395,6 @@ export default function GameApp() {
 
   function selectPlayableCharacter(characterId: string) {
     setCurrentCharacterId(characterId);
-    dismissSkirmish();
     setScreen('map');
     setWorkFeedback(null);
     setAddCharacterError(null);
@@ -464,7 +402,6 @@ export default function GameApp() {
 
   function goToCharacterSelection() {
     setCurrentCharacterId(null);
-    dismissSkirmish();
     setScreen('map');
     setWorkFeedback(null);
     setAddCharacterError(null);
@@ -560,7 +497,6 @@ export default function GameApp() {
     if (!hex?.isUnlocked) return;
     if (character.stamina.current < PATROL_STA_COST) return;
     const t = now;
-    const destDanger = hex.danger;
     updateCharacter(character.id, {
       currentHexId: targetHexId,
       stamina: {
@@ -569,19 +505,6 @@ export default function GameApp() {
         lastUpdated: t,
       },
     });
-    if (
-      rollPatrolEncounter({
-        danger: destDanger,
-        random: Math.random,
-      })
-    ) {
-      startSkirmishFromPatrol({
-        hexId: targetHexId,
-        danger: destDanger,
-        characterId: character.id,
-        characterName: character.name,
-      });
-    }
   }
 
   function tryLockDefense() {
@@ -741,19 +664,11 @@ export default function GameApp() {
     if (!entry || entry.type !== 'consumable') return;
     const live = useCharactersStore.getState().characters[character.id];
     if (!live) return;
-    const sk = useSkirmishStore.getState();
-    const skirmishActive =
-      sk.session != null &&
-      !sk.session.isCompleted &&
-      sk.session.characterId === character.id;
     const result = tryUseConsumable({
       character: live,
       item,
       catalog: entry,
       nowMs: Date.now(),
-      skirmishActive,
-      skirmishCharacterId: sk.session?.characterId ?? null,
-      perSkirmishUsed: sk.perSkirmishConsumableUsed,
     });
     if (!result.ok) {
       setInventoryUseFeedback(describeUseConsumableFailure(result.reason));
@@ -761,9 +676,6 @@ export default function GameApp() {
       return;
     }
     updateCharacter(character.id, result.characterPatch);
-    if (result.cooldownKind === 'per_skirmish') {
-      markSkirmishConsumableUsed(result.templateId);
-    }
     consumeOneUnitFromInventory(character.id, item.id);
     setInventoryUseFeedback(`Usaste ${entry.name}.`);
     window.setTimeout(() => setInventoryUseFeedback(null), 3500);
@@ -1174,10 +1086,9 @@ export default function GameApp() {
           <h2>Hex map</h2>
           <p className="game-muted">
             You are at <strong>{character.currentHexId}</strong>. Neighbors
-            cost {PATROL_STA_COST} STA. Entering a hex may trigger a street
-            encounter; higher <strong>dng</strong> raises the chance (approx %
-            per hex). City economy simulates every 30 min (including offline
-            catch-up when you load the game).
+            cost {PATROL_STA_COST} STA. <strong>dng</strong> is local threat
+            (used by other systems). City economy simulates every 30 min
+            (including offline catch-up when you load the game).
           </p>
           <p className="game-muted game-map-npc">
             <strong>Centro</strong> ({CENTER_HEX_ID}): Mercado Municipal,
@@ -1192,7 +1103,6 @@ export default function GameApp() {
             neighborIds={neighborIds}
             patrolStaCost={PATROL_STA_COST}
             staminaCurrent={character.stamina.current}
-            encounterPctLabel={formatEncounterChancePercent}
             onPatrolTo={patrolTo}
           />
         </section>
@@ -1526,7 +1436,7 @@ export default function GameApp() {
             </p>
           ) : null}
           {dailyDefense.defenderLine.length > 0 ? (
-            <ul className="game-skirmish-enemies">
+            <ul className="game-combatant-list">
               {dailyDefense.defenderLine.map((d) => (
                 <li key={d.characterId}>
                   {d.name}: {d.currentHp}/{d.maxHp} HP
@@ -1960,97 +1870,6 @@ export default function GameApp() {
         </section>
       )}
 
-      {skirmishSession ? (
-        <CombatModal
-          open
-          title="Street fight"
-          subtitle={
-            <>
-              Hex {skirmishSession.hexId} · danger{' '}
-              {Math.round(skirmishSession.danger)} ·{' '}
-              {skirmishSession.characterName}
-            </>
-          }
-          hud={
-            <div className="game-combat-hud">
-              <div className="game-combat-hud__row">
-                <span>Your HP</span>
-                <strong>
-                  {skirmishSession.playerHealth}/
-                  {skirmishSession.playerMaxHealth}
-                </strong>
-              </div>
-              {skirmishSession.phase === 'fighting' &&
-              !skirmishSession.isCompleted ? (
-                <p className="game-combat-hud__note" role="status">
-                  Round cadence ~{String(Math.round(COMBAT_UI_ROUND_INTERVAL_MS / 1000))}s · log lines appear one by one.
-                </p>
-              ) : null}
-              {skirmishReveal.pendingApprox > 0 ? (
-                <p className="game-combat-hud__pending" role="status">
-                  {String(skirmishReveal.pendingApprox)} line
-                  {skirmishReveal.pendingApprox === 1 ? '' : 's'} queued…
-                </p>
-              ) : null}
-            </div>
-          }
-          footer={
-            <>
-              {!skirmishSession.isCompleted ? (
-                <button
-                  type="button"
-                  className="game-combat-modal__secondary"
-                  onClick={() => skirmishReveal.flushPending()}
-                >
-                  Show all lines now
-                </button>
-              ) : null}
-              {skirmishSession.isCompleted ? (
-                <>
-                  {skirmishSession.outcome === 'win' ? (
-                    <p className="game-skirmish-result">
-                      Victory — +{STREET_SKIRMISH_SCRAP_REWARD_QTY} scrap metal, +
-                      {STREET_SKIRMISH_WIN_SCORE} score (already applied).
-                    </p>
-                  ) : (
-                    <p className="game-skirmish-result">
-                      You went down. Heal up and keep patrolling.
-                    </p>
-                  )}
-                  <button type="button" onClick={() => dismissSkirmish()}>
-                    Close
-                  </button>
-                </>
-              ) : null}
-            </>
-          }
-        >
-          {skirmishSession.enemies.length > 0 ? (
-            <ul className="game-skirmish-enemies">
-              {skirmishSession.enemies.map((e, i) => (
-                <li key={`${e.enemyId}-${i}`}>
-                  {e.enemyId} ({e.tacticalBucket ?? 'front'}) — {e.currentHealth}{' '}
-                  HP
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="game-muted">No hostiles left.</p>
-          )}
-          {skirmishSession.phase === 'preparing' ? (
-            <p className="game-muted" role="status">
-              Stand by — combat begins in a few seconds.
-            </p>
-          ) : null}
-          <h3>Battle feed</h3>
-          <CombatLogList
-            entries={skirmishReveal.visibleEntries}
-            className="game-combat-log--skirmish game-combat-log--theater"
-            autoScroll={skirmishSession.phase === 'fighting'}
-          />
-        </CombatModal>
-      ) : null}
-
       {showDefenseCombatModal ? (
         <CombatModal
           open
@@ -2159,7 +1978,7 @@ export default function GameApp() {
           {dailyDefense.defenderLine.length > 0 ? (
             <>
               <h3>Defender line</h3>
-              <ul className="game-skirmish-enemies">
+              <ul className="game-combatant-list">
                 {dailyDefense.defenderLine.map((d) => (
                   <li key={d.characterId}>
                     {d.name} ({d.tacticalBucket ?? 'front'}) — {d.currentHp}/
@@ -2173,7 +1992,7 @@ export default function GameApp() {
           {dailyDefense.enemies.length > 0 ? (
             <>
               <h3>Hostile pressure</h3>
-              <ul className="game-skirmish-enemies">
+              <ul className="game-combatant-list">
                 {dailyDefense.enemies.map((e, i) => (
                   <li key={`${e.enemyId}-${i}`}>
                     {e.enemyId} ({e.tacticalBucket ?? 'front'}) —{' '}
@@ -2264,7 +2083,7 @@ export default function GameApp() {
                     No player line this night — static defenses carried the sector.
                   </p>
                 ) : (
-                  <ul className="game-skirmish-enemies">
+                  <ul className="game-combatant-list">
                     {defenseEndScreen.participants.map((p) => (
                       <li key={p.characterId}>
                         <strong>{p.name}</strong>

@@ -7,7 +7,7 @@ import { pickAutoplaySkill, type AutoplaySkillPickContext } from './skillPick.ts
 import { resolveStrikeDamage } from './damageResolution.ts';
 
 /**
- * Resolves catalog pick + `basic_attack` fallback (shared by street skirmish and mass defense).
+ * Resolves catalog pick + `basic_attack` fallback (shared by mass defense and future combat modes).
  */
 export function pickAutoplayMoveTemplate(
   skillIds: readonly MoveTemplateId[],

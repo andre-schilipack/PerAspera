@@ -3,7 +3,6 @@ import { createCharacter } from '../domain/factories/createCharacter.ts';
 import { makeCharacterId } from '../domain/ids.ts';
 import { useCharactersStore } from '../stores/useCharactersStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
-import { useSkirmishStore } from '../stores/useSkirmishStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 
 export type AddCharacterResult =
@@ -38,7 +37,6 @@ export function addCharacterToWorld(characterName: string): AddCharacterResult {
   useMetaStore.getState().patchNextIds({ character: nextCharNum });
   useCharactersStore.getState().upsertCharacter(character);
   useCharactersStore.getState().setCurrentCharacterId(charId);
-  useSkirmishStore.getState().dismiss();
 
   return { ok: true, characterId: charId };
 }

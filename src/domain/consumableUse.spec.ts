@@ -58,7 +58,7 @@ describe('consumableUse', () => {
 
   it('inferTemplateIdFromItem parses id prefix by longest template match', () => {
     const item: Item = {
-      id: 'scrap_metal_skirmish_123',
+      id: 'scrap_metal_vendor_123',
       name: 'Scrap Metal',
       type: 'material',
       rarity: 'common',
@@ -73,7 +73,9 @@ describe('consumableUse', () => {
     const nowMs = 1_800_000_000_000;
     const cha = getMarketCatalogEntry('mate_tea');
     expect(cha).toBeDefined();
-    const character = baseCharacter({ stamina: { current: 50, max: 240, lastUpdated: nowMs } });
+    const character = baseCharacter({
+      stamina: { current: 50, max: 240, lastUpdated: nowMs },
+    });
     const item: Item = {
       id: `mate_tea_${String(nowMs)}_0`,
       templateId: 'mate_tea',
@@ -89,9 +91,6 @@ describe('consumableUse', () => {
       item,
       catalog: cha!,
       nowMs,
-      skirmishActive: false,
-      skirmishCharacterId: null,
-      perSkirmishUsed: {},
     });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -123,16 +122,13 @@ describe('consumableUse', () => {
       item,
       catalog: cha,
       nowMs,
-      skirmishActive: false,
-      skirmishCharacterId: null,
-      perSkirmishUsed: {},
     });
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.reason).toBe('daily_cooldown');
   });
 
-  it('per_skirmish consumable requires active skirmish for same character', () => {
+  it('bruise_spray uses daily cooldown like other healing consumables', () => {
     const nowMs = 1_800_000_000_000;
     const spray = getMarketCatalogEntry('bruise_spray')!;
     const character = baseCharacter({ id: 'hero' });
@@ -146,32 +142,19 @@ describe('consumableUse', () => {
       effects: { healthBoost: 20 },
       quantity: 1,
     };
-    const blocked = tryUseConsumable({
-      character,
-      item,
-      catalog: spray,
-      nowMs,
-      skirmishActive: false,
-      skirmishCharacterId: null,
-      perSkirmishUsed: {},
-    });
-    expect(blocked.ok).toBe(false);
-    if (blocked.ok) return;
-    expect(blocked.reason).toBe('per_skirmish_requires_active_fight');
-
     const ok = tryUseConsumable({
       character,
       item,
       catalog: spray,
       nowMs,
-      skirmishActive: true,
-      skirmishCharacterId: 'hero',
-      perSkirmishUsed: {},
     });
     expect(ok.ok).toBe(true);
     if (!ok.ok) return;
     expect(ok.characterPatch.health?.current).toBe(60);
-    expect(ok.cooldownKind).toBe('per_skirmish');
+    expect(ok.cooldownKind).toBe('daily');
+    expect(ok.characterPatch.consumableCooldownUntilMs?.bruise_spray).toBe(
+      nowMs + ONE_DAY_MS,
+    );
   });
 
   it('isDailyConsumableOnCooldown respects until timestamp', () => {
