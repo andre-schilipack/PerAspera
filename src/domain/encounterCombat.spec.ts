@@ -31,7 +31,7 @@ function hexMapWithWallAt(hexId: string): HexMap {
 }
 
 describe('encounterCombat API', () => {
-  it('advanceEncounterCombatRound matches runEncounterCombatRound for nightly_wall', () => {
+  it('advanceEncounterCombatRound matches runEncounterCombatRound for wall allied structure', () => {
     const base = createEmptyDailyDefense({ date: '2026-06-01' });
     const enemies = [
       {
@@ -54,9 +54,10 @@ describe('encounterCombat API', () => {
 
     const rng = () => 0.55;
     const hexMap = hexMapWithWallAt(HOME_HEX_ID);
+    const wallStruct = [{ type: 'wall' as const, hexId: HOME_HEX_ID }];
 
-    const legacy = runEncounterCombatRound({
-      structureMode: 'nightly_wall',
+    const direct = runEncounterCombatRound({
+      alliedStructures: wallStruct,
       daily,
       hexMap,
       rng,
@@ -64,17 +65,17 @@ describe('encounterCombat API', () => {
     });
 
     const unified = advanceEncounterCombatRound({
-      theater: 'nightly_wall',
       rng,
       allies: [],
       enemies,
+      alliedStructures: wallStruct,
       structures: { hexMap },
       session: { daily },
     });
 
-    expect(unified.nextDaily.currentTurn).toBe(legacy.nextDaily.currentTurn);
-    expect(unified.fightEnded).toBe(legacy.fightEnded);
-    expect(unified.newLogLines.length).toBe(legacy.newLogLines.length);
-    expect(unified.wallResult.breached).toBe(legacy.wallResult.breached);
+    expect(unified.nextDaily.currentTurn).toBe(direct.nextDaily.currentTurn);
+    expect(unified.fightEnded).toBe(direct.fightEnded);
+    expect(unified.newLogLines.length).toBe(direct.newLogLines.length);
+    expect(unified.wallResult.breached).toBe(direct.wallResult.breached);
   });
 });

@@ -39,6 +39,13 @@ export type {
   NightlyDefenseOutcome,
   NightlyDefensePhase,
 } from './defense.ts';
+export type {
+  AlliedStructure,
+  AlliedStructureCityHall,
+  AlliedStructureType,
+  AlliedStructureWall,
+  EncounterSessionConfig,
+} from './encounter.ts';
 export type { Item, ItemRarity, ItemType } from './items.ts';
 export type {
   HexMap,

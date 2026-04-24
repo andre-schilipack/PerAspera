@@ -167,15 +167,19 @@ export function syncPrefeituraSlotStructureHpFromCityHall(tile: HexTile): HexTil
   return { ...tile, placeSlots };
 }
 
-export function applyDamageToPrefeituraStructure(
+/**
+ * Apply structural damage to the `city_hall` feature on the given hex (usually Centro).
+ */
+export function applyDamageToCityHallStructure(
   hexMap: HexMap,
+  cityHallHexId: string,
   rawDamage: number,
 ): { hexMap: HexMap; collapsed: boolean } {
-  const center = hexMap.hexes[CENTER_HEX_ID];
-  if (!center) return { hexMap, collapsed: true };
+  const tile = hexMap.hexes[cityHallHexId];
+  if (!tile) return { hexMap, collapsed: true };
 
   const { tile: afterHall, collapsed } = applyDamageToCityHallOnHexTile(
-    center,
+    tile,
     rawDamage,
   );
   const synced = syncPrefeituraSlotStructureHpFromCityHall(afterHall);
@@ -184,11 +188,19 @@ export function applyDamageToPrefeituraStructure(
       ...hexMap,
       hexes: {
         ...hexMap.hexes,
-        [CENTER_HEX_ID]: synced,
+        [cityHallHexId]: synced,
       },
     },
     collapsed,
   };
+}
+
+/** @deprecated Use {@link applyDamageToCityHallStructure} with {@link CENTER_HEX_ID}. */
+export function applyDamageToPrefeituraStructure(
+  hexMap: HexMap,
+  rawDamage: number,
+): { hexMap: HexMap; collapsed: boolean } {
+  return applyDamageToCityHallStructure(hexMap, CENTER_HEX_ID, rawDamage);
 }
 
 export function patchHexInMap(

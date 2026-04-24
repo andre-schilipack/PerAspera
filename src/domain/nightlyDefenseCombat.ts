@@ -86,10 +86,10 @@ export function advanceNightlyDefenseRound(
   const preparedLine = normalizeMassDefenseDefenderLine(daily.defenderLine);
 
   return advanceEncounterCombatRound({
-    theater: 'nightly_wall',
     rng,
     allies: preparedLine,
     enemies: daily.enemies,
+    alliedStructures: [{ type: 'wall', hexId: daily.targetHexId }],
     structures: { hexMap },
     session: { daily },
   });

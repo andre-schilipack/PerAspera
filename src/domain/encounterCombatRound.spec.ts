@@ -87,7 +87,7 @@ describe('encounterCombatRound', () => {
     const hexMap = hexMapWithWallAt(HOME_HEX_ID);
 
     const r = runEncounterCombatRound({
-      structureMode: 'nightly_wall',
+      alliedStructures: [{ type: 'wall', hexId: HOME_HEX_ID }],
       daily,
       hexMap,
       rng: () => 0.55,
@@ -104,7 +104,7 @@ describe('encounterCombatRound', () => {
   it('massDefenseSkillPickContext uses endgame beat when hostiles are low', () => {
     const ctx = massDefenseSkillPickContext(
       2,
-      'nightly_wall',
+      false,
       [
         {
           enemyId: 'x',
@@ -154,7 +154,7 @@ describe('encounterCombatRound', () => {
     const hexMap = hexMapWithWallAt(HOME_HEX_ID);
 
     const r = runEncounterCombatRound({
-      structureMode: 'nightly_wall',
+      alliedStructures: [{ type: 'wall', hexId: HOME_HEX_ID }],
       daily,
       hexMap,
       rng: () => 0.55,

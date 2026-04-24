@@ -4,6 +4,7 @@ import {
   massCombatStructuralPresencePrefeituraSiege,
   type MassCombatStructuralPresence,
 } from './types/massCombat.ts';
+import { CENTER_HEX_ID } from './constants.ts';
 import type { HexMap } from './types/map.ts';
 
 import type { NightlyCombatWallResult } from './nightlyDefenseCombat.ts';
@@ -76,10 +77,11 @@ export function advancePrefeituraSiegeRound(
   const preparedLine = defenderLineForPrefeituraSiege(daily.defenderLine);
 
   const r = advanceEncounterCombatRound({
-    theater: 'prefeitura_siege',
     rng,
     allies: preparedLine,
     enemies: daily.enemies,
+    alliedStructures: [{ type: 'city_hall', hexId: CENTER_HEX_ID }],
+    sessionConfig: { noRetreat: true },
     structures: { hexMap },
     session: { daily },
   });
