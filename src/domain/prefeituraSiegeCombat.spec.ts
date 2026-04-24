@@ -4,7 +4,7 @@ import {
   CENTER_HEX_ID,
   NPC_OWNER_PREFEITURA,
 } from './constants.ts';
-import { createEmptyDailyDefense, createInitialWallState } from './factories/createDefenseSeed.ts';
+import { createEmptyDailyDefense } from './factories/createDefenseSeed.ts';
 import { sumLivingThreatPoints } from './enemyThreat.ts';
 import { advancePrefeituraSiegeRound } from './prefeituraSiegeCombat.ts';
 import type { DailyDefenseState } from './types/defense.ts';
@@ -28,6 +28,13 @@ function mapWithPrefeitura(hp: { current: number; max: number }): HexMap {
             type: 'prefeitura',
             priceToBuy: 0,
             structureHp: hp,
+          },
+        ],
+        features: [
+          {
+            type: 'city_hall',
+            currentHp: hp.current,
+            maxHp: hp.max,
           },
         ],
       },
@@ -60,11 +67,10 @@ function baseSiegeDaily(over: Partial<DailyDefenseState> = {}): DailyDefenseStat
 
 describe('advancePrefeituraSiegeRound', () => {
   it('ends in loss when Prefeitura structural HP is exhausted', () => {
-    const wall = createInitialWallState();
     const daily = baseSiegeDaily();
     const hexMap = mapWithPrefeitura({ current: 4, max: 100 });
     // High rolls: max tower / guard / strike damage; one enemy survives to hit the building.
-    const r = advancePrefeituraSiegeRound(daily, wall, hexMap, () => 0.9999);
+    const r = advancePrefeituraSiegeRound(daily, hexMap, () => 0.9999);
     expect(r.fightEnded).toBe(true);
     expect(r.nextDaily.outcome).toBe('loss');
     const pref = r.hexMap.hexes[CENTER_HEX_ID]!.placeSlots[0]!;
@@ -72,7 +78,6 @@ describe('advancePrefeituraSiegeRound', () => {
   });
 
   it('clears retreat so previously fallen-back defenders fight at the Prefeitura', () => {
-    const wall = createInitialWallState();
     const daily = baseSiegeDaily({
       defenderLine: [
         {
@@ -86,7 +91,7 @@ describe('advancePrefeituraSiegeRound', () => {
       ],
     });
     const hexMap = mapWithPrefeitura({ current: 100, max: 100 });
-    const r = advancePrefeituraSiegeRound(daily, wall, hexMap, () => 0.5);
+    const r = advancePrefeituraSiegeRound(daily, hexMap, () => 0.5);
     expect(r.nextDaily.defenderLine[0]!.retreated).toBe(false);
     expect(
       r.newLogLines.some(
@@ -96,10 +101,9 @@ describe('advancePrefeituraSiegeRound', () => {
   });
 
   it('declares victory when the siege wave is already empty', () => {
-    const wall = createInitialWallState();
     const daily = baseSiegeDaily({ enemies: [], totalEnemyPoints: 0 });
     const hexMap = mapWithPrefeitura({ current: 100, max: 100 });
-    const r = advancePrefeituraSiegeRound(daily, wall, hexMap, Math.random);
+    const r = advancePrefeituraSiegeRound(daily, hexMap, Math.random);
     expect(r.fightEnded).toBe(true);
     expect(r.nextDaily.outcome).toBe('victory');
   });

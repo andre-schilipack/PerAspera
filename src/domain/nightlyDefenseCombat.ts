@@ -3,7 +3,6 @@ import type { CoreAttributes } from './types/attributes.ts';
 import type {
   DailyDefenseState,
   DefenderLineEntry,
-  WallState,
 } from './types/defense.ts';
 import type { MoveTemplateId } from './types/combat.ts';
 import {
@@ -12,10 +11,11 @@ import {
   type MassCombatWallSnapshot,
 } from './types/massCombat.ts';
 import { advanceEncounterCombatRound } from './encounterCombat.ts';
-import { normalizeMassDefenseDefenderLine } from './massDefenseRound.ts';
+import { normalizeMassDefenseDefenderLine } from './encounterCombatRound.ts';
 import {
   defenderBucketForLineIndex,
 } from './defenseTactics.ts';
+import type { HexMap } from './types/map.ts';
 
 /** Theater for nightly wall combat — structural + ally strike cycle (see mass combat types). */
 export const NIGHTLY_DEFENSE_STRUCTURAL_PRESENCE: MassCombatStructuralPresence =
@@ -42,12 +42,12 @@ function defaultRng(): number {
  */
 export function advanceNightlyDefenseRound(
   daily: DailyDefenseState,
-  wall: WallState,
+  hexMap: HexMap,
   rng: () => number = defaultRng,
 ): AdvanceNightlyDefenseResult {
   const noop: AdvanceNightlyDefenseResult = {
     nextDaily: daily,
-    wallResult: { wall, breached: false },
+    wallResult: { breached: false },
     fightEnded: false,
     newLogLines: [],
   };
@@ -70,7 +70,7 @@ export function advanceNightlyDefenseRound(
         outcome: 'victory',
         victoryLootPool: daily.victoryLootPool,
       },
-      wallResult: { wall, breached: false },
+      wallResult: { breached: false },
       fightEnded: true,
       newLogLines: [
         {
@@ -90,7 +90,7 @@ export function advanceNightlyDefenseRound(
     rng,
     allies: preparedLine,
     enemies: daily.enemies,
-    structures: { wall },
+    structures: { hexMap },
     session: { daily },
   });
 }

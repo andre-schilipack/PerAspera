@@ -34,7 +34,6 @@ export interface NightlyDefenseCatchUpResult {
 function buildAdvanceSnapshot(): Parameters<typeof buildNightlyDefenseAdvanceCommit>[0] {
   return {
     dailyDefense: useDefenseStore.getState().dailyDefense,
-    wall: useDefenseStore.getState().wall,
     nextCombatLogEntryId: useMetaStore.getState().nextIds.combatLogEntry,
     civilianPopulation: useCityStore.getState().civilianPopulation,
     hexMap: useWorldStore.getState().hexMap,
@@ -49,7 +48,6 @@ function fastForwardCombatToEnd(rng: () => number, simNow: number): void {
       simNow,
     );
     applyNightlyDefenseAdvanceCommit(commit, {
-      setWall: (wall) => useDefenseStore.getState().setWall(wall),
       patchNextIds: useMetaStore.getState().patchNextIds,
       setDailyDefense: (dailyDefense) =>
         useDefenseStore.getState().setDailyDefense(dailyDefense),

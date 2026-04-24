@@ -1,5 +1,5 @@
 import type { CombatLogEntry } from './combat.ts';
-import type { WallState } from './defense.ts';
+import type { HexMap } from './map.ts';
 
 /**
  * Mass combat (nightly defense, Prefeitura siege, future ally-only fights) shares one
@@ -44,7 +44,9 @@ export interface MassCombatModeFlags {
 }
 
 export interface MassCombatWallSnapshot {
-  wall: WallState;
+  /** Present when structural HP changed this round (wall tile or Centro siege). */
+  hexMap?: HexMap;
+  /** True when nightly perimeter wall pool on the target hex reaches 0. */
   breached: boolean;
 }
 

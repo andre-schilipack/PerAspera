@@ -1,8 +1,5 @@
 import type { CombatLogEntry } from './types/combat.ts';
-import type {
-  DailyDefenseState,
-  WallState,
-} from './types/defense.ts';
+import type { DailyDefenseState } from './types/defense.ts';
 import {
   massCombatStructuralPresencePrefeituraSiege,
   type MassCombatStructuralPresence,
@@ -11,7 +8,7 @@ import type { HexMap } from './types/map.ts';
 
 import type { NightlyCombatWallResult } from './nightlyDefenseCombat.ts';
 import { advanceEncounterCombatRound } from './encounterCombat.ts';
-import { defenderLineForPrefeituraSiege } from './massDefenseRound.ts';
+import { defenderLineForPrefeituraSiege } from './encounterCombatRound.ts';
 
 /** Downtown Prefeitura siege theater — structural + ally strikes (see mass combat types). */
 export const PREFECTURE_SIEGE_STRUCTURAL_PRESENCE: MassCombatStructuralPresence =
@@ -33,13 +30,12 @@ export interface AdvancePrefeituraSiegeResult {
  */
 export function advancePrefeituraSiegeRound(
   daily: DailyDefenseState,
-  wall: WallState,
   hexMap: HexMap,
   rng: () => number,
 ): AdvancePrefeituraSiegeResult {
   const noop: AdvancePrefeituraSiegeResult = {
     nextDaily: daily,
-    wallResult: { wall, breached: false },
+    wallResult: { breached: false },
     fightEnded: false,
     newLogLines: [],
     hexMap,
@@ -63,7 +59,7 @@ export function advancePrefeituraSiegeRound(
         outcome: 'victory',
         victoryLootPool: daily.victoryLootPool,
       },
-      wallResult: { wall, breached: false },
+      wallResult: { breached: false },
       fightEnded: true,
       newLogLines: [
         {
@@ -84,7 +80,7 @@ export function advancePrefeituraSiegeRound(
     rng,
     allies: preparedLine,
     enemies: daily.enemies,
-    structures: { wall, hexMap },
+    structures: { hexMap },
     session: { daily },
   });
 
@@ -93,6 +89,6 @@ export function advancePrefeituraSiegeRound(
     wallResult: r.wallResult,
     fightEnded: r.fightEnded,
     newLogLines: r.newLogLines,
-    hexMap: r.hexMap ?? hexMap,
+    hexMap: r.hexMap ?? r.wallResult.hexMap ?? hexMap,
   };
 }

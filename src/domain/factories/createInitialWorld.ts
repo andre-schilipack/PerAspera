@@ -17,7 +17,7 @@ import {
 } from '../hex.ts';
 import { dangerIntegrityForRingDistance } from '../hexDangerIntegrity.ts';
 import { makeSlotId } from '../ids.ts';
-import type { Hex, HexMap, PlaceSlot } from '../types/index.ts';
+import type { HexMap, HexTile, PlaceSlot } from '../types/index.ts';
 
 const ORIGIN: AxialCoord = { q: 0, r: 0 };
 
@@ -113,7 +113,7 @@ export function createInitialWorld(
 ): CreateInitialWorldResult {
   const radius = params.radius ?? DEFAULT_MAP_RADIUS;
   const coords = listAxialInDisk(radius);
-  const hexes: Record<string, Hex> = {};
+  const hexes: Record<string, HexTile> = {};
 
   let slotCounter = params.slotIdCounter;
 
@@ -142,7 +142,7 @@ export function createInitialWorld(
     if (isCenter) placeSlots = centerSlots.slots;
     else if (isHome) placeSlots = homeSlots.slots;
 
-    hexes[id] = {
+    const baseTile: HexTile = {
       id,
       coordinates: { q: c.q, r: c.r },
       danger,
@@ -150,6 +150,20 @@ export function createInitialWorld(
       placeSlots,
       isUnlocked,
     };
+
+    hexes[id] =
+      isCenter
+        ? {
+            ...baseTile,
+            features: [
+              {
+                type: 'city_hall',
+                currentHp: PREFECTURE_STRUCTURE_MAX_HP,
+                maxHp: PREFECTURE_STRUCTURE_MAX_HP,
+              },
+            ],
+          }
+        : baseTile;
   }
 
   const widthLabel = radius * 2 + 1;

@@ -1,25 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { ALLY_SPIRIT_INITIAL, HOME_HEX_ID } from '../domain/constants.ts';
-import type { WallState } from '../domain/types/defense.ts';
 import { defenseEndScreenFromCommit } from './defenseEndScreenFromCommit.ts';
 import type { NightlyDefenseAdvanceCommit } from './nightlyDefenseAdvance.ts';
-
-const wall: WallState = {
-  level: 1,
-  layers: 1,
-  sections: {
-    north: { current: 100, max: 100, breached: false },
-    south: { current: 100, max: 100, breached: false },
-    east: { current: 100, max: 100, breached: false },
-    west: { current: 100, max: 100, breached: false },
-  },
-};
 
 describe('defenseEndScreenFromCommit', () => {
   it('returns defeat for breach', () => {
     const commit: NightlyDefenseAdvanceCommit = {
-      wall,
       nextCombatLogEntryId: 1,
       dailyDefense: {
         date: '2026-01-01',
@@ -33,7 +20,6 @@ describe('defenseEndScreenFromCommit', () => {
         playerContribution: {},
         isCompleted: true,
         startHour: 20,
-        attackedSection: 'north',
         participants: [],
         gameDayIndex: 0,
         targetHexId: HOME_HEX_ID,
@@ -51,7 +37,6 @@ describe('defenseEndScreenFromCommit', () => {
 
   it('returns victory with merged rewards and loot', () => {
     const commit: NightlyDefenseAdvanceCommit = {
-      wall,
       nextCombatLogEntryId: 2,
       dailyDefense: {
         date: '2026-01-01',
@@ -65,7 +50,6 @@ describe('defenseEndScreenFromCommit', () => {
         playerContribution: {},
         isCompleted: true,
         startHour: 20,
-        attackedSection: 'north',
         participants: [],
         gameDayIndex: 0,
         targetHexId: HOME_HEX_ID,

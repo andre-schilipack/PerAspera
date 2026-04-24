@@ -1,21 +1,13 @@
 import type { EnemyInstance } from './types/combat.ts';
-import type { DailyDefenseState, DefenderLineEntry, WallState } from './types/defense.ts';
+import type { DailyDefenseState, DefenderLineEntry } from './types/defense.ts';
 import type { HexMap } from './types/map.ts';
 
 import {
-  type MassDefenseCombatRoundResult,
-  type MassDefenseStructureMode,
-  runMassDefenseCombatRound,
-  type RunMassDefenseCombatRoundArgs,
-} from './massDefenseRound.ts';
-
-/**
- * Unified encounter combat API: one round resolver with explicit participant arrays
- * (allies, enemies) plus optional NPC allies / structure bundles.
- *
- * Implementation delegates to {@link runMassDefenseCombatRound}; this module is the
- * supported entry point for game features so theater-specific wrappers stay thin.
- */
+  type EncounterCombatRoundResult,
+  type EncounterCombatTheater,
+  runEncounterCombatRound,
+  type RunEncounterCombatRoundArgs,
+} from './encounterCombatRound.ts';
 
 /** Player-side combatants (defender line: skills, HP, tactical bucket). */
 export type EncounterCombatAlly = DefenderLineEntry;
@@ -31,11 +23,9 @@ export type EncounterNpcAlliesPreset = {
   preset: 'mass_defense_standard';
 };
 
-/** Wall integrity + optional downtown map for Prefeitura structural HP. */
-export interface EncounterStructuresBundle {
-  wall: WallState;
-  /** Required when {@link EncounterCombatRoundInput.theater} is `prefeitura_siege`. */
-  hexMap?: HexMap;
+/** City map for structural features (`wall` on target hex, `city_hall` on Centro). */
+export interface EncounterCombatStructuresBundle {
+  hexMap: HexMap;
 }
 
 /**
@@ -43,7 +33,7 @@ export interface EncounterStructuresBundle {
  * and the persisted defense session slice (`daily`) for spirit, turn counter, etc.
  */
 export interface EncounterCombatRoundInput {
-  theater: MassDefenseStructureMode;
+  theater: EncounterCombatTheater;
   rng: () => number;
   allies: readonly EncounterCombatAlly[];
   enemies: readonly EncounterCombatEnemy[];
@@ -52,16 +42,16 @@ export interface EncounterCombatRoundInput {
    * is implemented (optional — omit for the same behavior).
    */
   npcAllies?: EncounterNpcAlliesPreset;
-  structures: EncounterStructuresBundle;
+  structures: EncounterCombatStructuresBundle;
   /** Daily defense session — merged with explicit allies/enemies for this round. */
   session: {
     daily: DailyDefenseState;
   };
 }
 
-function toRunMassDefenseCombatRoundArgs(
+function toRunEncounterCombatRoundArgs(
   input: EncounterCombatRoundInput,
-): RunMassDefenseCombatRoundArgs {
+): RunEncounterCombatRoundArgs {
   const allies = [...input.allies];
   const enemies = [...input.enemies];
   const dailyForRound: DailyDefenseState = {
@@ -70,36 +60,17 @@ function toRunMassDefenseCombatRoundArgs(
     defenderLine: allies,
   };
 
-  const base = {
+  return {
     daily: dailyForRound,
-    wall: input.structures.wall,
+    hexMap: input.structures.hexMap,
     rng: input.rng,
     defenderLine: allies,
-  };
-
-  if (input.theater === 'prefeitura_siege') {
-    const hexMap = input.structures.hexMap;
-    if (!hexMap) {
-      throw new Error(
-        'encounterCombat: structures.hexMap is required when theater is prefeitura_siege',
-      );
-    }
-    return {
-      ...base,
-      structureMode: 'prefeitura_siege' as const,
-      hexMap,
-    };
-  }
-
-  return {
-    ...base,
-    structureMode: 'nightly_wall' as const,
+    structureMode: input.theater,
   };
 }
 
 export interface EncounterCombatHandle {
-  /** Runs one round using the shared mass-defense resolver. */
-  advanceRound: (input: EncounterCombatRoundInput) => MassDefenseCombatRoundResult;
+  advanceRound: (input: EncounterCombatRoundInput) => EncounterCombatRoundResult;
 }
 
 /**
@@ -108,8 +79,8 @@ export interface EncounterCombatHandle {
  */
 export function createEncounterCombat(): EncounterCombatHandle {
   return {
-    advanceRound(input: EncounterCombatRoundInput): MassDefenseCombatRoundResult {
-      return runMassDefenseCombatRound(toRunMassDefenseCombatRoundArgs(input));
+    advanceRound(input: EncounterCombatRoundInput): EncounterCombatRoundResult {
+      return runEncounterCombatRound(toRunEncounterCombatRoundArgs(input));
     },
   };
 }
@@ -117,6 +88,6 @@ export function createEncounterCombat(): EncounterCombatHandle {
 /** Default runner — same as `createEncounterCombat().advanceRound`. */
 export function advanceEncounterCombatRound(
   input: EncounterCombatRoundInput,
-): MassDefenseCombatRoundResult {
+): EncounterCombatRoundResult {
   return createEncounterCombat().advanceRound(input);
 }

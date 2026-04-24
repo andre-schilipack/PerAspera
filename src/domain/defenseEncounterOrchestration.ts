@@ -1,7 +1,7 @@
 import { applyRaidFromRemainingThreat } from './applyRaid.ts';
 import { sumLivingThreatPoints } from './enemyThreat.ts';
 import type { CombatLogEntry } from './types/combat.ts';
-import type { DailyDefenseState, WallState } from './types/defense.ts';
+import type { DailyDefenseState } from './types/defense.ts';
 import type { HexMap } from './types/map.ts';
 
 /**
@@ -11,7 +11,6 @@ import type { HexMap } from './types/map.ts';
  */
 export interface WallBreachHandoffSnapshot {
   readonly dailyDefense: DailyDefenseState;
-  readonly wall: WallState;
   readonly nextCombatLogEntryId: number;
 }
 
@@ -21,10 +20,9 @@ export interface WallBreachHandoffSnapshot {
  */
 export function createWallBreachHandoffSnapshot(
   dailyDefense: DailyDefenseState,
-  wall: WallState,
   nextCombatLogEntryId: number,
 ): WallBreachHandoffSnapshot {
-  return { dailyDefense, wall, nextCombatLogEntryId };
+  return { dailyDefense, nextCombatLogEntryId };
 }
 
 export interface OpenPrefeituraPhaseAfterWallBreachInput {

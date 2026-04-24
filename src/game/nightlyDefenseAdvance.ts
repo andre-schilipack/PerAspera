@@ -14,7 +14,7 @@ import {
 } from '../domain/nightlyDefenseLoot.ts';
 import type { Character } from '../domain/types/character.ts';
 import type { CombatLogEntry } from '../domain/types/combat.ts';
-import type { DailyDefenseState, WallState } from '../domain/types/defense.ts';
+import type { DailyDefenseState } from '../domain/types/defense.ts';
 import type { Item } from '../domain/types/items.ts';
 import type { HexMap } from '../domain/types/map.ts';
 import type { GameOverReason, NextIdCounters } from '../domain/types/meta.ts';
@@ -24,7 +24,6 @@ import { declareGameOver } from './gameOver.ts';
 /** Snapshot of stores needed to compute one nightly defense round advance. */
 export interface NightlyDefenseAdvanceSnapshot {
   dailyDefense: DailyDefenseState;
-  wall: WallState;
   nextCombatLogEntryId: number;
   civilianPopulation: number;
   hexMap: HexMap | null;
@@ -51,18 +50,17 @@ export interface VictoryRewardDelta {
  * Built in the domain; applied in fixed order by {@link applyNightlyDefenseAdvanceCommit}.
  */
 export interface NightlyDefenseAdvanceCommit {
-  wall: WallState;
   /** Final combat log entry id after all new lines (round + optional raid log). */
   nextCombatLogEntryId: number;
   dailyDefense: DailyDefenseState;
+  /** When set, persist perimeter wall / Prefeitura structural HP on tiles. */
+  updatedHexMap?: HexMap;
   defenderHpSync?: DefenderHpSyncPayload;
   victoryRewards?: VictoryRewardDelta[];
   /** Random split of {@link DailyDefenseState.victoryLootPool} among defenders. */
   victoryLootGrants?: Array<{ characterId: string; items: Item[] }>;
   /** `skipped` = breach but no hex map (raid not simulated). */
   breachRaid?: { civilianPopulation: number; hexMap: HexMap } | 'skipped';
-  /** Prefeitura siege round updates structural HP on Centro (after breach raid map). */
-  updatedHexMap?: HexMap;
   /** Terminal state (e.g. Prefeitura siege defeat in P3). Applied last. */
   declareGameOver?: { reason: GameOverReason; at: number };
 }
@@ -72,7 +70,7 @@ export function buildNightlyDefenseAdvanceCommit(
   rng: () => number,
   now: number = Date.now(),
 ): NightlyDefenseAdvanceCommit {
-  const { dailyDefense: dd, wall: w, nextCombatLogEntryId: startId } = snapshot;
+  const { dailyDefense: dd, nextCombatLogEntryId: startId } = snapshot;
 
   if (
     dd.outcome === 'prefeitura_siege' &&
@@ -89,7 +87,6 @@ export function buildNightlyDefenseAdvanceCommit(
         type: 'system',
       };
       return {
-        wall: w,
         nextCombatLogEntryId: nextId,
         dailyDefense: {
           ...dd,
@@ -104,7 +101,6 @@ export function buildNightlyDefenseAdvanceCommit(
 
     const siegeResult = advancePrefeituraSiegeRound(
       dd,
-      w,
       snapshot.hexMap,
       rng,
     );
@@ -120,7 +116,6 @@ export function buildNightlyDefenseAdvanceCommit(
     };
 
     const base: NightlyDefenseAdvanceCommit = {
-      wall: siegeResult.wallResult.wall,
       nextCombatLogEntryId: nextId,
       dailyDefense: nextDaily,
       updatedHexMap: siegeResult.hexMap,
@@ -178,7 +173,14 @@ export function buildNightlyDefenseAdvanceCommit(
     };
   }
 
-  const result = advanceNightlyDefenseRound(dd, w, rng);
+  const result = snapshot.hexMap
+    ? advanceNightlyDefenseRound(dd, snapshot.hexMap, rng)
+    : {
+        nextDaily: dd,
+        wallResult: { breached: false as const },
+        fightEnded: false,
+        newLogLines: [] as Omit<CombatLogEntry, 'id'>[],
+      };
 
   let nextId = startId;
   const newLines: CombatLogEntry[] = result.newLogLines.map((l) => {
@@ -189,9 +191,9 @@ export function buildNightlyDefenseAdvanceCommit(
   const nextDaily: DailyDefenseState = { ...result.nextDaily, combatLog };
 
   const base: NightlyDefenseAdvanceCommit = {
-    wall: result.wallResult.wall,
     nextCombatLogEntryId: nextId,
     dailyDefense: nextDaily,
+    updatedHexMap: result.wallResult.hexMap,
   };
 
   if (!result.fightEnded) {
@@ -230,21 +232,17 @@ export function buildNightlyDefenseAdvanceCommit(
 
   // Wall encounter ended in breach → snapshot handoff → optional raid + Prefeitura siege (encounter 2).
   if (result.nextDaily.outcome === 'breach') {
-    const handoff = createWallBreachHandoffSnapshot(
-      nextDaily,
-      result.wallResult.wall,
-      nextId,
-    );
+    const handoff = createWallBreachHandoffSnapshot(nextDaily, nextId);
+    const hexMapAfterWall = result.wallResult.hexMap ?? snapshot.hexMap;
     const opened = openPrefeituraPhaseAfterWallBreach({
       snapshot: handoff,
-      hexMap: snapshot.hexMap,
+      hexMap: hexMapAfterWall,
       civilianPopulation: snapshot.civilianPopulation,
       targetHexId: nextDaily.targetHexId,
       rng,
       now,
     });
     return {
-      ...base,
       nextCombatLogEntryId: opened.nextCombatLogEntryId,
       dailyDefense: opened.dailyDefense,
       defenderHpSync,
@@ -260,7 +258,6 @@ export function buildNightlyDefenseAdvanceCommit(
 }
 
 export interface NightlyDefenseAdvanceCommitApi {
-  setWall: (wall: WallState) => void;
   patchNextIds: (patch: Partial<NextIdCounters>) => void;
   setDailyDefense: (daily: DailyDefenseState) => void;
   updateCharacter: (characterId: string, patch: Partial<Character>) => void;
@@ -271,13 +268,12 @@ export interface NightlyDefenseAdvanceCommitApi {
 }
 
 /**
- * Fixed order: wall → meta ids → character HP → victory creds → victory loot → raid city/world → daily defense.
+ * Fixed order: meta ids → character HP → victory creds → victory loot → raid city/world → hex map → daily defense.
  */
 export function applyNightlyDefenseAdvanceCommit(
   commit: NightlyDefenseAdvanceCommit,
   api: NightlyDefenseAdvanceCommitApi,
 ): void {
-  api.setWall(commit.wall);
   api.patchNextIds({ combatLogEntry: commit.nextCombatLogEntryId });
 
   if (commit.defenderHpSync) {

@@ -38,12 +38,17 @@ export type {
   DefenderLineEntry,
   NightlyDefenseOutcome,
   NightlyDefensePhase,
-  SectionIntegrity,
-  WallCardinal,
-  WallState,
 } from './defense.ts';
 export type { Item, ItemRarity, ItemType } from './items.ts';
-export type { Hex, HexMap, PlaceSlot, PlaceSlotType } from './map.ts';
+export type {
+  HexMap,
+  HexTile,
+  HexTileCityHallFeature,
+  HexTileFeature,
+  HexTileWallFeature,
+  PlaceSlot,
+  PlaceSlotType,
+} from './map.ts';
 export type { Contract, ContractStatus, ContractType } from './contracts.ts';
 export type {
   GameMetaState,

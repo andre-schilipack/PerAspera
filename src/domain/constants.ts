@@ -9,7 +9,7 @@ import type { BusinessKind } from './types/economy.ts';
 export const GAME_VERSION = '0.1.0' as const;
 
 /** Monotonic integer for persisted data migrations only. */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /** Real-time day length for consumable daily cooldowns (matches design: now + 1 day). */
 export const ONE_DAY_MS = 86_400_000;
@@ -50,6 +50,12 @@ export const RAID_THREAT_TO_BUSINESS_HP_DAMAGE = 4;
 export const DEFAULT_BUSINESS_STRUCTURE_MAX_HP = 100;
 /** Prefeitura civic building max HP (P3 siege); migration fills missing values. */
 export const PREFECTURE_STRUCTURE_MAX_HP = 100;
+
+/**
+ * Default max HP for the single `wall` feature on a raid-target hex tile (legacy design
+ * summed four 100-HP sections into one pool).
+ */
+export const DEFAULT_HEX_WALL_MAX_HP = 400;
 
 /** Integrity points restored per repair action. */
 export const WALL_REPAIR_INTEGRITY_PER_ACTION = 25;

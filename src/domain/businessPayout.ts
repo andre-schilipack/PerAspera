@@ -1,7 +1,7 @@
 import { normalizeBusiness } from './businessEconomyTick.ts';
 import type { Business } from './types/economy.ts';
 import type { ItemRarity, ItemType } from './types/items.ts';
-import type { Hex } from './types/map.ts';
+import type { HexTile } from './types/map.ts';
 
 import { getMarketCatalogEntry } from './marketCatalog.ts';
 
@@ -133,7 +133,7 @@ export function mergeItemGrants(
 
 /** True if the hex has at least one business slot owned by the character. */
 export function hasCharacterBusinessOnHex(
-  hex: Hex | undefined,
+  hex: HexTile | undefined,
   characterId: string,
 ): boolean {
   if (!hex) return false;

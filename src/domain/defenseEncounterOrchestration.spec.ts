@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createEmptyDailyDefense, createInitialWallState } from './factories/createDefenseSeed.ts';
+import { createEmptyDailyDefense } from './factories/createDefenseSeed.ts';
 import { sumLivingThreatPoints } from './enemyThreat.ts';
 import {
   createWallBreachHandoffSnapshot,
@@ -10,7 +10,6 @@ import {
 describe('defenseEncounterOrchestration', () => {
   it('openPrefeituraPhaseAfterWallBreach skips raid when hexMap is null', () => {
     const base = createEmptyDailyDefense({ date: '2026-01-01' });
-    const wall = createInitialWallState();
     const daily = {
       ...base,
       phase: 'ended' as const,
@@ -31,7 +30,7 @@ describe('defenseEncounterOrchestration', () => {
       targetHexId: '1,0',
     };
 
-    const snap = createWallBreachHandoffSnapshot(daily, wall, 10);
+    const snap = createWallBreachHandoffSnapshot(daily, 10);
     const r = openPrefeituraPhaseAfterWallBreach({
       snapshot: snap,
       hexMap: null,
@@ -47,7 +46,6 @@ describe('defenseEncounterOrchestration', () => {
 
   it('openPrefeituraPhaseAfterWallBreach opens siege when threat remains after raid', () => {
     const base = createEmptyDailyDefense({ date: '2026-01-02' });
-    const wall = createInitialWallState();
     const enemies = [
       {
         enemyId: 'g',
@@ -78,10 +76,10 @@ describe('defenseEncounterOrchestration', () => {
       targetHexId: '2,0',
     };
 
-    const snap = createWallBreachHandoffSnapshot(daily, wall, 5);
+    const snap = createWallBreachHandoffSnapshot(daily, 5);
     const r = openPrefeituraPhaseAfterWallBreach({
       snapshot: snap,
-      hexMap: { hexes: {} },
+      hexMap: { size: 1, hexes: {} },
       civilianPopulation: 100,
       targetHexId: '2,0',
       rng: () => 0.2,

@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-import type { Hex, HexMap } from '../domain/types/index.ts';
+import type { HexMap, HexTile } from '../domain/types/index.ts';
 
 interface WorldActions {
   setHexMap: (hexMap: HexMap) => void;
-  updateHex: (hexId: string, updater: (hex: Hex) => Hex) => void;
+  updateHex: (hexId: string, updater: (hex: HexTile) => HexTile) => void;
   clearHexMap: () => void;
   reset: () => void;
 }

@@ -4,7 +4,6 @@ import {
   ALLY_SPIRIT_PER_KILL,
   ALLY_SPIRIT_STRUCTURE_HIT,
   ALLY_SPIRIT_SUPPORT_CONNECT,
-  CENTER_HEX_ID,
   DEFENSE_ENEMY_STRIKE_VS_PLAYER_MAX,
   DEFENSE_ENEMY_STRIKE_VS_PLAYER_MIN,
   DEFENSE_ENEMY_STRIKE_VS_WALL_MAX,
@@ -16,7 +15,6 @@ import {
   DEFENSE_RETREAT_HP_FRACTION,
   DEFENSE_TOWER_DAMAGE_MAX,
   DEFENSE_TOWER_DAMAGE_MIN,
-  PREFECTURE_STRUCTURE_MAX_HP,
 } from './constants.ts';
 import {
   allySpiritOutgoingDamageMultiplier,
@@ -52,7 +50,12 @@ import {
   type MeleeResolveResult,
 } from './combatResolution.ts';
 import { sumLivingThreatPoints } from './enemyThreat.ts';
-import { applyDamageToWallSection } from './wallIntegrity.ts';
+import {
+  applyDamageToPrefeituraStructure,
+  applyDamageToWallOnHexTile,
+  ensureWallFeatureOnTile,
+  patchHexInMap,
+} from './encounterCombatWall.ts';
 import type {
   CombatBeatPhase,
   CombatLogEntry,
@@ -63,11 +66,9 @@ import type {
   DailyDefenseState,
   DefenderLineEntry,
   NightlyDefenseOutcome,
-  WallCardinal,
-  WallState,
 } from './types/defense.ts';
 import type { MassCombatWallSnapshot } from './types/massCombat.ts';
-import type { HexMap, PlaceSlot } from './types/map.ts';
+import type { HexMap } from './types/map.ts';
 import {
   lineAllySpiritShift,
   lineBucketPressureSnapshot,
@@ -76,34 +77,50 @@ import {
 } from '../content/defenseSpiritLines.ts';
 import { getMoveTemplate } from '../content/catalogs/moves.ts';
 
-/** Which mass-defense theater this round resolves (wall perimeter vs downtown siege). */
-export type MassDefenseStructureMode = 'nightly_wall' | 'prefeitura_siege';
+/** Wall perimeter vs downtown Prefeitura siege. */
+export type EncounterCombatTheater = 'nightly_wall' | 'prefeitura_siege';
 
-export interface MassDefenseCombatRoundResult {
+/** @deprecated Use {@link EncounterCombatTheater}. */
+export type MassDefenseStructureMode = EncounterCombatTheater;
+
+export interface EncounterCombatRoundResult {
   nextDaily: DailyDefenseState;
   wallResult: MassCombatWallSnapshot;
   fightEnded: boolean;
   newLogLines: Omit<CombatLogEntry, 'id'>[];
-  /** Set only for {@link MassDefenseStructureMode.prefeitura_siege}. */
+  /** Set when {@link EncounterCombatTheater.prefeitura_siege} mutates the map (same as wallResult.hexMap). */
   hexMap?: HexMap;
 }
 
-interface RunMassDefenseCombatRoundBase {
+/** @deprecated Use {@link EncounterCombatRoundResult}. */
+export type MassDefenseCombatRoundResult = EncounterCombatRoundResult;
+
+interface RunEncounterCombatRoundBase {
   daily: DailyDefenseState;
-  wall: WallState;
+  hexMap: HexMap;
   rng: () => number;
   /** Pre-normalized defender line (retreat rules differ by caller). */
   defenderLine: DefenderLineEntry[];
 }
 
-export type RunMassDefenseCombatRoundArgs =
-  | (RunMassDefenseCombatRoundBase & {
-      structureMode: 'nightly_wall';
-    })
-  | (RunMassDefenseCombatRoundBase & {
-      structureMode: 'prefeitura_siege';
-      hexMap: HexMap;
-    });
+export type RunEncounterCombatRoundArgs = RunEncounterCombatRoundBase & {
+  structureMode: EncounterCombatTheater;
+};
+
+/** @deprecated Use {@link RunEncounterCombatRoundArgs}. */
+export type RunMassDefenseCombatRoundArgs = RunEncounterCombatRoundArgs;
+
+function cloneHexMapForRound(map: HexMap): HexMap {
+  const hexes: HexMap['hexes'] = {};
+  for (const [id, h] of Object.entries(map.hexes)) {
+    hexes[id] = {
+      ...h,
+      placeSlots: [...h.placeSlots],
+      features: h.features ? [...h.features] : undefined,
+    };
+  }
+  return { ...map, hexes };
+}
 
 function rollIntInclusive(
   rng: () => number,
@@ -127,7 +144,7 @@ function averageLivingHostileHpFraction(
 
 function averageDefenderLineHpFraction(
   line: readonly DefenderLineEntry[],
-  structureMode: MassDefenseStructureMode,
+  structureMode: EncounterCombatTheater,
 ): number {
   const active = line.filter((d) => {
     if (structureMode === 'nightly_wall') {
@@ -149,7 +166,7 @@ function averageDefenderLineHpFraction(
  */
 export function massDefenseSkillPickContext(
   turn: number,
-  structureMode: MassDefenseStructureMode,
+  structureMode: EncounterCombatTheater,
   enemies: readonly EnemyInstance[],
   defenderLine: readonly DefenderLineEntry[],
   rng: () => number,
@@ -174,7 +191,7 @@ function formatDefenderStrikePlayerLog(params: {
   prefBucket: string;
   hit: MeleeResolveResult;
   supportBoost: boolean;
-  structureMode: MassDefenseStructureMode;
+  structureMode: EncounterCombatTheater;
   move?: MoveTemplate;
 }): string {
   const { def, prefBucket, hit, supportBoost, structureMode, move } = params;
@@ -261,39 +278,6 @@ function buildPrefeituraSiegeStrikeCycle(
   return cycle;
 }
 
-function applyStructuralDamageToPrefeitura(
-  hexMap: HexMap,
-  rawDamage: number,
-): { hexMap: HexMap; collapsed: boolean } {
-  const center = hexMap.hexes[CENTER_HEX_ID];
-  if (!center) return { hexMap, collapsed: true };
-
-  let collapsed = false;
-  const placeSlots = center.placeSlots.map((slot) => {
-    if (slot.type !== 'prefeitura') return slot;
-    const max = slot.structureHp?.max ?? PREFECTURE_STRUCTURE_MAX_HP;
-    const cur = slot.structureHp?.current ?? max;
-    const next = Math.max(0, cur - rawDamage);
-    if (next <= 0) collapsed = true;
-    const nextSlot: PlaceSlot = {
-      ...slot,
-      structureHp: { current: next, max },
-    };
-    return nextSlot;
-  });
-
-  return {
-    hexMap: {
-      ...hexMap,
-      hexes: {
-        ...hexMap.hexes,
-        [CENTER_HEX_ID]: { ...center, placeSlots },
-      },
-    },
-    collapsed,
-  };
-}
-
 /**
  * Single source for nightly wall + Prefeitura siege combat rounds (tower, guards,
  * defender melee, enemy strikes, ally spirit, outcomes).
@@ -301,10 +285,10 @@ function applyStructuralDamageToPrefeitura(
  * Prefer {@link advanceEncounterCombatRound} from `./encounterCombat.ts` for new
  * callers — explicit allies/enemies arrays and a stable encounter API.
  */
-export function runMassDefenseCombatRound(
-  args: RunMassDefenseCombatRoundArgs,
-): MassDefenseCombatRoundResult {
-  const { structureMode, daily, wall, rng, defenderLine: initialDefenderLine } =
+export function runEncounterCombatRound(
+  args: RunEncounterCombatRoundArgs,
+): EncounterCombatRoundResult {
+  const { structureMode, daily, hexMap: inputHexMap, rng, defenderLine: initialDefenderLine } =
     args;
 
   const turn = daily.currentTurn + 1;
@@ -312,11 +296,9 @@ export function runMassDefenseCombatRound(
   const lines: Omit<CombatLogEntry, 'id'>[] = [];
   let enemies = normalizeEnemies(daily.enemies);
   let defenderLine = initialDefenderLine;
-  let nextWall = wall;
   let breached = false;
 
-  let workingMap: HexMap | undefined =
-    structureMode === 'prefeitura_siege' ? args.hexMap : undefined;
+  let workingHexMap = cloneHexMapForRound(inputHexMap);
   let prefeituraCollapsed = false;
 
   let allySpirit = clampAllySpirit(
@@ -521,7 +503,7 @@ export function runMassDefenseCombatRound(
     allySpirit + evaluateFrontGapSpiritDelta(enemies),
   );
 
-  const attackedSection: WallCardinal = daily.attackedSection;
+  const wallHexId = daily.targetHexId;
 
   const hitWallSection = (): void => {
     structureHitsThisRound += 1;
@@ -530,13 +512,22 @@ export function runMassDefenseCombatRound(
       DEFENSE_ENEMY_STRIKE_VS_WALL_MIN,
       DEFENSE_ENEMY_STRIKE_VS_WALL_MAX,
     );
-    nextWall = applyDamageToWallSection(nextWall, attackedSection, raw);
-    const sec = nextWall.sections[attackedSection];
-    breached = sec.breached || sec.current <= 0;
+    const tile = workingHexMap.hexes[wallHexId];
+    if (!tile) {
+      breached = true;
+    } else {
+      const prepared = ensureWallFeatureOnTile(tile);
+      const { tile: nextTile, breached: b } = applyDamageToWallOnHexTile(
+        prepared,
+        raw,
+      );
+      workingHexMap = patchHexInMap(workingHexMap, wallHexId, () => nextTile);
+      breached = b;
+    }
     lines.push({
       turn,
       timestamp: t0,
-      text: `Hostiles strike the ${attackedSection} wall for ${String(raw)} structural damage.`,
+      text: `Hostiles strike the sector wall for ${String(raw)} structural damage.`,
       type: 'enemy',
     });
   };
@@ -609,11 +600,11 @@ export function runMassDefenseCombatRound(
           DEFENSE_ENEMY_STRIKE_VS_WALL_MIN,
           DEFENSE_ENEMY_STRIKE_VS_WALL_MAX,
         );
-        const hitPref = applyStructuralDamageToPrefeitura(
-          workingMap!,
+        const hitPref = applyDamageToPrefeituraStructure(
+          workingHexMap,
           rawStruct,
         );
-        workingMap = hitPref.hexMap;
+        workingHexMap = hitPref.hexMap;
         lines.push({
           turn,
           timestamp: t0,
@@ -643,11 +634,11 @@ export function runMassDefenseCombatRound(
           DEFENSE_ENEMY_STRIKE_VS_WALL_MIN,
           DEFENSE_ENEMY_STRIKE_VS_WALL_MAX,
         );
-        const hitFallback = applyStructuralDamageToPrefeitura(
-          workingMap!,
+        const hitFallback = applyDamageToPrefeituraStructure(
+          workingHexMap,
           rawFallback,
         );
-        workingMap = hitFallback.hexMap;
+        workingHexMap = hitFallback.hexMap;
         lines.push({
           turn,
           timestamp: t0,
@@ -793,23 +784,26 @@ export function runMassDefenseCombatRound(
   };
 
   const wallResult: MassCombatWallSnapshot = {
-    wall: nextWall,
+    hexMap: workingHexMap,
     breached: structureMode === 'nightly_wall' ? breached : false,
   };
 
-  const result: MassDefenseCombatRoundResult = {
+  const result: EncounterCombatRoundResult = {
     nextDaily,
     wallResult,
     fightEnded: isCompleted,
     newLogLines: lines,
   };
 
-  if (structureMode === 'prefeitura_siege' && workingMap !== undefined) {
-    result.hexMap = workingMap;
+  if (structureMode === 'prefeitura_siege') {
+    result.hexMap = workingHexMap;
   }
 
   return result;
 }
+
+/** @deprecated Use {@link runEncounterCombatRound}. */
+export const runMassDefenseCombatRound = runEncounterCombatRound;
 
 /** Normalizes buckets; used before mass defense rounds. */
 export function normalizeMassDefenseDefenderLine(

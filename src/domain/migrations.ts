@@ -124,6 +124,9 @@ export function migrateGameMetaState(raw: unknown): GameMetaState {
   if (schemaVersion < 5) {
     schemaVersion = 5;
   }
+  if (schemaVersion < 6) {
+    schemaVersion = 6;
+  }
 
   const hallOfFame = parseHallOfFameLoose(raw.hallOfFame);
 

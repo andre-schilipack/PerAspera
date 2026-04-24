@@ -11,7 +11,7 @@ import {
   type AxialCoord,
 } from '../domain/hex.ts';
 import { makeContractId } from '../domain/ids.ts';
-import type { Contract, Hex, HexMap } from '../domain/types/index.ts';
+import type { Contract, HexMap, HexTile } from '../domain/types/index.ts';
 import { useCharactersStore } from '../stores/useCharactersStore.ts';
 import { useContractsStore } from '../stores/useContractsStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
@@ -19,7 +19,7 @@ import { useWorldStore } from '../stores/useWorldStore.ts';
 
 const ORIGIN: AxialCoord = { q: 0, r: 0 };
 
-export function computeHexMapSizeLabel(hexes: Record<string, Hex>): number {
+export function computeHexMapSizeLabel(hexes: Record<string, HexTile>): number {
   let maxD = 0;
   for (const h of Object.values(hexes)) {
     const d = axialDistance(h.coordinates, ORIGIN);
@@ -36,7 +36,7 @@ export function pickExpansionTargetHex(hexMap: HexMap): string | null {
   if (locked.length === 0) return null;
 
   let minD = Infinity;
-  const byDist: Hex[] = [];
+  const byDist: HexTile[] = [];
   for (const h of locked) {
     const d = axialDistance(h.coordinates, ORIGIN);
     if (d < minD) {
@@ -155,7 +155,7 @@ function applyExpansionUnlock(contract: Contract): void {
   const target = map.hexes[contract.targetHexId];
   if (!target) return;
 
-  const hexes: Record<string, Hex> = { ...map.hexes };
+  const hexes: Record<string, HexTile> = { ...map.hexes };
 
   hexes[contract.targetHexId] = {
     ...target,

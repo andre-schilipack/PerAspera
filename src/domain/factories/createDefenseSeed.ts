@@ -6,18 +6,12 @@ import {
 } from '../constants.ts';
 import {
   composeWaveFromBudget,
-  pickRandomWallCardinal,
   sumLivingThreatPoints,
   targetThreatBudget,
 } from '../enemyThreat.ts';
 import { rollVictoryLootPoolForWave } from '../nightlyDefenseLoot.ts';
 import { formatLocalDateString } from '../defenseSchedule.ts';
-import type {
-  DailyDefenseState,
-  HexMap,
-  WallCardinal,
-  WallState,
-} from '../types/index.ts';
+import type { DailyDefenseState, HexMap } from '../types/index.ts';
 
 /** Random civilian hex used as nightly breach march entry (never Centro). */
 export function pickRandomRaidTargetHex(
@@ -29,29 +23,9 @@ export function pickRandomRaidTargetHex(
   return ids[Math.floor(rng() * ids.length)]!;
 }
 
-export function createInitialWallState(): WallState {
-  /** Real-valued integrity; UI uses floor/ceil via economicDisplay. */
-  const section = () => ({
-    current: 100,
-    max: 100,
-    breached: false,
-  });
-  return {
-    level: 1,
-    layers: 1,
-    sections: {
-      north: section(),
-      south: section(),
-      east: section(),
-      west: section(),
-    },
-  };
-}
-
 export function createEmptyDailyDefense(params?: {
   date?: string;
   startHour?: number;
-  attackedSection?: WallCardinal;
   /** Defaults to 0 (new day rollover should pass prior index + 1). */
   gameDayIndex?: number;
   targetHexId?: string;
@@ -70,7 +44,6 @@ export function createEmptyDailyDefense(params?: {
     playerContribution: {},
     isCompleted: false,
     startHour: params?.startHour ?? DEFENSE_START_HOUR,
-    attackedSection: params?.attackedSection ?? 'north',
     participants: [],
     gameDayIndex: params?.gameDayIndex ?? 0,
     targetHexId: params?.targetHexId ?? HOME_HEX_ID,
@@ -84,7 +57,7 @@ export function createEmptyDailyDefense(params?: {
 }
 
 /**
- * Roll a new calendar day: random wall side, scaled wave, cleared locks (daily re-enlist MVP).
+ * Roll a new calendar day: scaled wave, cleared locks (daily re-enlist MVP).
  */
 export function rollDailyDefenseStateForNewDay(params: {
   date: string;
@@ -95,7 +68,6 @@ export function rollDailyDefenseStateForNewDay(params: {
   targetHexId?: string;
   hexMap?: HexMap | null;
 }): DailyDefenseState {
-  const attackedSection = pickRandomWallCardinal(params.rng);
   const budget = targetThreatBudget(params.gameDayIndex);
   const enemies = composeWaveFromBudget(budget, params.rng);
   const totalEnemyPoints = sumLivingThreatPoints(enemies);
@@ -121,7 +93,6 @@ export function rollDailyDefenseStateForNewDay(params: {
     playerContribution: {},
     isCompleted: false,
     startHour: params.startHour,
-    attackedSection,
     participants: [],
     gameDayIndex: params.gameDayIndex,
     targetHexId,

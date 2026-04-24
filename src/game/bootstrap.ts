@@ -17,11 +17,20 @@ import { useCityStore } from '../stores/useCityStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 import {
   ALLY_SPIRIT_INITIAL,
+  CENTER_HEX_ID,
   DEFAULT_BUSINESS_STRUCTURE_MAX_HP,
   HOME_HEX_ID,
   PLAYER_BASE_MAX_HP,
   PREFECTURE_STRUCTURE_MAX_HP,
 } from '../domain/constants.ts';
+import {
+  aggregateLegacyWallToPool,
+  ensureCityHallFeatureOnTile,
+  ensureWallFeatureOnTile,
+  findCityHallFeature,
+  patchHexInMap,
+  upsertWallFeatureHp,
+} from '../domain/encounterCombatWall.ts';
 import {
   defenderBucketForLineIndex,
   enemyBucketForSpawnIndex,
@@ -190,6 +199,82 @@ function ensureHexMapStructureDefaults(): void {
   }
 }
 
+/** Older saves: add `city_hall` feature on Centro from Prefeitura slot HP. */
+function ensureCityHallFeatureFromPrefeituraSlot(): void {
+  const hexMap = useWorldStore.getState().hexMap;
+  if (!hexMap) return;
+  const center = hexMap.hexes[CENTER_HEX_ID];
+  if (!center) return;
+  if (findCityHallFeature(center.features)) return;
+  const pref = center.placeSlots.find((s) => s.type === 'prefeitura');
+  const max = pref?.structureHp?.max ?? PREFECTURE_STRUCTURE_MAX_HP;
+  const cur = pref?.structureHp?.current ?? max;
+  useWorldStore.getState().setHexMap(
+    patchHexInMap(hexMap, CENTER_HEX_ID, (t) =>
+      ensureCityHallFeatureOnTile(t, cur, max),
+    ),
+  );
+}
+
+/** Ensure the nightly raid anchor hex carries a single `wall` feature pool. */
+function ensureDefenseWallFeatureOnTargetHex(): void {
+  const hexMap = useWorldStore.getState().hexMap;
+  const daily = useDefenseStore.getState().dailyDefense;
+  if (!hexMap) return;
+  const id = daily.targetHexId;
+  const tile = hexMap.hexes[id];
+  if (!tile) return;
+  const next = ensureWallFeatureOnTile(tile);
+  if (next !== tile) {
+    useWorldStore.getState().setHexMap(patchHexInMap(hexMap, id, () => next));
+  }
+}
+
+/**
+ * One-shot: legacy `peraspera-defense` stored `wall` as four sections — fold into the
+ * target hex tile pool and drop the key from storage so Zustand stops rehydrating it.
+ */
+function migrateLegacyDefenseWallIntoHexMap(): void {
+  try {
+    const raw = localStorage.getItem('peraspera-defense');
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as {
+      state?: {
+        wall?: { sections: Record<string, { current: number; max: number }> };
+        dailyDefense?: { targetHexId?: string };
+      };
+    };
+    const wall = parsed.state?.wall;
+    if (!wall?.sections) return;
+    const hexMap = useWorldStore.getState().hexMap;
+    if (!hexMap) return;
+    const targetId =
+      typeof parsed.state?.dailyDefense?.targetHexId === 'string'
+        ? parsed.state.dailyDefense.targetHexId
+        : HOME_HEX_ID;
+    const { currentHp, maxHp } = aggregateLegacyWallToPool(wall);
+    useWorldStore.getState().setHexMap(
+      patchHexInMap(hexMap, targetId, (t) => upsertWallFeatureHp(t, currentHp, maxHp)),
+    );
+    delete parsed.state!.wall;
+    localStorage.setItem('peraspera-defense', JSON.stringify(parsed));
+  } catch {
+    /* ignore corrupt localStorage */
+  }
+}
+
+function stripLegacyAttackedSectionFromDailyDefense(): void {
+  const daily = useDefenseStore.getState().dailyDefense as unknown as Record<
+    string,
+    unknown
+  >;
+  if (!('attackedSection' in daily)) return;
+  const { attackedSection: _removed, ...rest } = daily;
+  useDefenseStore
+    .getState()
+    .setDailyDefense(rest as import('../domain/types/index.ts').DailyDefenseState);
+}
+
 /**
  * Persisted saves from before seeded waves: if no enemies for current idle day, seed once.
  */
@@ -287,7 +372,11 @@ export async function bootstrapGame(): Promise<void> {
   }
 
   ensureDailyDefenseShape();
+  stripLegacyAttackedSectionFromDailyDefense();
   ensureHexMapStructureDefaults();
+  ensureCityHallFeatureFromPrefeituraSlot();
+  migrateLegacyDefenseWallIntoHexMap();
+  ensureDefenseWallFeatureOnTargetHex();
   fixInvalidCurrentCharacter();
   ensureCharacterCurrentHex();
   ensureCharacterAutoEnlist();

@@ -1,27 +1,31 @@
 import { describe, expect, it } from 'vitest';
 
-import { CENTER_HEX_ID, NPC_OWNER_PREFEITURA } from '../domain/constants.ts';
 import {
-  createEmptyDailyDefense,
-  createInitialWallState,
-} from '../domain/factories/createDefenseSeed.ts';
+  CENTER_HEX_ID,
+  DEFAULT_HEX_WALL_MAX_HP,
+  HOME_HEX_ID,
+  NPC_OWNER_PREFEITURA,
+} from '../domain/constants.ts';
+import { createEmptyDailyDefense } from '../domain/factories/createDefenseSeed.ts';
 import { sumLivingThreatPoints } from '../domain/enemyThreat.ts';
-import type { DailyDefenseState, WallState } from '../domain/types/defense.ts';
+import type { DailyDefenseState } from '../domain/types/defense.ts';
 import type { HexMap } from '../domain/types/map.ts';
 
 import { buildNightlyDefenseAdvanceCommit } from './nightlyDefenseAdvance.ts';
 
-function wallWithSection(
-  side: 'north' | 'south' | 'east' | 'west',
-  current: number,
-): WallState {
-  const w = createInitialWallState();
-  const s = w.sections[side];
+function hexMapWithWallAt(hexId: string, currentHp: number, maxHp: number): HexMap {
   return {
-    ...w,
-    sections: {
-      ...w.sections,
-      [side]: { ...s, current, max: s.max, breached: false },
+    size: 2,
+    hexes: {
+      [hexId]: {
+        id: hexId,
+        coordinates: { q: 1, r: 0 },
+        danger: 0,
+        integrity: 50,
+        placeSlots: [],
+        isUnlocked: true,
+        features: [{ type: 'wall', currentHp, maxHp }],
+      },
     },
   };
 }
@@ -44,6 +48,13 @@ function mapWithPrefeitura(hp: { current: number; max: number }): HexMap {
             type: 'prefeitura',
             priceToBuy: 0,
             structureHp: hp,
+          },
+        ],
+        features: [
+          {
+            type: 'city_hall',
+            currentHp: hp.current,
+            maxHp: hp.max,
           },
         ],
       },
@@ -78,7 +89,6 @@ describe('nightly defense advance regression (game layer)', () => {
     const c = buildNightlyDefenseAdvanceCommit(
       {
         dailyDefense: daily,
-        wall: createInitialWallState(),
         nextCombatLogEntryId: 7,
         civilianPopulation: 200,
         hexMap: null,
@@ -117,13 +127,17 @@ describe('nightly defense advance regression (game layer)', () => {
       combatLog: [],
     });
     const startLogLen = dd.combatLog.length;
+    const hexMap = hexMapWithWallAt(
+      dd.targetHexId,
+      DEFAULT_HEX_WALL_MAX_HP,
+      DEFAULT_HEX_WALL_MAX_HP,
+    );
     const c = buildNightlyDefenseAdvanceCommit(
       {
         dailyDefense: dd,
-        wall: createInitialWallState(),
         nextCombatLogEntryId: 20,
         civilianPopulation: 400,
-        hexMap: null,
+        hexMap,
       },
       () => 0.42,
       1_750_000_000_000,
@@ -133,7 +147,7 @@ describe('nightly defense advance regression (game layer)', () => {
     expect(c.declareGameOver).toBeUndefined();
   });
 
-  it('marks breach raid skipped when wall breaches without hex map', () => {
+  it('wall breach with hex map opens Prefeitura siege when hostiles remain after raid', () => {
     const enemies = [
       {
         enemyId: 'ram',
@@ -147,23 +161,22 @@ describe('nightly defense advance regression (game layer)', () => {
       enemies,
       totalEnemyPoints: sumLivingThreatPoints(enemies),
       defenderLine: [],
-      attackedSection: 'east',
       combatLog: [],
     });
-    const wall = wallWithSection('east', 4);
+    const hexMap = hexMapWithWallAt(dd.targetHexId, 4, 400);
     const c = buildNightlyDefenseAdvanceCommit(
       {
         dailyDefense: dd,
-        wall,
         nextCombatLogEntryId: 1,
         civilianPopulation: 120,
-        hexMap: null,
+        hexMap,
       },
       () => 0.96,
       1_760_000_000_000,
     );
-    expect(c.dailyDefense.outcome).toBe('breach');
-    expect(c.breachRaid).toBe('skipped');
+    expect(c.dailyDefense.outcome).toBe('prefeitura_siege');
+    expect(c.dailyDefense.phase).toBe('fighting');
+    expect(c.breachRaid).not.toBe('skipped');
   });
 
   it('runs one siege round when hex map exists', () => {
@@ -200,7 +213,6 @@ describe('nightly defense advance regression (game layer)', () => {
     const c = buildNightlyDefenseAdvanceCommit(
       {
         dailyDefense: dd,
-        wall: createInitialWallState(),
         nextCombatLogEntryId: 50,
         civilianPopulation: 600,
         hexMap,

@@ -4,7 +4,6 @@ export {
 } from './createCharacter.ts';
 export {
   createEmptyDailyDefense,
-  createInitialWallState,
   rollDailyDefenseStateForNewDay,
 } from './createDefenseSeed.ts';
 export {

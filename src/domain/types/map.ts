@@ -23,7 +23,21 @@ export interface PlaceSlot {
   priceToBuy: number;
 }
 
-export interface Hex {
+export interface HexTileWallFeature {
+  type: 'wall';
+  currentHp: number;
+  maxHp: number;
+}
+
+export interface HexTileCityHallFeature {
+  type: 'city_hall';
+  currentHp: number;
+  maxHp: number;
+}
+
+export type HexTileFeature = HexTileWallFeature | HexTileCityHallFeature;
+
+export interface HexTile {
   id: string;
   coordinates: { q: number; r: number };
   /** 0–100 district danger. */
@@ -32,10 +46,12 @@ export interface Hex {
   integrity: number;
   placeSlots: PlaceSlot[];
   isUnlocked: boolean;
+  /** Discriminated structural / civic features persisted on the tile. */
+  features?: readonly HexTileFeature[];
 }
 
 export interface HexMap {
   /** Grid radius or half-size label used by factories (e.g. 5 or 7). */
   size: number;
-  hexes: Record<string, Hex>;
+  hexes: Record<string, HexTile>;
 }

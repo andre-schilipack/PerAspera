@@ -8,23 +8,6 @@ import type {
 } from './combat.ts';
 import type { Item } from './items.ts';
 
-export type WallCardinal = 'north' | 'south' | 'east' | 'west';
-
-export interface SectionIntegrity {
-  current: number;
-  max: number;
-  breached: boolean;
-}
-
-export interface WallState {
-  level: number;
-  layers: number;
-  sections: Record<WallCardinal, SectionIntegrity>;
-  lastAttackedSection?: WallCardinal;
-  /** YYYY-MM-DD — narrative / anti-spam for repairs. */
-  lastRepairedDate?: string;
-}
-
 export type NightlyDefensePhase = 'idle' | 'preparing' | 'fighting' | 'ended';
 
 export type NightlyDefenseOutcome =
@@ -69,7 +52,6 @@ export interface DailyDefenseState {
   playerContribution: Record<string, number>;
   isCompleted: boolean;
   startHour: number;
-  attackedSection: WallCardinal;
   participants: DefenseParticipant[];
   /** Anchor for scaling (e.g. days since founding). */
   gameDayIndex: number;

@@ -1,16 +1,41 @@
 import { describe, expect, it } from 'vitest';
 
-import { createEmptyDailyDefense, createInitialWallState } from './factories/createDefenseSeed.ts';
+import { DEFAULT_HEX_WALL_MAX_HP, HOME_HEX_ID } from './constants.ts';
+import { createEmptyDailyDefense } from './factories/createDefenseSeed.ts';
 import { sumLivingThreatPoints } from './enemyThreat.ts';
 import { DEFAULT_CORE_ATTRIBUTES } from './types/attributes.ts';
+import type { HexMap } from './types/map.ts';
 import {
   defenderLineForPrefeituraSiege,
   massDefenseSkillPickContext,
   normalizeMassDefenseDefenderLine,
-  runMassDefenseCombatRound,
-} from './massDefenseRound.ts';
+  runEncounterCombatRound,
+} from './encounterCombatRound.ts';
 
-describe('massDefenseRound', () => {
+function hexMapWithWallAt(hexId: string): HexMap {
+  return {
+    size: 1,
+    hexes: {
+      [hexId]: {
+        id: hexId,
+        coordinates: { q: 0, r: 0 },
+        danger: 0,
+        integrity: 50,
+        placeSlots: [],
+        isUnlocked: true,
+        features: [
+          {
+            type: 'wall',
+            currentHp: DEFAULT_HEX_WALL_MAX_HP,
+            maxHp: DEFAULT_HEX_WALL_MAX_HP,
+          },
+        ],
+      },
+    },
+  };
+}
+
+describe('encounterCombatRound', () => {
   it('normalizeMassDefenseDefenderLine fills tactical buckets', () => {
     const line = normalizeMassDefenseDefenderLine([
       {
@@ -38,8 +63,7 @@ describe('massDefenseRound', () => {
     expect(line[0]!.retreated).toBe(false);
   });
 
-  it('runMassDefenseCombatRound nightly_wall increments turn and appends lines', () => {
-    const wall = createInitialWallState();
+  it('runEncounterCombatRound nightly_wall increments turn and appends lines', () => {
     const base = createEmptyDailyDefense({ date: '2026-06-01' });
     const enemies = [
       {
@@ -60,10 +84,12 @@ describe('massDefenseRound', () => {
       defenderLine: [],
     };
 
-    const r = runMassDefenseCombatRound({
+    const hexMap = hexMapWithWallAt(HOME_HEX_ID);
+
+    const r = runEncounterCombatRound({
       structureMode: 'nightly_wall',
       daily,
-      wall,
+      hexMap,
       rng: () => 0.55,
       defenderLine: [],
     });
@@ -72,7 +98,7 @@ describe('massDefenseRound', () => {
     expect(r.newLogLines.some((l) => l.text.includes('Nightly defense'))).toBe(
       true,
     );
-    expect(r.hexMap).toBeUndefined();
+    expect(r.wallResult.hexMap).toBeDefined();
   });
 
   it('massDefenseSkillPickContext uses endgame beat when hostiles are low', () => {
@@ -105,7 +131,6 @@ describe('massDefenseRound', () => {
   });
 
   it('defender autoplay logs catalog move name when skillIds present', () => {
-    const wall = createInitialWallState();
     const base = createEmptyDailyDefense({ date: '2026-06-02' });
     const enemies = [
       {
@@ -126,10 +151,12 @@ describe('massDefenseRound', () => {
       defenderLine: [],
     };
 
-    const r = runMassDefenseCombatRound({
+    const hexMap = hexMapWithWallAt(HOME_HEX_ID);
+
+    const r = runEncounterCombatRound({
       structureMode: 'nightly_wall',
       daily,
-      wall,
+      hexMap,
       rng: () => 0.55,
       defenderLine: normalizeMassDefenseDefenderLine([
         {

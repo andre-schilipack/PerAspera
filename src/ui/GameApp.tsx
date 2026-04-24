@@ -26,12 +26,15 @@ import {
 } from '../domain/businessEconomyTick.ts';
 import { claimFromBusinessBuffers } from '../domain/businessClaim.ts';
 import { createNewBusiness } from '../domain/factories/createBusiness.ts';
-import { formatLocalDateString } from '../domain/defenseSchedule.ts';
 import {
   displayEconomicDecreasing,
   displayEconomicIncreasing,
 } from '../domain/economicDisplay.ts';
-import { repairWallSection as applyWallIntegrityRepair } from '../domain/wallIntegrity.ts';
+import {
+  findCityHallFeature,
+  findWallFeature,
+  repairWallOnHexTile,
+} from '../domain/encounterCombatWall.ts';
 import {
   computeWorkPayout,
   hasCharacterBusinessOnHex,
@@ -51,7 +54,6 @@ import type {
   BusinessKind,
   IndustrialRecipeId,
   NightlyDefenseOutcome,
-  WallCardinal,
 } from '../domain/types/index.ts';
 import type { Item } from '../domain/types/index.ts';
 import {
@@ -220,8 +222,6 @@ export default function GameApp() {
   const updateHex = useWorldStore((s) => s.updateHex);
 
   const dailyDefense = useDefenseStore((s) => s.dailyDefense);
-  const wall = useDefenseStore((s) => s.wall);
-  const setWall = useDefenseStore((s) => s.setWall);
   const patchDailyDefense = useDefenseStore((s) => s.patchDailyDefense);
   const advanceNightlyDefenseRound = useDefenseStore(
     (s) => s.advanceNightlyDefenseRound,
@@ -427,6 +427,16 @@ export default function GameApp() {
     return 'map';
   }, [character, screen]);
 
+  const targetWallFeature = useMemo(
+    () => findWallFeature(hexMap?.hexes[dailyDefense.targetHexId]?.features),
+    [hexMap, dailyDefense.targetHexId],
+  );
+
+  const centerCityHallFeature = useMemo(
+    () => findCityHallFeature(hexMap?.hexes[CENTER_HEX_ID]?.features),
+    [hexMap],
+  );
+
   const sortedHexes = useMemo(() => {
     if (!hexMap) return [];
     return Object.values(hexMap.hexes).sort(
@@ -530,24 +540,17 @@ export default function GameApp() {
     });
   }
 
-  function payForWallRepair(side: WallCardinal) {
-    if (!character) return;
-    const w = useDefenseStore.getState().wall;
-    const sec = w.sections[side];
-    if (sec.current >= sec.max - 0.000_001) return;
+  function payForWallRepair() {
+    if (!character || !hexMap) return;
+    const wf = findWallFeature(hexMap.hexes[dailyDefense.targetHexId]?.features);
+    if (!wf || wf.currentHp >= wf.maxHp - 0.000_001) return;
     if (character.creds < WALL_REPAIR_CREDS_COST) return;
-    const nextWall = applyWallIntegrityRepair(
-      w,
-      side,
-      WALL_REPAIR_INTEGRITY_PER_ACTION,
-    );
     updateCharacter(character.id, {
       creds: character.creds - WALL_REPAIR_CREDS_COST,
     });
-    setWall({
-      ...nextWall,
-      lastRepairedDate: formatLocalDateString(new Date()),
-    });
+    updateHex(dailyDefense.targetHexId, (tile) =>
+      repairWallOnHexTile(tile, WALL_REPAIR_INTEGRITY_PER_ACTION),
+    );
   }
 
   function hireWorker(hexId: string, slotId: string) {
@@ -1375,8 +1378,8 @@ export default function GameApp() {
               </>
             ) : (
               <>
-                Tonight&apos;s push targets the{' '}
-                <strong>{dailyDefense.attackedSection}</strong> wall.
+                Tonight&apos;s push targets sector wall at hex{' '}
+                <strong>{dailyDefense.targetHexId}</strong>.
               </>
             )}
           </p>
@@ -1445,34 +1448,32 @@ export default function GameApp() {
               ))}
             </ul>
           ) : null}
-          <h3>Wall</h3>
-          {(Object.keys(wall.sections) as WallCardinal[]).map((side) => (
-            <div
-              key={side}
-              className={`game-wall-bar${dailyDefense.attackedSection === side ? ' game-wall-bar--active' : ''}`}
-            >
-              {side}:{' '}
+          <h3>Sector wall ({dailyDefense.targetHexId})</h3>
+          {targetWallFeature ? (
+            <div className="game-wall-bar">
               <meter
-                value={wall.sections[side].current}
+                value={targetWallFeature.currentHp}
                 min={0}
-                max={wall.sections[side].max}
+                max={targetWallFeature.maxHp}
               />{' '}
-              {displayEconomicDecreasing(wall.sections[side].current)}/
-              {displayEconomicIncreasing(wall.sections[side].max)}
-              {wall.sections[side].breached ? ' (breached)' : ''}
+              {displayEconomicDecreasing(targetWallFeature.currentHp)}/
+              {displayEconomicIncreasing(targetWallFeature.maxHp)}
+              {targetWallFeature.currentHp <= 0 ? ' (breached)' : ''}
               <button
                 type="button"
                 className="game-inline-nav"
-                onClick={() => payForWallRepair(side)}
+                onClick={() => payForWallRepair()}
                 disabled={
-                  wall.sections[side].current >= wall.sections[side].max - 0.000_001 ||
+                  targetWallFeature.currentHp >= targetWallFeature.maxHp - 0.000_001 ||
                   character.creds < WALL_REPAIR_CREDS_COST
                 }
               >
                 Repair (+{WALL_REPAIR_INTEGRITY_PER_ACTION}, {WALL_REPAIR_CREDS_COST}c)
               </button>
             </div>
-          ))}
+          ) : (
+            <p className="game-muted">No wall data for this sector yet.</p>
+          )}
           <h3>Combat log</h3>
           {showDefenseCombatModal ? (
             <p className="game-muted" role="status">
@@ -1926,8 +1927,8 @@ export default function GameApp() {
                   <strong>{dailyDefense.currentTurn}</strong>
                 </div>
                 <div>
-                  <span className="game-muted">Focus wall</span>
-                  <strong>{dailyDefense.attackedSection}</strong>
+                  <span className="game-muted">Wall hex</span>
+                  <strong>{dailyDefense.targetHexId}</strong>
                 </div>
                 <div>
                   <span className="game-muted">Hostiles (F/R/S)</span>
@@ -1940,13 +1941,29 @@ export default function GameApp() {
               </div>
               <div className="game-combat-hud__wall">
                 <span className="game-muted">
-                  Wall {dailyDefense.attackedSection}
+                  {dailyDefense.outcome === 'prefeitura_siege'
+                    ? 'Prefeitura (Centro)'
+                    : `Wall (${dailyDefense.targetHexId})`}
                 </span>
-                <meter
-                  value={wall.sections[dailyDefense.attackedSection].current}
-                  min={0}
-                  max={wall.sections[dailyDefense.attackedSection].max}
-                />
+                {dailyDefense.outcome === 'prefeitura_siege' ? (
+                  centerCityHallFeature ? (
+                    <meter
+                      value={centerCityHallFeature.currentHp}
+                      min={0}
+                      max={centerCityHallFeature.maxHp}
+                    />
+                  ) : (
+                    <span className="game-muted">—</span>
+                  )
+                ) : targetWallFeature ? (
+                  <meter
+                    value={targetWallFeature.currentHp}
+                    min={0}
+                    max={targetWallFeature.maxHp}
+                  />
+                ) : (
+                  <span className="game-muted">—</span>
+                )}
               </div>
               {defenseReveal.pendingApprox > 0 ? (
                 <p className="game-combat-hud__pending" role="status">

@@ -1,6 +1,7 @@
 import { enemyBucketForSpawnIndex } from './defenseTactics.ts';
 import type { EnemyInstance } from './types/combat.ts';
-import type { WallCardinal } from './types/defense.ts';
+
+export type WallCardinal = 'north' | 'south' | 'east' | 'west';
 
 export const WALL_CARDINALS: WallCardinal[] = [
   'north',

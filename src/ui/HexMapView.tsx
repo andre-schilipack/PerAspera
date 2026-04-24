@@ -5,10 +5,10 @@ import {
   hexPolygonPointsPointyTop,
   viewBoxString,
 } from '../domain/hexLayout.ts';
-import type { Hex } from '../domain/types/index.ts';
+import type { HexTile } from '../domain/types/index.ts';
 
 export interface HexMapViewProps {
-  hexes: readonly Hex[];
+  hexes: readonly HexTile[];
   currentHexId: string;
   homeHexId: string;
   centerHexId: string;

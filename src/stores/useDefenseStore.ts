@@ -3,10 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { DEFENSE_START_HOUR } from '../domain/constants.ts';
 import { formatLocalDateString } from '../domain/defenseSchedule.ts';
-import {
-  createInitialWallState,
-  rollDailyDefenseStateForNewDay,
-} from '../domain/factories/createDefenseSeed.ts';
+import { rollDailyDefenseStateForNewDay } from '../domain/factories/createDefenseSeed.ts';
 import { defenseEndScreenFromCommit } from '../game/defenseEndScreenFromCommit.ts';
 import {
   applyNightlyDefenseAdvanceCommit,
@@ -16,7 +13,6 @@ import type {
   DailyDefenseState,
   DefenseCatchUpNightRow,
   DefenseEndScreenState,
-  WallState,
 } from '../domain/types/index.ts';
 
 import { useCharactersStore } from './useCharactersStore.ts';
@@ -34,7 +30,6 @@ export interface DefenseCatchUpBatchPayload {
 interface DefenseActions {
   setDailyDefense: (dailyDefense: DailyDefenseState) => void;
   patchDailyDefense: (patch: Partial<DailyDefenseState>) => void;
-  setWall: (wall: WallState) => void;
   /** One combat round: domain commit + cross-store apply (centered here). */
   advanceNightlyDefenseRound: (rng?: () => number) => void;
   dismissDefenseEndScreen: () => void;
@@ -46,7 +41,6 @@ interface DefenseActions {
 
 type DefenseSlice = {
   dailyDefense: DailyDefenseState;
-  wall: WallState;
   /** Ephemeral victory/defeat modal payload (excluded from persist). */
   defenseEndScreen: DefenseEndScreenState | null;
   /** Bootstrap catch-up aggregate (excluded from persist). */
@@ -57,14 +51,15 @@ type DefenseStore = DefenseSlice & DefenseActions;
 
 function initialDefenseState(): DefenseSlice {
   const now = new Date();
+  const hexMap = useWorldStore.getState().hexMap;
   return {
     dailyDefense: rollDailyDefenseStateForNewDay({
       date: formatLocalDateString(now),
       gameDayIndex: 0,
       startHour: DEFENSE_START_HOUR,
       rng: Math.random,
+      hexMap: hexMap ?? undefined,
     }),
-    wall: createInitialWallState(),
     defenseEndScreen: null,
     defenseCatchUpSummary: null,
   };
@@ -77,7 +72,6 @@ export const useDefenseStore = create<DefenseStore>()(
       setDailyDefense: (dailyDefense) => set({ dailyDefense }),
       patchDailyDefense: (patch) =>
         set((s) => ({ dailyDefense: { ...s.dailyDefense, ...patch } })),
-      setWall: (wall) => set({ wall }),
       openDefenseCatchUpSummary: (payload) =>
         set({
           defenseCatchUpSummary: payload,
@@ -89,7 +83,6 @@ export const useDefenseStore = create<DefenseStore>()(
         const commit = buildNightlyDefenseAdvanceCommit(
           {
             dailyDefense: get().dailyDefense,
-            wall: get().wall,
             nextCombatLogEntryId: useMetaStore.getState().nextIds.combatLogEntry,
             civilianPopulation: useCityStore.getState().civilianPopulation,
             hexMap: useWorldStore.getState().hexMap,
@@ -98,7 +91,6 @@ export const useDefenseStore = create<DefenseStore>()(
           Date.now(),
         );
         applyNightlyDefenseAdvanceCommit(commit, {
-          setWall: (wall) => get().setWall(wall),
           patchNextIds: useMetaStore.getState().patchNextIds,
           setDailyDefense: (dailyDefense) => get().setDailyDefense(dailyDefense),
           updateCharacter: useCharactersStore.getState().updateCharacter,
@@ -127,7 +119,6 @@ export const useDefenseStore = create<DefenseStore>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         dailyDefense: state.dailyDefense,
-        wall: state.wall,
       }),
     },
   ),
