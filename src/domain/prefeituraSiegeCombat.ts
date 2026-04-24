@@ -10,10 +10,8 @@ import {
 import type { HexMap } from './types/map.ts';
 
 import type { NightlyCombatWallResult } from './nightlyDefenseCombat.ts';
-import {
-  defenderLineForPrefeituraSiege,
-  runMassDefenseCombatRound,
-} from './massDefenseRound.ts';
+import { advanceEncounterCombatRound } from './encounterCombat.ts';
+import { defenderLineForPrefeituraSiege } from './massDefenseRound.ts';
 
 /** Downtown Prefeitura siege theater — structural + ally strikes (see mass combat types). */
 export const PREFECTURE_SIEGE_STRUCTURAL_PRESENCE: MassCombatStructuralPresence =
@@ -29,7 +27,7 @@ export interface AdvancePrefeituraSiegeResult {
 
 /**
  * Downtown last stand: tower, guards, defender melee vs enemies; enemy strikes hit
- * defenders and Prefeitura structural HP. Delegates to {@link runMassDefenseCombatRound}.
+ * defenders and Prefeitura structural HP. Delegates to {@link advanceEncounterCombatRound}.
  */
 export function advancePrefeituraSiegeRound(
   daily: DailyDefenseState,
@@ -79,13 +77,13 @@ export function advancePrefeituraSiegeRound(
 
   const preparedLine = defenderLineForPrefeituraSiege(daily.defenderLine);
 
-  const r = runMassDefenseCombatRound({
-    structureMode: 'prefeitura_siege',
-    daily,
-    wall,
+  const r = advanceEncounterCombatRound({
+    theater: 'prefeitura_siege',
     rng,
-    defenderLine: preparedLine,
-    hexMap,
+    allies: preparedLine,
+    enemies: daily.enemies,
+    structures: { wall, hexMap },
+    session: { daily },
   });
 
   return {

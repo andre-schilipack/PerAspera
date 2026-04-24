@@ -11,10 +11,8 @@ import {
   type MassCombatStructuralPresence,
   type MassCombatWallSnapshot,
 } from './types/massCombat.ts';
-import {
-  normalizeMassDefenseDefenderLine,
-  runMassDefenseCombatRound,
-} from './massDefenseRound.ts';
+import { advanceEncounterCombatRound } from './encounterCombat.ts';
+import { normalizeMassDefenseDefenderLine } from './massDefenseRound.ts';
 import {
   defenderBucketForLineIndex,
 } from './defenseTactics.ts';
@@ -38,7 +36,7 @@ function defaultRng(): number {
 
 /**
  * One full combat round: tower + guards + player line, then living enemies strike.
- * Delegates to {@link runMassDefenseCombatRound} (`nightly_wall` theater).
+ * Delegates to {@link advanceEncounterCombatRound} (`nightly_wall` theater).
  */
 export function advanceNightlyDefenseRound(
   daily: DailyDefenseState,
@@ -85,12 +83,13 @@ export function advanceNightlyDefenseRound(
 
   const preparedLine = normalizeMassDefenseDefenderLine(daily.defenderLine);
 
-  return runMassDefenseCombatRound({
-    structureMode: 'nightly_wall',
-    daily,
-    wall,
+  return advanceEncounterCombatRound({
+    theater: 'nightly_wall',
     rng,
-    defenderLine: preparedLine,
+    allies: preparedLine,
+    enemies: daily.enemies,
+    structures: { wall },
+    session: { daily },
   });
 }
 

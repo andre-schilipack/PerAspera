@@ -297,6 +297,9 @@ function applyStructuralDamageToPrefeitura(
 /**
  * Single source for nightly wall + Prefeitura siege combat rounds (tower, guards,
  * defender melee, enemy strikes, ally spirit, outcomes).
+ *
+ * Prefer {@link advanceEncounterCombatRound} from `./encounterCombat.ts` for new
+ * callers — explicit allies/enemies arrays and a stable encounter API.
  */
 export function runMassDefenseCombatRound(
   args: RunMassDefenseCombatRoundArgs,
