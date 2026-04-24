@@ -26,8 +26,10 @@ export interface AdvancePrefeituraSiegeResult {
 }
 
 /**
- * Downtown last stand: tower, guards, defender melee vs enemies; enemy strikes hit
- * defenders and Prefeitura structural HP. Delegates to {@link advanceEncounterCombatRound}.
+ * **Encounter 2 (Prefeitura siege)** — downtown last stand after a wall-breach handoff
+ * (see `defenseEncounterOrchestration.ts`). Tower, guards, defender melee vs enemies;
+ * enemy strikes hit defenders and Prefeitura structural HP. Delegates to
+ * `advanceEncounterCombatRound` (`encounterCombat.ts`).
  */
 export function advancePrefeituraSiegeRound(
   daily: DailyDefenseState,

@@ -234,6 +234,36 @@
   text-align: left;
 }
 
+.game-combat-log-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.game-combat-log-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.game-combat-log-tab {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.game-combat-log-tab[data-active='true'] {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--text-h);
+}
+
 .game-combat-log--theater {
   max-height: min(48vh, 420px);
   min-height: 200px;

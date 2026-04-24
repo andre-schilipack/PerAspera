@@ -1,10 +1,12 @@
-import { applyRaidFromRemainingThreat } from '../domain/applyRaid.ts';
+import {
+  createWallBreachHandoffSnapshot,
+  openPrefeituraPhaseAfterWallBreach,
+} from '../domain/defenseEncounterOrchestration.ts';
 import {
   DEFENSE_VICTORY_CREDS,
   DEFENSE_VICTORY_REPUTATION,
   DEFENSE_VICTORY_SCORE,
 } from '../domain/constants.ts';
-import { sumLivingThreatPoints } from '../domain/enemyThreat.ts';
 import { advanceNightlyDefenseRound } from '../domain/nightlyDefenseCombat.ts';
 import { advancePrefeituraSiegeRound } from '../domain/prefeituraSiegeCombat.ts';
 import {
@@ -226,78 +228,27 @@ export function buildNightlyDefenseAdvanceCommit(
     };
   }
 
+  // Wall encounter ended in breach → snapshot handoff → optional raid + Prefeitura siege (encounter 2).
   if (result.nextDaily.outcome === 'breach') {
-    if (!snapshot.hexMap) {
-      return {
-        ...base,
-        dailyDefense: { ...nextDaily, victoryLootPool: [] },
-        defenderHpSync,
-        breachRaid: 'skipped',
-      };
-    }
-
-    const threat = sumLivingThreatPoints(result.nextDaily.enemies);
-    const raid = applyRaidFromRemainingThreat({
-      remainingThreatPoints: threat,
-      civilianPopulation: snapshot.civilianPopulation,
+    const handoff = createWallBreachHandoffSnapshot(
+      nextDaily,
+      result.wallResult.wall,
+      nextId,
+    );
+    const opened = openPrefeituraPhaseAfterWallBreach({
+      snapshot: handoff,
       hexMap: snapshot.hexMap,
-      rng,
+      civilianPopulation: snapshot.civilianPopulation,
       targetHexId: nextDaily.targetHexId,
+      rng,
+      now,
     });
-
-    let mergedLog = combatLog;
-    for (const text of raid.logLines) {
-      nextId += 1;
-      mergedLog = [
-        ...mergedLog,
-        {
-          id: nextId,
-          turn: nextDaily.currentTurn,
-          timestamp: now,
-          text,
-          type: 'system',
-        },
-      ];
-    }
-
-    const afterRaidDaily: DailyDefenseState = {
-      ...nextDaily,
-      combatLog: mergedLog,
-      victoryLootPool: [],
-    };
-    const threatPts = sumLivingThreatPoints(afterRaidDaily.enemies);
-
-    if (threatPts > 0) {
-      const defenderLineLastStand = afterRaidDaily.defenderLine.map((d) =>
-        d.currentHp > 0 ? { ...d, retreated: false } : d,
-      );
-      return {
-        ...base,
-        nextCombatLogEntryId: nextId,
-        dailyDefense: {
-          ...afterRaidDaily,
-          outcome: 'prefeitura_siege',
-          phase: 'fighting',
-          isCompleted: false,
-          defenderLine: defenderLineLastStand,
-        },
-        defenderHpSync,
-        breachRaid: {
-          civilianPopulation: raid.civilianPopulation,
-          hexMap: raid.hexMap,
-        },
-      };
-    }
-
     return {
       ...base,
-      nextCombatLogEntryId: nextId,
-      dailyDefense: afterRaidDaily,
+      nextCombatLogEntryId: opened.nextCombatLogEntryId,
+      dailyDefense: opened.dailyDefense,
       defenderHpSync,
-      breachRaid: {
-        civilianPopulation: raid.civilianPopulation,
-        hexMap: raid.hexMap,
-      },
+      breachRaid: opened.breachRaid,
     };
   }
 

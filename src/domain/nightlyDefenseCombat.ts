@@ -35,8 +35,10 @@ function defaultRng(): number {
 }
 
 /**
- * One full combat round: tower + guards + player line, then living enemies strike.
- * Delegates to {@link advanceEncounterCombatRound} (`nightly_wall` theater).
+ * **Encounter 1 (perimeter wall)** — one full round: tower + guards + player line,
+ * then living enemies strike. Delegates to `advanceEncounterCombatRound` (`nightly_wall`).
+ * On breach, `openPrefeituraPhaseAfterWallBreach` may open encounter 2 (Prefeitura siege)
+ * with a unified combat log.
  */
 export function advanceNightlyDefenseRound(
   daily: DailyDefenseState,

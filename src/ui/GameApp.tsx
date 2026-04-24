@@ -106,7 +106,7 @@ import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 
-import { CombatLogList } from './CombatLogList.tsx';
+import { CombatLogTurnTabPanel } from './CombatLogTurnTabPanel.tsx';
 import { CombatLoadoutEditor } from './CombatLoadoutEditor.tsx';
 import { CombatModal } from './CombatModal.tsx';
 import { useCombatLogReveal } from './useCombatLogReveal.ts';
@@ -1479,8 +1479,10 @@ export default function GameApp() {
               Live fight is running in the combat theater overlay (full screen).
             </p>
           ) : (
-            <CombatLogList
-              entries={dailyDefense.combatLog}
+            <CombatLogTurnTabPanel
+              fullLog={dailyDefense.combatLog}
+              visibleEntries={dailyDefense.combatLog}
+              resetKey={`defense-inline-${dailyDefense.date}-${String(dailyDefense.currentTurn)}-${dailyDefense.combatLog.length}`}
               autoScroll={dailyDefense.phase === 'fighting'}
             />
           )}
@@ -2014,9 +2016,11 @@ export default function GameApp() {
             </p>
           ) : null}
           <h3>Battle feed</h3>
-          <CombatLogList
-            entries={defenseReveal.visibleEntries}
-            className="game-combat-log--theater"
+          <CombatLogTurnTabPanel
+            fullLog={dailyDefense.combatLog}
+            visibleEntries={defenseReveal.visibleEntries}
+            resetKey={defenseCombatSessionKey}
+            listClassName="game-combat-log--theater"
             autoScroll={
               dailyDefense.phase === 'fighting' || dailyDefense.phase === 'ended'
             }
