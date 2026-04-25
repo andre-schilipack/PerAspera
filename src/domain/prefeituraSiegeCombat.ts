@@ -9,6 +9,7 @@ import type { HexMap } from './types/map.ts';
 
 import type { NightlyCombatWallResult } from './nightlyDefenseCombat.ts';
 import { advanceEncounterCombatRound } from './encounterCombat.ts';
+import { applyEncounterCombatRoundToDaily } from './encounterCombatSessionMerge.ts';
 import { defenderLineForPrefeituraSiege } from './encounterCombatRound.ts';
 
 /** Downtown Prefeitura siege theater — structural + ally strikes (see mass combat types). */
@@ -83,11 +84,17 @@ export function advancePrefeituraSiegeRound(
     alliedStructures: [{ type: 'city_hall', hexId: CENTER_HEX_ID }],
     sessionConfig: { noRetreat: true },
     structures: { hexMap },
-    session: { daily },
+    continuation: {
+      currentTurn: daily.currentTurn,
+      outcome: daily.outcome,
+      phase: daily.phase,
+      allySpirit: daily.allySpirit,
+      moraleShockTurnsRemaining: daily.moraleShockTurnsRemaining,
+    },
   });
 
   return {
-    nextDaily: r.nextDaily,
+    nextDaily: applyEncounterCombatRoundToDaily(daily, r.stateDelta),
     wallResult: r.wallResult,
     fightEnded: r.fightEnded,
     newLogLines: r.newLogLines,

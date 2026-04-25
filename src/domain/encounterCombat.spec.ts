@@ -56,12 +56,22 @@ describe('encounterCombat API', () => {
     const hexMap = hexMapWithWallAt(HOME_HEX_ID);
     const wallStruct = [{ type: 'wall' as const, hexId: HOME_HEX_ID }];
 
+    const continuation = {
+      currentTurn: daily.currentTurn,
+      outcome: daily.outcome,
+      phase: daily.phase,
+      allySpirit: daily.allySpirit,
+      moraleShockTurnsRemaining: daily.moraleShockTurnsRemaining,
+      wallHexFallback: daily.targetHexId,
+    };
+
     const direct = runEncounterCombatRound({
       alliedStructures: wallStruct,
-      daily,
+      enemies: daily.enemies,
       hexMap,
       rng,
       defenderLine: [],
+      continuation,
     });
 
     const unified = advanceEncounterCombatRound({
@@ -70,10 +80,10 @@ describe('encounterCombat API', () => {
       enemies,
       alliedStructures: wallStruct,
       structures: { hexMap },
-      session: { daily },
+      continuation,
     });
 
-    expect(unified.nextDaily.currentTurn).toBe(direct.nextDaily.currentTurn);
+    expect(unified.stateDelta.currentTurn).toBe(direct.stateDelta.currentTurn);
     expect(unified.fightEnded).toBe(direct.fightEnded);
     expect(unified.newLogLines.length).toBe(direct.newLogLines.length);
     expect(unified.wallResult.breached).toBe(direct.wallResult.breached);

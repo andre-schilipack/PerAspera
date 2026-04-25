@@ -88,13 +88,21 @@ describe('encounterCombatRound', () => {
 
     const r = runEncounterCombatRound({
       alliedStructures: [{ type: 'wall', hexId: HOME_HEX_ID }],
-      daily,
+      enemies: daily.enemies,
       hexMap,
       rng: () => 0.55,
       defenderLine: [],
+      continuation: {
+        currentTurn: daily.currentTurn,
+        outcome: daily.outcome,
+        phase: daily.phase,
+        allySpirit: daily.allySpirit,
+        moraleShockTurnsRemaining: daily.moraleShockTurnsRemaining,
+        wallHexFallback: daily.targetHexId,
+      },
     });
 
-    expect(r.nextDaily.currentTurn).toBe(1);
+    expect(r.stateDelta.currentTurn).toBe(1);
     expect(r.newLogLines.some((l) => l.text.includes('Nightly defense'))).toBe(
       true,
     );
@@ -155,7 +163,7 @@ describe('encounterCombatRound', () => {
 
     const r = runEncounterCombatRound({
       alliedStructures: [{ type: 'wall', hexId: HOME_HEX_ID }],
-      daily,
+      enemies: daily.enemies,
       hexMap,
       rng: () => 0.55,
       defenderLine: normalizeMassDefenseDefenderLine([
@@ -170,6 +178,14 @@ describe('encounterCombatRound', () => {
           skillIds: ['basic_attack'],
         },
       ]),
+      continuation: {
+        currentTurn: daily.currentTurn,
+        outcome: daily.outcome,
+        phase: daily.phase,
+        allySpirit: daily.allySpirit,
+        moraleShockTurnsRemaining: daily.moraleShockTurnsRemaining,
+        wallHexFallback: daily.targetHexId,
+      },
     });
 
     const playerLines = r.newLogLines.filter((l) => l.type === 'player');

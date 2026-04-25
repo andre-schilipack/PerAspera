@@ -63,17 +63,23 @@ import type {
   EnemyInstance,
   MoveTemplate,
 } from './types/combat.ts';
-import type {
-  DailyDefenseState,
-  DefenderLineEntry,
-  NightlyDefenseOutcome,
-} from './types/defense.ts';
+import type { DefenderLineEntry, NightlyDefenseOutcome, NightlyDefensePhase } from './types/defense.ts';
 import type { MassCombatWallSnapshot } from './types/massCombat.ts';
 import type {
   AlliedStructure,
   EncounterSessionConfig,
 } from './types/encounter.ts';
 import type { HexMap } from './types/map.ts';
+import type {
+  CombatRoundContinuation,
+  EncounterCombatStateDelta,
+  RunEncounterCombatRoundArgs,
+} from './encounterCombatTypes.ts';
+export type {
+  CombatRoundContinuation,
+  EncounterCombatStateDelta,
+  RunEncounterCombatRoundArgs,
+} from './encounterCombatTypes.ts';
 import {
   lineAllySpiritShift,
   lineBucketPressureSnapshot,
@@ -89,7 +95,7 @@ export type EncounterCombatTheater = 'nightly_wall' | 'prefeitura_siege';
 export type MassDefenseStructureMode = EncounterCombatTheater;
 
 export interface EncounterCombatRoundResult {
-  nextDaily: DailyDefenseState;
+  stateDelta: EncounterCombatStateDelta;
   wallResult: MassCombatWallSnapshot;
   fightEnded: boolean;
   newLogLines: Omit<CombatLogEntry, 'id'>[];
@@ -143,20 +149,6 @@ function resolveNoRetreat(
   }
   return alliedStructures.some((s) => s.type === 'city_hall');
 }
-
-interface RunEncounterCombatRoundBase {
-  daily: DailyDefenseState;
-  hexMap: HexMap;
-  rng: () => number;
-  /** Pre-normalized defender line. */
-  defenderLine: DefenderLineEntry[];
-  /** At least the structural role(s) for this round (e.g. wall on raid hex, city_hall on Centro). */
-  alliedStructures: ReadonlyArray<AlliedStructure>;
-  /** Optional; retreat default derives from `alliedStructures` when omitted. */
-  sessionConfig?: EncounterSessionConfig;
-}
-
-export type RunEncounterCombatRoundArgs = RunEncounterCombatRoundBase;
 
 /** @deprecated Use {@link RunEncounterCombatRoundArgs} with `alliedStructures` + `sessionConfig`. */
 export type RunMassDefenseCombatRoundArgs = RunEncounterCombatRoundArgs;
@@ -350,30 +342,35 @@ function buildDefenderOnlyStrikeCycle(
  * Single source for nightly wall + Prefeitura siege combat rounds (tower, guards,
  * defender melee, enemy strikes, ally spirit, outcomes).
  *
- * Prefer {@link advanceEncounterCombatRound} from `./encounterCombat.ts` for new
- * callers — explicit allies/enemies arrays and a stable encounter API.
+ * Session fields (`DailyDefenseState`) are merged in the game layer; use
+ * `CombatRoundContinuation` in {@link advanceEncounterCombatRound} from `./encounterCombat.ts`
+ * and {@link applyEncounterCombatRoundToDaily} from `./encounterCombatSessionMerge.ts`.
  */
 export function runEncounterCombatRound(
   args: RunEncounterCombatRoundArgs,
 ): EncounterCombatRoundResult {
   const {
-    daily,
     hexMap: inputHexMap,
     rng,
+    enemies: inputEnemies,
     defenderLine: initialDefenderLine,
     alliedStructures,
     sessionConfig,
+    continuation,
   } = args;
 
   const sk = structuralKindFromAllied(alliedStructures);
   const noRetreat = resolveNoRetreat(alliedStructures, sessionConfig);
-  const wallHexId = wallHexIdFrom(alliedStructures, daily.targetHexId);
+  const wallHexId = wallHexIdFrom(
+    alliedStructures,
+    continuation.wallHexFallback ?? '',
+  );
   const cityHallHexId = cityHallHexIdFrom(alliedStructures, CENTER_HEX_ID);
 
-  const turn = daily.currentTurn + 1;
+  const turn = continuation.currentTurn + 1;
   const t0 = Date.now();
   const lines: Omit<CombatLogEntry, 'id'>[] = [];
-  let enemies = normalizeEnemies(daily.enemies);
+  let enemies = normalizeEnemies(inputEnemies);
   let defenderLine = initialDefenderLine;
   let breached = false;
 
@@ -381,10 +378,10 @@ export function runEncounterCombatRound(
   let prefeituraCollapsed = false;
 
   let allySpirit = clampAllySpirit(
-    daily.allySpirit ?? ALLY_SPIRIT_INITIAL,
+    continuation.allySpirit ?? ALLY_SPIRIT_INITIAL,
   );
   let moraleShockTurnsRemaining = decrementMoraleShock(
-    daily.moraleShockTurnsRemaining ?? 0,
+    continuation.moraleShockTurnsRemaining ?? 0,
   );
 
   const spiritBeforeRound = allySpirit;
@@ -863,9 +860,9 @@ export function runEncounterCombatRound(
   }
 
   const totalEnemyPoints = sumLivingThreatPoints(enemies);
-  let outcome: NightlyDefenseOutcome = daily.outcome;
+  let outcome: NightlyDefenseOutcome = continuation.outcome;
   let isCompleted = false;
-  let phase: DailyDefenseState['phase'] = daily.phase;
+  let phase: NightlyDefensePhase = continuation.phase;
 
   if (sk === 'wall') {
     if (breached) {
@@ -921,17 +918,14 @@ export function runEncounterCombatRound(
     });
   }
 
-  const nextDaily: DailyDefenseState = {
-    ...daily,
+  const stateDelta: EncounterCombatStateDelta = {
     currentTurn: turn,
     enemies,
     defenderLine,
     totalEnemyPoints,
-    combatLog: daily.combatLog,
     outcome,
     isCompleted,
     phase,
-    victoryLootPool: daily.victoryLootPool,
     allySpirit,
     moraleShockTurnsRemaining,
   };
@@ -942,7 +936,7 @@ export function runEncounterCombatRound(
   };
 
   const result: EncounterCombatRoundResult = {
-    nextDaily,
+    stateDelta,
     wallResult,
     fightEnded: isCompleted,
     newLogLines: lines,

@@ -1,8 +1,9 @@
 import type { EnemyInstance } from './types/combat.ts';
-import type { DailyDefenseState, DefenderLineEntry } from './types/defense.ts';
+import type { DefenderLineEntry } from './types/defense.ts';
 import type { AlliedStructure, EncounterSessionConfig } from './types/encounter.ts';
 import type { HexMap } from './types/map.ts';
 
+import type { CombatRoundContinuation, RunEncounterCombatRoundArgs } from './encounterCombatTypes.ts';
 import {
   type EncounterCombatRoundResult,
   runEncounterCombatRound,
@@ -23,6 +24,7 @@ export type EncounterNpcAlliesPreset = {
 };
 
 export type { AlliedStructure, EncounterSessionConfig } from './types/encounter.ts';
+export type { CombatRoundContinuation, EncounterCombatStateDelta } from './encounterCombatTypes.ts';
 
 /** City map for structural features (`wall` and `city_hall` on tiles). */
 export interface EncounterCombatStructuresBundle {
@@ -30,8 +32,9 @@ export interface EncounterCombatStructuresBundle {
 }
 
 /**
- * One combat round: RNG, participant lists, which ally structures participate,
- * optional session config (e.g. `noRetreat`), and the defense session slice.
+ * One combat round: RNG, participant lists, per-round continuation state, which ally
+ * structures participate, optional session config. Session merge (`DailyDefenseState`)
+ * is performed outside the resolver.
  */
 export interface EncounterCombatRoundInput {
   rng: () => number;
@@ -39,7 +42,7 @@ export interface EncounterCombatRoundInput {
   enemies: readonly EncounterCombatEnemy[];
   /**
    * Structural / civic targets for this round (e.g. `wall` on the raid hex,
-   * `city_hall` on Centro). Drives strike cycles and outcomes — not a separate "theater" enum.
+   * `city_hall` on Centro). Drives strike cycles and outcomes.
    */
   alliedStructures: ReadonlyArray<AlliedStructure>;
   /**
@@ -50,9 +53,10 @@ export interface EncounterCombatRoundInput {
   /** Optional: `noRetreat` and future flags. If omitted, retreat defaults from `alliedStructures`. */
   sessionConfig?: EncounterSessionConfig;
   structures: EncounterCombatStructuresBundle;
-  session: {
-    daily: DailyDefenseState;
-  };
+  /**
+   * Turn, spirit, outcome, phase, and wall-hex fallback — not a full `DailyDefenseState`.
+   */
+  continuation: CombatRoundContinuation;
 }
 
 function toRunEncounterCombatRoundArgs(
@@ -60,19 +64,15 @@ function toRunEncounterCombatRoundArgs(
 ): RunEncounterCombatRoundArgs {
   const allies = [...input.allies];
   const enemies = [...input.enemies];
-  const dailyForRound: DailyDefenseState = {
-    ...input.session.daily,
-    enemies,
-    defenderLine: allies,
-  };
 
   return {
-    daily: dailyForRound,
     hexMap: input.structures.hexMap,
     rng: input.rng,
+    enemies,
     defenderLine: allies,
     alliedStructures: input.alliedStructures,
     sessionConfig: input.sessionConfig,
+    continuation: input.continuation,
   };
 }
 

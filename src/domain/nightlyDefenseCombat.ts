@@ -11,6 +11,7 @@ import {
   type MassCombatWallSnapshot,
 } from './types/massCombat.ts';
 import { advanceEncounterCombatRound } from './encounterCombat.ts';
+import { applyEncounterCombatRoundToDaily } from './encounterCombatSessionMerge.ts';
 import { normalizeMassDefenseDefenderLine } from './encounterCombatRound.ts';
 import {
   defenderBucketForLineIndex,
@@ -85,14 +86,28 @@ export function advanceNightlyDefenseRound(
 
   const preparedLine = normalizeMassDefenseDefenderLine(daily.defenderLine);
 
-  return advanceEncounterCombatRound({
+  const r = advanceEncounterCombatRound({
     rng,
     allies: preparedLine,
     enemies: daily.enemies,
     alliedStructures: [{ type: 'wall', hexId: daily.targetHexId }],
     structures: { hexMap },
-    session: { daily },
+    continuation: {
+      currentTurn: daily.currentTurn,
+      outcome: daily.outcome,
+      phase: daily.phase,
+      allySpirit: daily.allySpirit,
+      moraleShockTurnsRemaining: daily.moraleShockTurnsRemaining,
+      wallHexFallback: daily.targetHexId,
+    },
   });
+
+  return {
+    nextDaily: applyEncounterCombatRoundToDaily(daily, r.stateDelta),
+    wallResult: r.wallResult,
+    fightEnded: r.fightEnded,
+    newLogLines: r.newLogLines,
+  };
 }
 
 export function buildDefenderLineFromLocks(
