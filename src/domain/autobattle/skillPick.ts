@@ -9,6 +9,8 @@ export interface AutoplaySkillPickContext {
   defenderHpFraction: number;
   /** Uniform [0, 1); injected for deterministic tests. */
   rng: () => number;
+  /** Optional runtime filter, e.g. cooldown/actionability checks. */
+  isMoveAvailable?: (template: MoveTemplate) => boolean;
 }
 
 const TACTICAL_TAGS = new Set([
@@ -89,7 +91,7 @@ export function pickAutoplaySkill(
   const candidates: MoveTemplate[] = [];
   for (const id of skillIds) {
     const t = getTemplate(id);
-    if (t) candidates.push(t);
+    if (t && (ctx.isMoveAvailable?.(t) ?? true)) candidates.push(t);
   }
   if (candidates.length === 0) return null;
 

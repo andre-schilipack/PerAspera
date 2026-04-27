@@ -17,7 +17,12 @@ export function useCombatLogReveal(
   sessionKey: string,
   delayMs: number,
 ): UseCombatLogRevealResult {
-  const [visibleEntries, setVisibleEntries] = useState<CombatLogEntry[]>([]);
+  const [visibleState, setVisibleState] = useState<{
+    sessionKey: string;
+    entries: CombatLogEntry[];
+  }>({ sessionKey, entries: [] });
+  const visibleEntries =
+    visibleState.sessionKey === sessionKey ? visibleState.entries : [];
   const queueRef = useRef<CombatLogEntry[]>([]);
   const seenIdsRef = useRef<Set<number>>(new Set());
   const sessionRef = useRef(sessionKey);
@@ -27,7 +32,6 @@ export function useCombatLogReveal(
     sessionRef.current = sessionKey;
     seenIdsRef.current = new Set();
     queueRef.current = [];
-    setVisibleEntries([]);
   }, [sessionKey]);
 
   useEffect(() => {
@@ -44,7 +48,11 @@ export function useCombatLogReveal(
       if (queueRef.current.length === 0) return;
       const next = queueRef.current.shift();
       if (next) {
-        setVisibleEntries((prev) => [...prev, next]);
+        setVisibleState((prev) => ({
+          sessionKey,
+          entries:
+            prev.sessionKey === sessionKey ? [...prev.entries, next] : [next],
+        }));
       }
     }, delayMs);
     return () => window.clearInterval(id);
@@ -53,8 +61,12 @@ export function useCombatLogReveal(
   const flushPending = useCallback(() => {
     const rest = queueRef.current.splice(0, queueRef.current.length);
     if (rest.length === 0) return;
-    setVisibleEntries((prev) => [...prev, ...rest]);
-  }, []);
+    setVisibleState((prev) => ({
+      sessionKey,
+      entries:
+        prev.sessionKey === sessionKey ? [...prev.entries, ...rest] : rest,
+    }));
+  }, [sessionKey]);
 
   const pendingApprox = Math.max(0, entries.length - visibleEntries.length);
 

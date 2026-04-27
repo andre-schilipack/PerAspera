@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import type { CombatLogEntry } from '../domain/types/index.ts';
 
@@ -32,11 +32,16 @@ export function CombatLogTurnTabPanel({
   autoScroll = true,
   emptyLabel = '—',
 }: CombatLogTurnTabPanelProps) {
-  const [selected, setSelected] = useState<CombatLogTurnSelection>('all');
+  const [selectionState, setSelectionState] = useState<{
+    resetKey: string;
+    selected: CombatLogTurnSelection;
+  }>({ resetKey, selected: 'all' });
+  const selected =
+    selectionState.resetKey === resetKey ? selectionState.selected : 'all';
 
-  useEffect(() => {
-    setSelected('all');
-  }, [resetKey]);
+  function setSelected(next: CombatLogTurnSelection): void {
+    setSelectionState({ resetKey, selected: next });
+  }
 
   const turnNumbers = useMemo(() => {
     const s = new Set(fullLog.map((e) => e.turn));

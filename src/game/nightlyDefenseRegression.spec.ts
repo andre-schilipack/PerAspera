@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   CENTER_HEX_ID,
   DEFAULT_HEX_WALL_MAX_HP,
-  HOME_HEX_ID,
   NPC_OWNER_PREFEITURA,
 } from '../domain/constants.ts';
 import { createEmptyDailyDefense } from '../domain/factories/createDefenseSeed.ts';

@@ -19,6 +19,7 @@ describe('buildDefenderLineFromLocks', () => {
     expect(line[0]!.coreAttributes?.strength).toBe(3);
     expect(line[0]!.skillIds).toEqual(['basic_attack', 'int_spike']);
     expect(line[0]!.tacticalBucket).toBe('front');
+    expect(line[0]!.combatState).toEqual({ cooldowns: {}, statuses: {} });
   });
 
   it('omits optional combat fields when character has no loadout snapshot', () => {

@@ -64,6 +64,16 @@ export type MovePower =
       terms: readonly { attribute: CoreAttributeKey; coefficient: number }[];
     };
 
+export type MoveEffect =
+  | { kind: 'damage' }
+  | { kind: 'heal' }
+  | {
+      kind: 'selfBuff';
+      statusId: string;
+      /** Human-readable combat log label for the buff effect. */
+      label: string;
+    };
+
 /**
  * Authoritative definition for a combat move (catalog row).
  * Runtime combat uses templates + participant state (cooldowns, buffs).
@@ -72,6 +82,7 @@ export interface MoveTemplate {
   id: MoveTemplateId;
   name: string;
   description: string;
+  effect: MoveEffect;
   damageKind: MoveDamageKind;
   targets: MoveTargetScope;
   /** Future: stamina or other combat-resource cost per use. */

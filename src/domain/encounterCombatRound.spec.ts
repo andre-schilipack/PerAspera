@@ -193,4 +193,217 @@ describe('encounterCombatRound', () => {
       true,
     );
   });
+
+  it('keeps defender move cooldowns across rounds and falls back while cooling down', () => {
+    const hexMap = hexMapWithWallAt(HOME_HEX_ID);
+    const enemies = [
+      {
+        enemyId: 'grunt_a',
+        currentHealth: 1000,
+        maxHealth: 1000,
+        tacticalBucket: 'front' as const,
+        buffs: {},
+      },
+      {
+        enemyId: 'grunt_b',
+        currentHealth: 1000,
+        maxHealth: 1000,
+        tacticalBucket: 'front' as const,
+        buffs: {},
+      },
+    ];
+
+    const first = runEncounterCombatRound({
+      alliedStructures: [],
+      enemies,
+      hexMap,
+      rng: () => 0.99,
+      defenderLine: normalizeMassDefenseDefenderLine([
+        {
+          characterId: 'c1',
+          name: 'Vega',
+          currentHp: 200,
+          maxHp: 200,
+          retreated: false,
+          tacticalBucket: 'ranged',
+          coreAttributes: { ...DEFAULT_CORE_ATTRIBUTES, intelligence: 8 },
+          skillIds: ['fireball', 'basic_attack'],
+          combatState: { cooldowns: {}, statuses: {} },
+        },
+      ]),
+      continuation: {
+        currentTurn: 0,
+        outcome: 'active',
+        phase: 'fighting',
+      },
+    });
+
+    expect(first.newLogLines.some((l) => l.text.includes('Bola de fogo'))).toBe(
+      true,
+    );
+    expect(first.stateDelta.defenderLine[0]!.combatState?.cooldowns.fireball).toBe(5);
+
+    const second = runEncounterCombatRound({
+      alliedStructures: [],
+      enemies: first.stateDelta.enemies,
+      hexMap,
+      rng: () => 0.99,
+      defenderLine: first.stateDelta.defenderLine,
+      continuation: {
+        currentTurn: first.stateDelta.currentTurn,
+        outcome: first.stateDelta.outcome,
+        phase: first.stateDelta.phase,
+        allySpirit: first.stateDelta.allySpirit,
+        moraleShockTurnsRemaining: first.stateDelta.moraleShockTurnsRemaining,
+      },
+    });
+
+    const playerLines = second.newLogLines.filter((l) => l.type === 'player');
+    expect(playerLines.some((l) => l.text.includes('Basic attack'))).toBe(true);
+    expect(playerLines.some((l) => l.text.includes('Bola de fogo'))).toBe(false);
+    expect(second.stateDelta.defenderLine[0]!.combatState?.cooldowns.fireball).toBe(4);
+  });
+
+  it('respects multi and all target scopes in player move logs', () => {
+    const hexMap = hexMapWithWallAt(HOME_HEX_ID);
+    const enemies = Array.from({ length: 3 }, (_, i) => ({
+      enemyId: `grunt_${String(i)}`,
+      currentHealth: 1000,
+      maxHealth: 1000,
+      tacticalBucket: 'front' as const,
+      buffs: {},
+    }));
+
+    const multi = runEncounterCombatRound({
+      alliedStructures: [],
+      enemies,
+      hexMap,
+      rng: () => 0.99,
+      defenderLine: normalizeMassDefenseDefenderLine([
+        {
+          characterId: 'c1',
+          name: 'Vega',
+          currentHp: 200,
+          maxHp: 200,
+          retreated: false,
+          tacticalBucket: 'ranged',
+          coreAttributes: { ...DEFAULT_CORE_ATTRIBUTES, intelligence: 8 },
+          skillIds: ['fireball'],
+          combatState: { cooldowns: {}, statuses: {} },
+        },
+      ]),
+      continuation: { currentTurn: 0, outcome: 'active', phase: 'fighting' },
+    });
+    expect(multi.newLogLines.some((l) => l.text.includes('2 targets'))).toBe(true);
+
+    const all = runEncounterCombatRound({
+      alliedStructures: [],
+      enemies,
+      hexMap,
+      rng: () => 0.99,
+      defenderLine: normalizeMassDefenseDefenderLine([
+        {
+          characterId: 'c1',
+          name: 'Vega',
+          currentHp: 200,
+          maxHp: 200,
+          retreated: false,
+          tacticalBucket: 'ranged',
+          coreAttributes: { ...DEFAULT_CORE_ATTRIBUTES, intelligence: 8 },
+          skillIds: ['arc_burst'],
+          combatState: { cooldowns: {}, statuses: {} },
+        },
+      ]),
+      continuation: { currentTurn: 0, outcome: 'active', phase: 'fighting' },
+    });
+    expect(all.newLogLines.some((l) => l.text.includes('3 targets'))).toBe(true);
+  });
+
+  it('cure heals the most wounded living ally without exceeding max HP', () => {
+    const hexMap = hexMapWithWallAt(HOME_HEX_ID);
+    const r = runEncounterCombatRound({
+      alliedStructures: [],
+      enemies: [
+        {
+          enemyId: 'brute',
+          currentHealth: 1000,
+          maxHealth: 1000,
+          tacticalBucket: 'front',
+          buffs: {},
+        },
+      ],
+      hexMap,
+      rng: () => 0.99,
+      defenderLine: normalizeMassDefenseDefenderLine([
+        {
+          characterId: 'healer',
+          name: 'Nara',
+          currentHp: 100,
+          maxHp: 100,
+          retreated: false,
+          tacticalBucket: 'front',
+          coreAttributes: { ...DEFAULT_CORE_ATTRIBUTES, intelligence: 3, charisma: 3 },
+          skillIds: ['cure'],
+          combatState: { cooldowns: {}, statuses: {} },
+        },
+        {
+          characterId: 'ally',
+          name: 'Ivo',
+          currentHp: 5,
+          maxHp: 20,
+          retreated: false,
+          tacticalBucket: 'ranged',
+          coreAttributes: { ...DEFAULT_CORE_ATTRIBUTES },
+          skillIds: ['basic_attack'],
+          combatState: { cooldowns: {}, statuses: {} },
+        },
+      ]),
+      continuation: { currentTurn: 0, outcome: 'active', phase: 'fighting' },
+    });
+
+    expect(r.stateDelta.defenderLine[1]!.currentHp).toBe(19);
+    expect(r.newLogLines.some((l) => l.text.includes('heals Ivo'))).toBe(true);
+  });
+
+  it('defensive stance raises block chance while the status is active', () => {
+    let calls = 0;
+    const rng = () => {
+      calls += 1;
+      if (calls === 18) return 0.99;
+      if (calls === 19) return 0.3;
+      return 0.5;
+    };
+
+    const r = runEncounterCombatRound({
+      alliedStructures: [],
+      enemies: [
+        {
+          enemyId: 'brute',
+          currentHealth: 1000,
+          maxHealth: 1000,
+          tacticalBucket: 'front',
+          buffs: {},
+        },
+      ],
+      hexMap: hexMapWithWallAt(HOME_HEX_ID),
+      rng,
+      defenderLine: normalizeMassDefenseDefenderLine([
+        {
+          characterId: 'tank',
+          name: 'Bia',
+          currentHp: 40,
+          maxHp: 40,
+          retreated: false,
+          tacticalBucket: 'front',
+          coreAttributes: { ...DEFAULT_CORE_ATTRIBUTES },
+          skillIds: ['defensive_stance'],
+          combatState: { cooldowns: {}, statuses: {} },
+        },
+      ]),
+      continuation: { currentTurn: 0, outcome: 'active', phase: 'fighting' },
+    });
+
+    expect(r.stateDelta.defenderLine[0]!.combatState?.statuses.defensive_stance).toBe(3);
+    expect(r.stateDelta.defenderLine[0]!.currentHp).toBe(37);
+  });
 });

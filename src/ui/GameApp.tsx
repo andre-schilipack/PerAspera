@@ -661,7 +661,7 @@ export default function GameApp() {
     updateCharacter(character.id, { creds: character.creds + gain });
   }
 
-  function useInventoryConsumable(item: Item) {
+  function handleInventoryConsumable(item: Item) {
     if (!character) return;
     const entry = resolveMarketEntryForItem(item);
     if (!entry || entry.type !== 'consumable') return;
@@ -1183,7 +1183,7 @@ export default function GameApp() {
                         {' '}
                         <button
                           type="button"
-                          onClick={() => useInventoryConsumable(it)}
+                          onClick={() => handleInventoryConsumable(it)}
                           disabled={dailyBlocked}
                         >
                           Use

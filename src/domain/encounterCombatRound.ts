@@ -16,6 +16,8 @@ import {
   DEFENSE_RETREAT_HP_FRACTION,
   DEFENSE_TOWER_DAMAGE_MAX,
   DEFENSE_TOWER_DAMAGE_MIN,
+  BASE_MELEE_BLOCK_CHANCE,
+  BASE_MELEE_DODGE_CHANCE,
 } from './constants.ts';
 import {
   allySpiritOutgoingDamageMultiplier,
@@ -30,6 +32,7 @@ import {
   resolveTowerRajadaStrike,
 } from './defenseNpcMoves.ts';
 import {
+  computeRawPower,
   pickAutoplayMoveTemplate,
   resolveMoveTemplateStrike,
   resolveStrikeDamage,
@@ -60,10 +63,17 @@ import {
 import type {
   CombatBeatPhase,
   CombatLogEntry,
+  DefenseTacticalBucket,
   EnemyInstance,
   MoveTemplate,
+  MoveTemplateId,
 } from './types/combat.ts';
-import type { DefenderLineEntry, NightlyDefenseOutcome, NightlyDefensePhase } from './types/defense.ts';
+import type {
+  DefenderCombatState,
+  DefenderLineEntry,
+  NightlyDefenseOutcome,
+  NightlyDefensePhase,
+} from './types/defense.ts';
 import type { MassCombatWallSnapshot } from './types/massCombat.ts';
 import type {
   AlliedStructure,
@@ -71,7 +81,6 @@ import type {
 } from './types/encounter.ts';
 import type { HexMap } from './types/map.ts';
 import type {
-  CombatRoundContinuation,
   EncounterCombatStateDelta,
   RunEncounterCombatRoundArgs,
 } from './encounterCombatTypes.ts';
@@ -203,6 +212,164 @@ function averageDefenderLineHpFraction(
   return sum / active.length;
 }
 
+function normalizeCombatState(
+  state: DefenderLineEntry['combatState'],
+): DefenderCombatState {
+  return {
+    cooldowns: { ...(state?.cooldowns ?? {}) },
+    statuses: { ...(state?.statuses ?? {}) },
+  };
+}
+
+function decrementPositiveRecord(
+  record: Record<string, number>,
+): Record<string, number> {
+  const next: Record<string, number> = {};
+  for (const [id, turns] of Object.entries(record)) {
+    const remaining = Math.max(0, Math.floor(turns) - 1);
+    if (remaining > 0) next[id] = remaining;
+  }
+  return next;
+}
+
+function decrementDefenderCombatState(def: DefenderLineEntry): DefenderLineEntry {
+  const state = normalizeCombatState(def.combatState);
+  return {
+    ...def,
+    combatState: {
+      cooldowns: decrementPositiveRecord(state.cooldowns),
+      statuses: decrementPositiveRecord(state.statuses),
+    },
+  };
+}
+
+function statusTurns(def: DefenderLineEntry, statusId: string): number {
+  return def.combatState?.statuses[statusId] ?? 0;
+}
+
+function moveCooldownTurns(def: DefenderLineEntry, moveId: MoveTemplateId): number {
+  return def.combatState?.cooldowns[moveId] ?? 0;
+}
+
+function isMoveActionable(
+  template: MoveTemplate,
+  def: DefenderLineEntry,
+  defenderLine: readonly DefenderLineEntry[],
+): boolean {
+  if (moveCooldownTurns(def, template.id) > 0) return false;
+  if (template.effect.kind === 'heal') {
+    return defenderLine.some((d) => d.currentHp > 0 && d.currentHp < d.maxHp);
+  }
+  if (template.effect.kind === 'selfBuff') {
+    return statusTurns(def, template.effect.statusId) <= 0;
+  }
+  return true;
+}
+
+function availableSkillIdsForDefender(
+  def: DefenderLineEntry,
+  defenderLine: readonly DefenderLineEntry[],
+): MoveTemplateId[] {
+  const skillIds = def.skillIds ?? [];
+  const out: MoveTemplateId[] = [];
+  for (const id of skillIds) {
+    const template = getMoveTemplate(id);
+    if (template && isMoveActionable(template, def, defenderLine)) {
+      out.push(id);
+    }
+  }
+  return out;
+}
+
+function putMoveOnCooldown(
+  def: DefenderLineEntry,
+  move: MoveTemplate,
+): DefenderLineEntry {
+  const cd = move.cooldownTurns ?? 0;
+  if (cd <= 0) return def;
+  const state = normalizeCombatState(def.combatState);
+  return {
+    ...def,
+    combatState: {
+      ...state,
+      cooldowns: { ...state.cooldowns, [move.id]: cd },
+    },
+  };
+}
+
+function applySelfBuff(def: DefenderLineEntry, move: MoveTemplate): DefenderLineEntry {
+  if (move.effect.kind !== 'selfBuff') return def;
+  const duration = move.durationTurns ?? 1;
+  const state = normalizeCombatState(def.combatState);
+  return {
+    ...def,
+    combatState: {
+      ...state,
+      statuses: {
+        ...state.statuses,
+        [move.effect.statusId]: Math.max(1, duration),
+      },
+    },
+  };
+}
+
+function updateDefenderAt(
+  line: DefenderLineEntry[],
+  index: number,
+  nextDef: DefenderLineEntry,
+): DefenderLineEntry[] {
+  const next = [...line];
+  next[index] = nextDef;
+  return next;
+}
+
+function incomingDefenseOptionsFor(def: DefenderLineEntry): {
+  dodgeChance?: number;
+  blockChance?: number;
+} {
+  const dodgeBonus = statusTurns(def, 'be_like_water') > 0 ? 0.35 : 0;
+  const blockBonus = statusTurns(def, 'defensive_stance') > 0 ? 0.5 : 0;
+  return {
+    dodgeChance: Math.min(0.75, BASE_MELEE_DODGE_CHANCE + dodgeBonus),
+    blockChance: Math.min(0.75, BASE_MELEE_BLOCK_CHANCE + blockBonus),
+  };
+}
+
+function firstLivingEnemyIndex(enemies: readonly EnemyInstance[]): number {
+  return enemies.findIndex((e) => e.currentHealth > 0);
+}
+
+function livingEnemyIndicesPreferBucket(
+  enemies: readonly EnemyInstance[],
+  bucket: DefenseTacticalBucket,
+): number[] {
+  const living = enemies
+    .map((e, i) => (e.currentHealth > 0 ? i : -1))
+    .filter((i): i is number => i >= 0);
+  const preferred = living.filter(
+    (i) => (enemies[i]!.tacticalBucket ?? 'front') === bucket,
+  );
+  return [...preferred, ...living.filter((i) => !preferred.includes(i))];
+}
+
+function targetIndicesForMove(
+  move: MoveTemplate,
+  enemies: readonly EnemyInstance[],
+  prefBucket: DefenseTacticalBucket,
+  rng: () => number,
+): number[] {
+  if (move.targets === 'single') {
+    const hitIdx = pickLivingEnemyIndexPreferBucket(enemies, prefBucket, rng);
+    return hitIdx >= 0 ? [hitIdx] : [];
+  }
+  if (move.targets === 'all') {
+    return enemies
+      .map((e, i) => (e.currentHealth > 0 ? i : -1))
+      .filter((i): i is number => i >= 0);
+  }
+  return livingEnemyIndicesPreferBucket(enemies, prefBucket).slice(0, 2);
+}
+
 /**
  * Beat phase + hostile HP fraction for autoplay scoring ({@link pickAutoplaySkill}).
  * `defenderHpFraction`: pool health of opposing force (hostiles here).
@@ -260,13 +427,6 @@ function formatDefenderStrikePlayerLog(params: {
     return `${def.name} (${prefBucket}) (blocked): ${String(hit.finalDamage)} damage.`;
   }
   return `${def.name} (${prefBucket}) hits for ${String(hit.finalDamage)} damage.`;
-}
-
-function firstLivingEnemyIndex(enemies: readonly EnemyInstance[]): number {
-  for (let i = 0; i < enemies.length; i++) {
-    if (enemies[i]!.currentHealth > 0) return i;
-  }
-  return -1;
 }
 
 function normalizeEnemies(list: readonly EnemyInstance[]): EnemyInstance[] {
@@ -371,7 +531,7 @@ export function runEncounterCombatRound(
   const t0 = Date.now();
   const lines: Omit<CombatLogEntry, 'id'>[] = [];
   let enemies = normalizeEnemies(inputEnemies);
-  let defenderLine = initialDefenderLine;
+  let defenderLine = initialDefenderLine.map(decrementDefenderCombatState);
   let breached = false;
 
   let workingHexMap = cloneHexMapForRound(inputHexMap);
@@ -471,7 +631,8 @@ export function runEncounterCombatRound(
     return def.currentHp <= 0;
   };
 
-  for (const def of defenderLine) {
+  for (let lineIndex = 0; lineIndex < defenderLine.length; lineIndex++) {
+    const def = defenderLine[lineIndex]!;
     if (skipDefender(def)) continue;
     if (firstLivingEnemyIndex(enemies) < 0) break;
 
@@ -481,9 +642,7 @@ export function runEncounterCombatRound(
       def.skillIds !== undefined &&
       def.skillIds.length > 0;
 
-    let supportBoost = false;
-    let hit: MeleeResolveResult;
-    let pickedMove: MoveTemplate | undefined;
+    let actingDef = def;
 
     if (useSkillAutoplay) {
       const skillCtx = massDefenseSkillPickContext(
@@ -493,15 +652,70 @@ export function runEncounterCombatRound(
         defenderLine,
         rng,
       );
+      const availableSkillIds = availableSkillIdsForDefender(def, defenderLine);
       const template = pickAutoplayMoveTemplate(
-        def.skillIds!,
+        availableSkillIds,
         getMoveTemplate,
         def.coreAttributes!,
         skillCtx,
       );
-      pickedMove = template;
 
+      if (template.effect.kind === 'heal') {
+        const healTargetIndex = defenderLine.reduce((best, candidate, i) => {
+          if (candidate.currentHp <= 0 || candidate.currentHp >= candidate.maxHp) {
+            return best;
+          }
+          if (best < 0) return i;
+          const bestDef = defenderLine[best]!;
+          const candidateFrac = candidate.currentHp / candidate.maxHp;
+          const bestFrac = bestDef.currentHp / bestDef.maxHp;
+          return candidateFrac < bestFrac ? i : best;
+        }, -1);
+        const healAmount = computeRawPower(template, def.coreAttributes!);
+        if (healTargetIndex >= 0) {
+          const target = defenderLine[healTargetIndex]!;
+          const nextHp = Math.min(target.maxHp, target.currentHp + healAmount);
+          defenderLine = updateDefenderAt(defenderLine, healTargetIndex, {
+            ...target,
+            currentHp: nextHp,
+          });
+          lines.push({
+            turn,
+            timestamp: t0,
+            text: `${def.name} — ${template.name}: heals ${target.name} for ${String(nextHp - target.currentHp)} HP.`,
+            type: 'player',
+          });
+        } else {
+          lines.push({
+            turn,
+            timestamp: t0,
+            text: `${def.name} — ${template.name}: no wounded ally to heal.`,
+            type: 'player',
+          });
+        }
+        actingDef = putMoveOnCooldown(defenderLine[lineIndex] ?? def, template);
+        defenderLine = updateDefenderAt(defenderLine, lineIndex, actingDef);
+        continue;
+      }
+
+      if (template.effect.kind === 'selfBuff') {
+        actingDef = applySelfBuff(def, template);
+        actingDef = putMoveOnCooldown(actingDef, template);
+        defenderLine = updateDefenderAt(defenderLine, lineIndex, actingDef);
+        lines.push({
+          turn,
+          timestamp: t0,
+          text: `${def.name} — ${template.name}: ${template.effect.label} for ${String(template.durationTurns ?? 1)} turns.`,
+          type: 'player',
+        });
+        continue;
+      }
+
+      let supportBoost = false;
       let strikePowerMultiplier = outgoingMul;
+      if (statusTurns(def, 'concentration') > 0 && template.tags.includes('ranged')) {
+        strikePowerMultiplier *= 1.35;
+      }
       if (def.tacticalBucket === 'support' && rng() < 0.38) {
         allySpirit = clampAllySpirit(allySpirit + ALLY_SPIRIT_SUPPORT_CONNECT);
         supportBoost = true;
@@ -515,14 +729,43 @@ export function runEncounterCombatRound(
         });
       }
 
-      hit = resolveMoveTemplateStrike({
-        template,
-        attackerAttributes: def.coreAttributes!,
-        defenderReceivingStrike: DEFENSE_HOSTILE_FIRE_DEFENDER_ATTRIBUTES,
-        rng,
-        strikePowerMultiplier,
+      const targetIndices = targetIndicesForMove(template, enemies, prefBucket, rng);
+      const beforeHits = livingEnemyCount(enemies);
+      let totalDamage = 0;
+      let firstHit: MeleeResolveResult | null = null;
+      for (const hitIdx of targetIndices) {
+        const hit = resolveMoveTemplateStrike({
+          template,
+          attackerAttributes: def.coreAttributes!,
+          defenderReceivingStrike: DEFENSE_HOSTILE_FIRE_DEFENDER_ATTRIBUTES,
+          rng,
+          strikePowerMultiplier,
+        });
+        firstHit ??= hit;
+        totalDamage += hit.finalDamage;
+        enemies = applyDamageToEnemyAt(enemies, hitIdx, hit.finalDamage);
+      }
+      killsThisRound += Math.max(0, beforeHits - livingEnemyCount(enemies));
+      actingDef = putMoveOnCooldown(def, template);
+      defenderLine = updateDefenderAt(defenderLine, lineIndex, actingDef);
+      lines.push({
+        turn,
+        timestamp: t0,
+        text:
+          template.targets === 'single' && firstHit
+            ? formatDefenderStrikePlayerLog({
+                def,
+                prefBucket,
+                hit: firstHit,
+                supportBoost,
+                noRetreat,
+                move: template,
+              })
+            : `${def.name} (${prefBucket}) — ${template.name}: ${String(totalDamage)} total damage to ${String(targetIndices.length)} targets.`,
+        type: 'player',
       });
     } else {
+      let supportBoost = false;
       let raw = rollIntInclusive(rng, 5, 12);
       raw = Math.max(1, Math.floor(raw * outgoingMul));
 
@@ -539,7 +782,7 @@ export function runEncounterCombatRound(
         });
       }
 
-      hit =
+      const hit =
         def.coreAttributes !== undefined
           ? resolveStrikeDamage(
               raw,
@@ -548,28 +791,27 @@ export function runEncounterCombatRound(
               rng,
             )
           : resolveIncomingMeleeDamage(raw, rng);
-    }
 
-    const hitIdx = pickLivingEnemyIndexPreferBucket(enemies, prefBucket, rng);
-    const beforeHits = livingEnemyCount(enemies);
-    if (hitIdx >= 0) {
-      enemies = applyDamageToEnemyAt(enemies, hitIdx, hit.finalDamage);
-      killsThisRound += Math.max(0, beforeHits - livingEnemyCount(enemies));
-    }
+      const hitIdx = pickLivingEnemyIndexPreferBucket(enemies, prefBucket, rng);
+      const beforeHits = livingEnemyCount(enemies);
+      if (hitIdx >= 0) {
+        enemies = applyDamageToEnemyAt(enemies, hitIdx, hit.finalDamage);
+        killsThisRound += Math.max(0, beforeHits - livingEnemyCount(enemies));
+      }
 
-    lines.push({
-      turn,
-      timestamp: t0,
-      text: formatDefenderStrikePlayerLog({
-        def,
-        prefBucket,
-        hit,
-        supportBoost,
-        noRetreat,
-        move: pickedMove,
-      }),
-      type: 'player',
-    });
+      lines.push({
+        turn,
+        timestamp: t0,
+        text: formatDefenderStrikePlayerLog({
+          def,
+          prefBucket,
+          hit,
+          supportBoost,
+          noRetreat,
+        }),
+        type: 'player',
+      });
+    }
   }
 
   enemies = enemies.filter((e) => e.currentHealth > 0);
@@ -639,7 +881,11 @@ export function runEncounterCombatRound(
         DEFENSE_ENEMY_STRIKE_VS_PLAYER_MIN,
         DEFENSE_ENEMY_STRIKE_VS_PLAYER_MAX,
       );
-      const strike = resolveIncomingMeleeDamage(rawMelee, rng);
+      const strike = resolveIncomingMeleeDamage(
+        rawMelee,
+        rng,
+        incomingDefenseOptionsFor(d),
+      );
       const nextHp = strike.flags.dodged
         ? d.currentHp
         : Math.max(0, d.currentHp - strike.finalDamage);
@@ -743,7 +989,11 @@ export function runEncounterCombatRound(
         DEFENSE_ENEMY_STRIKE_VS_PLAYER_MIN,
         DEFENSE_ENEMY_STRIKE_VS_PLAYER_MAX,
       );
-      const strike = resolveIncomingMeleeDamage(rawMelee, rng);
+      const strike = resolveIncomingMeleeDamage(
+        rawMelee,
+        rng,
+        incomingDefenseOptionsFor(d),
+      );
       const nextHp = strike.flags.dodged
         ? d.currentHp
         : Math.max(0, d.currentHp - strike.finalDamage);
@@ -799,7 +1049,11 @@ export function runEncounterCombatRound(
         DEFENSE_ENEMY_STRIKE_VS_PLAYER_MIN,
         DEFENSE_ENEMY_STRIKE_VS_PLAYER_MAX,
       );
-      const strike = resolveIncomingMeleeDamage(rawMelee, rng);
+      const strike = resolveIncomingMeleeDamage(
+        rawMelee,
+        rng,
+        incomingDefenseOptionsFor(d),
+      );
       const nextHp = strike.flags.dodged
         ? d.currentHp
         : Math.max(0, d.currentHp - strike.finalDamage);

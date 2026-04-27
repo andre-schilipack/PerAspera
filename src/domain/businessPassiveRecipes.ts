@@ -6,7 +6,6 @@ import {
 import type {
   Business,
   BusinessInventorySlot,
-  FabricaRecipeId,
   IndustrialRecipeId,
   PassiveItemBuffer,
 } from './types/economy.ts';
@@ -76,7 +75,6 @@ function applyIndustrialTransform(
 function applyFabricaConstruction(
   buf: PassiveItemBuffer,
   slots: BusinessInventorySlot[],
-  _recipe: FabricaRecipeId,
 ): {
   passiveItemBuffer: PassiveItemBuffer;
   inventorySlots: BusinessInventorySlot[];
@@ -125,11 +123,9 @@ export function applyPassiveRecipeBuffers(business: Business): Business {
   }
 
   if (business.type === 'fabrica') {
-    const recipe = business.fabricaRecipe ?? 'construction_bundle';
     const { passiveItemBuffer, inventorySlots } = applyFabricaConstruction(
       business.passiveItemBuffer,
       business.inventorySlots,
-      recipe,
     );
     return {
       ...business,

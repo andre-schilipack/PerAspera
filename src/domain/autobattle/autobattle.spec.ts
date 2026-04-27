@@ -86,6 +86,21 @@ describe('pickAutoplaySkill', () => {
     );
     expect(pick?.id).toBe('int_spike');
   });
+
+  it('can ignore unavailable moves when picking autoplay skills', () => {
+    const pick = pickAutoplaySkill(
+      ['fireball', 'basic_attack'],
+      (id) => MOVE_CATALOG[id],
+      { ...DEFAULT_CORE_ATTRIBUTES, intelligence: 8 },
+      {
+        combatBeatPhase: 'contact',
+        defenderHpFraction: 0.5,
+        rng: zeroRng,
+        isMoveAvailable: (template) => template.id !== 'fireball',
+      },
+    );
+    expect(pick?.id).toBe('basic_attack');
+  });
 });
 
 describe('scoreSkillTemplate', () => {

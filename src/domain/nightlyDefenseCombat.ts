@@ -141,6 +141,7 @@ export function buildDefenderLineFromLocks(
           ? { ...ch.coreAttributes }
           : undefined,
       skillIds,
+      combatState: { cooldowns: {}, statuses: {} },
     });
   }
   return out;

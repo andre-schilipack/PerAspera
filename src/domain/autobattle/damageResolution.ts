@@ -8,7 +8,8 @@ import type { MoveDamageKind } from '../types/combat.ts';
 import type { MeleeResolveResult } from '../combatResolution.ts';
 
 /** Stub for future armor/resists per damage kind (1 = no change). */
-export function damageKindResistanceMultiplier(_kind: MoveDamageKind): number {
+export function damageKindResistanceMultiplier(kind: MoveDamageKind): number {
+  void kind;
   return 1;
 }
 

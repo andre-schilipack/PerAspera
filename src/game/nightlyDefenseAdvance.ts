@@ -78,7 +78,7 @@ export function buildNightlyDefenseAdvanceCommit(
     !dd.isCompleted
   ) {
     if (!snapshot.hexMap) {
-      let nextId = startId + 1;
+      const nextId = startId + 1;
       const line: CombatLogEntry = {
         id: nextId,
         turn: dd.currentTurn,

@@ -269,10 +269,13 @@ function stripLegacyAttackedSectionFromDailyDefense(): void {
     unknown
   >;
   if (!('attackedSection' in daily)) return;
-  const { attackedSection: _removed, ...rest } = daily;
+  const { attackedSection, ...rest } = daily;
+  void attackedSection;
   useDefenseStore
     .getState()
-    .setDailyDefense(rest as import('../domain/types/index.ts').DailyDefenseState);
+    .setDailyDefense(
+      rest as unknown as import('../domain/types/index.ts').DailyDefenseState,
+    );
 }
 
 /**

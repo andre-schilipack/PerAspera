@@ -66,12 +66,10 @@ function mergeCombatLoadout(raw: LegacyCharacterShape): CombatLoadout {
  * Ensures persisted or partial character records match the current {@link Character} shape.
  */
 export function normalizeCharacter(raw: LegacyCharacterShape): Character {
-  const {
-    availableMoves: _omit,
-    combatLoadout: _omitLoad,
-    coreAttributes: rawAttrs,
-    ...rest
-  } = raw;
+  const { coreAttributes: rawAttrs, ...restWithLegacy } = raw;
+  const rest = { ...restWithLegacy };
+  delete rest.availableMoves;
+  delete rest.combatLoadout;
 
   const base = rest as Omit<
     Character,

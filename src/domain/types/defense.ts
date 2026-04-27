@@ -17,6 +17,13 @@ export type NightlyDefenseOutcome =
   | 'prefeitura_siege'
   | 'loss';
 
+export interface DefenderCombatState {
+  /** Move template id -> turns before the move can be selected again. */
+  cooldowns: Record<MoveTemplateId, number>;
+  /** Runtime buff/status id -> turns remaining. */
+  statuses: Record<string, number>;
+}
+
 /** Player defenders in the nightly fight (session HP; melee front line MVP). */
 export interface DefenderLineEntry {
   characterId: string;
@@ -35,6 +42,11 @@ export interface DefenderLineEntry {
    * Deck for future autoplay on the line ({@link pickAutoplaySkill}); optional until wired.
    */
   skillIds?: MoveTemplateId[];
+  /**
+   * Runtime state for a single defense session. Optional so old saves and tests start
+   * with an empty state.
+   */
+  combatState?: DefenderCombatState;
 }
 
 export interface DailyDefenseState {

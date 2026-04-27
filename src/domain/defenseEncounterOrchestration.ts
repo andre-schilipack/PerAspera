@@ -52,7 +52,7 @@ export function openPrefeituraPhaseAfterWallBreach(
   input: OpenPrefeituraPhaseAfterWallBreachInput,
 ): OpenPrefeituraPhaseAfterWallBreachResult {
   const { snapshot, hexMap, civilianPopulation, targetHexId, rng, now } = input;
-  let nextDaily = snapshot.dailyDefense;
+  const nextDaily = snapshot.dailyDefense;
   let nextId = snapshot.nextCombatLogEntryId;
 
   if (!hexMap) {
