@@ -1,6 +1,12 @@
-import type { MoveDamageKind } from '../../types/combat.ts';
+import type { MoveDamageKind, MoveTemplate } from '../../types/combat.ts';
 import { resolveStrikeDamage } from '../../autobattle/damageResolution.ts';
 import type { MeleeResolveResult } from '../../combatResolution.ts';
+import { combatBeatPhaseFromTurns } from '../../autobattle/combatBeatPhase.ts';
+import {
+  pickAutoplayMoveTemplate,
+  resolveMoveTemplateStrike,
+} from '../../autobattle/autoplayStrike.ts';
+import { getMoveTemplate } from '../../../content/catalogs/moves.ts';
 
 import { MinHeap } from './heap.ts';
 import {
@@ -72,6 +78,7 @@ function initUnitState(spec: UnitSpec): UnitState {
   const maxMana = Math.max(0, Math.floor(spec.maxMana));
   const mana = Math.max(0, Math.min(maxMana, Math.floor(spec.mana ?? 0)));
   const speed = Number.isFinite(spec.speed) ? spec.speed : 1;
+  const skillIds = spec.skillIds ?? [];
   return {
     unitId: spec.unitId,
     teamId: spec.teamId,
@@ -82,11 +89,36 @@ function initUnitState(spec: UnitSpec): UnitState {
     maxHp,
     mana,
     maxMana,
+    skillIds,
+    cooldowns: {},
+    statuses: {},
     speed,
     alive: hp > 0,
     retreated: false,
     nextActAt: 0,
   };
+}
+
+function decrementRecordByTicks(
+  record: Record<string, number>,
+  deltaTicks: number,
+): Record<string, number> {
+  if (deltaTicks <= 0) return record;
+  const next: Record<string, number> = {};
+  for (const [k, v] of Object.entries(record)) {
+    const rem = Math.max(0, Math.floor(v) - deltaTicks);
+    if (rem > 0) next[k] = rem;
+  }
+  return next;
+}
+
+function decayAllByTicks(state: BattleState, deltaTicks: number): void {
+  if (deltaTicks <= 0) return;
+  for (const u of Object.values(state.unitsById)) {
+    if (!u.alive || u.retreated) continue;
+    u.cooldowns = decrementRecordByTicks(u.cooldowns, deltaTicks);
+    u.statuses = decrementRecordByTicks(u.statuses, deltaTicks);
+  }
 }
 
 function initStats(units: readonly UnitSpec[]): BattleStatsSummary {
@@ -122,9 +154,70 @@ function resolveMeleeAttack(params: {
   return { damageKind, hit };
 }
 
+function averageEnemyHpFraction(state: BattleState, actor: UnitState): number {
+  let sum = 0;
+  let count = 0;
+  for (const u of Object.values(state.unitsById)) {
+    if (!u.alive || u.retreated) continue;
+    if (u.teamId === actor.teamId) continue;
+    sum += u.maxHp > 0 ? u.hp / u.maxHp : 0;
+    count++;
+  }
+  return count > 0 ? sum / count : 1;
+}
+
+function mostWoundedAllyId(state: BattleState, actor: UnitState): UnitId | null {
+  let best: { id: UnitId; frac: number } | null = null;
+  for (const u of Object.values(state.unitsById)) {
+    if (!u.alive || u.retreated) continue;
+    if (u.teamId !== actor.teamId) continue;
+    const frac = u.maxHp > 0 ? u.hp / u.maxHp : 0;
+    if (frac >= 1) continue;
+    const cand = { id: u.unitId, frac };
+    if (!best || cand.frac < best.frac || (cand.frac === best.frac && cand.id < best.id)) {
+      best = cand;
+    }
+  }
+  return best?.id ?? null;
+}
+
+function isSkillActionable(actor: UnitState, template: MoveTemplate): boolean {
+  const cd = actor.cooldowns[template.id] ?? 0;
+  if (cd > 0) return false;
+  const manaCost = Math.max(0, Math.floor(template.cost ?? 0));
+  if (actor.mana < manaCost) return false;
+  return true;
+}
+
+function pickSkillTemplate(params: {
+  actor: UnitState;
+  state: BattleState;
+  rng: () => number;
+  getSkillTemplate: (id: string) => MoveTemplate | undefined;
+}): MoveTemplate | null {
+  const { actor, state, rng, getSkillTemplate } = params;
+  const available = actor.skillIds.filter((id) => {
+    const t = getSkillTemplate(id);
+    return t ? isSkillActionable(actor, t) : false;
+  });
+  if (available.length === 0) return null;
+  const beat = combatBeatPhaseFromTurns({
+    turn: Math.max(1, state.tick + 1),
+    attackerHpFraction: actor.maxHp > 0 ? actor.hp / actor.maxHp : 0,
+    defenderHpFraction: averageEnemyHpFraction(state, actor),
+  });
+  return pickAutoplayMoveTemplate(
+    available,
+    getSkillTemplate,
+    actor.attributes,
+    { combatBeatPhase: beat, defenderHpFraction: averageEnemyHpFraction(state, actor), rng },
+  );
+}
+
 export function simulateBattle(input: BattleInput): BattleResult {
   const rng = input.randomSource ?? Math.random;
   const maxTicks = Math.max(1, Math.floor(input.maxTicks));
+  const getSkillTemplate = input.getSkillTemplate ?? getMoveTemplate;
 
   const writer = createCanonicalEventWriter();
   writer.advanceToTick(input.startTick ?? 0);
@@ -162,6 +255,7 @@ export function simulateBattle(input: BattleInput): BattleResult {
   }
 
   let ticksElapsed = 0;
+  let lastTick = state.tick;
   while (ticksElapsed < maxTicks) {
     const teams = livingTeams(state.unitsById);
     if (teams.length <= 1) break;
@@ -176,6 +270,8 @@ export function simulateBattle(input: BattleInput): BattleResult {
     writer.advanceToTick(next.nextActAt);
     state.tick = writer.currentTick;
     ticksElapsed = Math.max(ticksElapsed, state.tick);
+    decayAllByTicks(state, Math.max(0, state.tick - lastTick));
+    lastTick = state.tick;
 
     const targetId = nearestEnemyId(state, actor);
     if (!targetId) {
@@ -187,8 +283,93 @@ export function simulateBattle(input: BattleInput): BattleResult {
       continue;
     }
 
+    const pickedSkill = pickSkillTemplate({
+      actor,
+      state,
+      rng,
+      getSkillTemplate,
+    });
+
     const isAdjacent = softHexGrid.isAdjacent(actor.tileId, target.tileId);
-    if (!isAdjacent) {
+    const canMelee = isAdjacent;
+    const canRangedSkill =
+      pickedSkill?.tags.includes('ranged') ?? false;
+
+    if (pickedSkill && (canMelee || canRangedSkill)) {
+      // Spend mana + apply cooldown.
+      const manaCost = Math.max(0, Math.floor(pickedSkill.cost ?? 0));
+      actor.mana = Math.max(0, actor.mana - manaCost);
+      const cd = Math.max(0, Math.floor(pickedSkill.cooldownTurns ?? 0));
+      if (cd > 0) actor.cooldowns[pickedSkill.id] = cd;
+
+      writer.push({
+        type: 'unit_acted',
+        unitId: actor.unitId,
+        action: 'cast',
+        targetId: target.unitId,
+        skillId: pickedSkill.id,
+      });
+
+      if (pickedSkill.effect.kind === 'damage') {
+        const hit = resolveMoveTemplateStrike({
+          template: pickedSkill,
+          attackerAttributes: actor.attributes,
+          defenderReceivingStrike: target.attributes,
+          rng,
+        });
+        writer.push({
+          type: 'damage_dealt',
+          sourceId: actor.unitId,
+          targetId: target.unitId,
+          amount: hit.finalDamage,
+          damageKind: pickedSkill.damageKind,
+          flags: {
+            dodged: hit.flags.dodged || undefined,
+            blocked: hit.flags.blocked || undefined,
+          },
+        });
+        stats.byUnit[actor.unitId]!.damageDealt += hit.finalDamage;
+        stats.byUnit[target.unitId]!.damageTaken += hit.finalDamage;
+        if (!hit.flags.dodged && hit.finalDamage > 0) {
+          target.hp = Math.max(0, target.hp - hit.finalDamage);
+          target.alive = target.hp > 0;
+        }
+      } else if (pickedSkill.effect.kind === 'heal') {
+        const allyId = mostWoundedAllyId(state, actor);
+        if (allyId) {
+          const ally = state.unitsById[allyId]!;
+          const amount = Math.max(
+            0,
+            Math.floor(
+              // Reuse the same power scaling path. (Healing uses computed power as magnitude.)
+              // resolveMoveTemplateStrike is damage-specific (mitigation), so use template power directly via strike with dummy defender?
+              // For Slice 3, reuse compute path indirectly: strike vs self with no dodge/block is not available here, so keep it simple.
+              // We'll upgrade this in a future slice with a dedicated heal resolver.
+              2 + actor.attributes.intelligence * 2 + actor.attributes.charisma * 2,
+            ),
+          );
+          const before = ally.hp;
+          ally.hp = Math.min(ally.maxHp, ally.hp + amount);
+          const healed = ally.hp - before;
+          writer.push({
+            type: 'healed',
+            sourceId: actor.unitId,
+            targetId: ally.unitId,
+            amount: healed,
+          });
+        }
+      } else if (pickedSkill.effect.kind === 'selfBuff') {
+        const dur = Math.max(1, Math.floor(pickedSkill.durationTurns ?? 1));
+        actor.statuses[pickedSkill.effect.statusId] = dur;
+        writer.push({
+          type: 'status_applied',
+          sourceId: actor.unitId,
+          targetId: actor.unitId,
+          statusId: pickedSkill.effect.statusId,
+          turns: dur,
+        });
+      }
+    } else if (!canMelee) {
       writer.push({ type: 'unit_acted', unitId: actor.unitId, action: 'wait' });
     } else {
       writer.push({
@@ -223,16 +404,16 @@ export function simulateBattle(input: BattleInput): BattleResult {
         target.hp = Math.max(0, target.hp - hit.finalDamage);
         target.alive = target.hp > 0;
       }
+    }
 
-      if (!target.alive) {
-        writer.push({
-          type: 'unit_died',
-          unitId: target.unitId,
-          sourceId: actor.unitId,
-          permadeath: false,
-        });
-        stats.byUnit[actor.unitId]!.kills += 1;
-      }
+    if (!target.alive) {
+      writer.push({
+        type: 'unit_died',
+        unitId: target.unitId,
+        sourceId: actor.unitId,
+        permadeath: false,
+      });
+      stats.byUnit[actor.unitId]!.kills += 1;
     }
 
     // Reschedule actor.

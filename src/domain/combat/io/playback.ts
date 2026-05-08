@@ -54,6 +54,18 @@ export function playback(events: readonly CanonicalEvent[]): PlaybackResult {
         if (target.hp <= 0) target.alive = false;
         break;
       }
+      case 'healed': {
+        const target = unitsById[e.targetId];
+        if (!target) break;
+        if (!target.alive) break;
+        const amt = Math.max(0, Math.floor(e.amount));
+        if (amt <= 0) break;
+        target.hp = Math.min(target.maxHp, target.hp + amt);
+        break;
+      }
+      case 'status_applied':
+        // Slice 3: status effects don't affect playback state yet (only outcomes do).
+        break;
       case 'unit_died': {
         const u = unitsById[e.unitId];
         if (!u) break;

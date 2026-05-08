@@ -49,6 +49,22 @@ export function validateEventRefs(events: readonly CanonicalEvent[]): void {
           throw new Error(`Event refs unknown targetId: ${e.type} targetId=${e.targetId}`);
         }
         break;
+      case 'healed':
+        if (!spawned.has(e.sourceId)) {
+          throw new Error(`Event refs unknown sourceId: ${e.type} sourceId=${e.sourceId}`);
+        }
+        if (!spawned.has(e.targetId)) {
+          throw new Error(`Event refs unknown targetId: ${e.type} targetId=${e.targetId}`);
+        }
+        break;
+      case 'status_applied':
+        if (!spawned.has(e.sourceId)) {
+          throw new Error(`Event refs unknown sourceId: ${e.type} sourceId=${e.sourceId}`);
+        }
+        if (!spawned.has(e.targetId)) {
+          throw new Error(`Event refs unknown targetId: ${e.type} targetId=${e.targetId}`);
+        }
+        break;
       case 'unit_died':
         if (!spawned.has(e.unitId)) {
           throw new Error(`Event refs unknown unitId: ${e.type} unitId=${e.unitId}`);

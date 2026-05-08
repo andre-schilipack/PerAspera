@@ -33,8 +33,9 @@ export type CanonicalEvent =
       eventIndex: number;
       type: 'unit_acted';
       unitId: UnitId;
-      action: 'attack' | 'wait';
+      action: 'attack' | 'cast' | 'wait';
       targetId?: UnitId;
+      skillId?: SkillId;
     }
   | {
       t: number;
@@ -45,6 +46,23 @@ export type CanonicalEvent =
       amount: number;
       damageKind: MoveDamageKind;
       flags: { dodged?: boolean; blocked?: boolean; crit?: boolean };
+    }
+  | {
+      t: number;
+      eventIndex: number;
+      type: 'healed';
+      sourceId: UnitId;
+      targetId: UnitId;
+      amount: number;
+    }
+  | {
+      t: number;
+      eventIndex: number;
+      type: 'status_applied';
+      sourceId: UnitId;
+      targetId: UnitId;
+      statusId: StatusId;
+      turns?: number;
     }
   | {
       t: number;

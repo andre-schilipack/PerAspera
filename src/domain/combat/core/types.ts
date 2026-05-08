@@ -11,6 +11,7 @@ export interface UnitSpec {
   hp?: number;
   maxMana: number;
   mana?: number;
+  skillIds?: readonly string[];
   speed: number;
 }
 
@@ -18,6 +19,8 @@ export interface BattleInput {
   battleId: BattleId;
   units: readonly UnitSpec[];
   maxTicks: number;
+  /** Skill template resolver (defaults to `getMoveTemplate`). */
+  getSkillTemplate?: (id: string) => import('../../types/combat.ts').MoveTemplate | undefined;
   /** Default: `Math.random`. */
   randomSource?: () => number;
 }
@@ -32,6 +35,9 @@ export interface UnitState {
   maxHp: number;
   mana: number;
   maxMana: number;
+  skillIds: readonly string[];
+  cooldowns: Record<string, number>;
+  statuses: Record<string, number>;
   speed: number;
   alive: boolean;
   retreated: boolean;

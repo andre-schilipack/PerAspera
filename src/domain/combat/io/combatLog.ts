@@ -19,8 +19,8 @@ export function canonicalEventsToCombatText(
       case 'unit_acted':
         lines.push(
           `[t${String(e.t)}] ${e.unitId} ${e.action}${
-            e.targetId ? ` -> ${e.targetId}` : ''
-          }`,
+            e.skillId ? ` ${e.skillId}` : ''
+          }${e.targetId ? ` -> ${e.targetId}` : ''}`,
         );
         break;
       case 'damage_dealt': {
@@ -43,11 +43,25 @@ export function canonicalEventsToCombatText(
           }`,
         );
         break;
+      case 'healed':
+        lines.push(
+          `[t${String(e.t)}] ${e.sourceId} heals ${e.targetId} for ${String(
+            e.amount,
+          )}`,
+        );
+        break;
+      case 'status_applied':
+        lines.push(
+          `[t${String(e.t)}] ${e.sourceId} applies ${e.statusId} to ${e.targetId}${
+            e.turns ? ` (${String(e.turns)}t)` : ''
+          }`,
+        );
+        break;
       case 'battle_ended':
         lines.push(`[t${String(e.t)}] battle ended: winner=${e.winningTeamId}`);
         break;
       default: {
-        const _exhaustive: never = e;
+        void e;
         lines.push(`[t${String((e as any).t)}] unknown event`);
         break;
       }
