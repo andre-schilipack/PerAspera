@@ -5,6 +5,7 @@ import { validateEventRefs } from './eventSchema.ts';
 export interface PlaybackUnitState {
   unitId: UnitId;
   teamId: TeamId;
+  tileId: string;
   hp: number;
   maxHp: number;
   mana: number;
@@ -34,6 +35,7 @@ export function playback(events: readonly CanonicalEvent[]): PlaybackResult {
         unitsById[e.unitId] = {
           unitId: e.unitId,
           teamId: e.teamId,
+          tileId: e.tileId,
           hp: e.hp,
           maxHp: e.maxHp,
           mana: e.mana,
@@ -41,6 +43,12 @@ export function playback(events: readonly CanonicalEvent[]): PlaybackResult {
           alive: e.hp > 0,
         };
         break;
+      case 'unit_moved': {
+        const u = unitsById[e.unitId];
+        if (!u) break;
+        u.tileId = e.toTileId;
+        break;
+      }
       case 'unit_acted':
         // No state change required for slice 2 playback.
         break;

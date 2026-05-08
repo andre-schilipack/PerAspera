@@ -38,6 +38,29 @@ function baseDelayFromSpeed(speed: number): number {
   return Math.max(1, Math.floor(10 / s));
 }
 
+function pickGreedyStep(params: {
+  from: string;
+  to: string;
+  obstacles: ReadonlySet<string>;
+  occupied: ReadonlySet<string>;
+  avoidTile?: string;
+}): string | null {
+  const { from, to, obstacles, occupied, avoidTile } = params;
+  const neighbors = softHexGrid.neighbors(from);
+  if (neighbors.length === 0) return null;
+  const candidates = neighbors
+    .filter((n) => !obstacles.has(n) && !occupied.has(n))
+    .filter((n) => (avoidTile ? n !== avoidTile : true))
+    .map((n) => ({ n, d: softHexGrid.distance(n, to) }))
+    .filter((c) => Number.isFinite(c.d));
+  candidates.sort((a, b) => a.d - b.d || a.n.localeCompare(b.n));
+  const best = candidates[0];
+  if (!best) return null;
+  // Only move if it improves distance.
+  const curD = softHexGrid.distance(from, to);
+  return best.d < curD ? best.n : null;
+}
+
 function livingTeams(unitsById: Record<UnitId, UnitState>): TeamId[] {
   const set = new Set<TeamId>();
   for (const u of Object.values(unitsById)) {
@@ -218,6 +241,7 @@ export function simulateBattle(input: BattleInput): BattleResult {
   const rng = input.randomSource ?? Math.random;
   const maxTicks = Math.max(1, Math.floor(input.maxTicks));
   const getSkillTemplate = input.getSkillTemplate ?? getMoveTemplate;
+  const obstacles = input.obstacles ?? new Set<string>();
 
   const writer = createCanonicalEventWriter();
   writer.advanceToTick(input.startTick ?? 0);
@@ -249,9 +273,13 @@ export function simulateBattle(input: BattleInput): BattleResult {
   const stats = initStats(input.units);
 
   const queue = new MinHeap<QueueItem>(compareQueue);
+  const occupied = new Set<string>();
+  const lastTileByUnit = new Map<UnitId, string>();
   for (const u of Object.values(unitsById)) {
     if (!u.alive || u.retreated) continue;
     queue.push({ nextActAt: u.nextActAt, unitId: u.unitId });
+    occupied.add(u.tileId);
+    lastTileByUnit.set(u.unitId, u.tileId);
   }
 
   let ticksElapsed = 0;
@@ -292,10 +320,16 @@ export function simulateBattle(input: BattleInput): BattleResult {
 
     const isAdjacent = softHexGrid.isAdjacent(actor.tileId, target.tileId);
     const canMelee = isAdjacent;
-    const canRangedSkill =
-      pickedSkill?.tags.includes('ranged') ?? false;
+    const isRanged = pickedSkill?.tags.includes('ranged') ?? false;
+    const skillRange =
+      typeof (pickedSkill as any)?.range === 'number'
+        ? Math.max(1, Math.floor((pickedSkill as any).range))
+        : isRanged
+          ? 3
+          : 1;
+    const inRange = softHexGrid.distance(actor.tileId, target.tileId) <= skillRange;
 
-    if (pickedSkill && (canMelee || canRangedSkill)) {
+    if (pickedSkill && (canMelee || (isRanged && inRange))) {
       // Spend mana + apply cooldown.
       const manaCost = Math.max(0, Math.floor(pickedSkill.cost ?? 0));
       actor.mana = Math.max(0, actor.mana - manaCost);
@@ -370,7 +404,42 @@ export function simulateBattle(input: BattleInput): BattleResult {
         });
       }
     } else if (!canMelee) {
-      writer.push({ type: 'unit_acted', unitId: actor.unitId, action: 'wait' });
+      // Temporarily free actor's current tile so it can move.
+      occupied.delete(actor.tileId);
+      const avoid = lastTileByUnit.get(actor.unitId);
+      const step = pickGreedyStep({
+        from: actor.tileId,
+        to: target.tileId,
+        obstacles,
+        occupied,
+        avoidTile: avoid,
+      });
+      if (step) {
+        const fromTileId = actor.tileId;
+        actor.tileId = step;
+        lastTileByUnit.set(actor.unitId, fromTileId);
+        occupied.add(step);
+        writer.push({
+          type: 'unit_acted',
+          unitId: actor.unitId,
+          action: 'move',
+          toTileId: step,
+        });
+        writer.push({
+          type: 'unit_moved',
+          unitId: actor.unitId,
+          fromTileId,
+          toTileId: step,
+        });
+      } else {
+        // Put actor back on occupancy.
+        occupied.add(actor.tileId);
+        writer.push({
+          type: 'unit_acted',
+          unitId: actor.unitId,
+          action: 'wait',
+        });
+      }
     } else {
       writer.push({
         type: 'unit_acted',

@@ -16,11 +16,18 @@ export function canonicalEventsToCombatText(
           )}/${String(e.maxHp)}`,
         );
         break;
+      case 'unit_moved':
+        lines.push(
+          `[t${String(e.t)}] ${e.unitId} moves ${e.fromTileId} -> ${e.toTileId}`,
+        );
+        break;
       case 'unit_acted':
         lines.push(
           `[t${String(e.t)}] ${e.unitId} ${e.action}${
             e.skillId ? ` ${e.skillId}` : ''
-          }${e.targetId ? ` -> ${e.targetId}` : ''}`,
+          }${e.toTileId ? ` -> ${e.toTileId}` : ''}${
+            e.targetId ? ` -> ${e.targetId}` : ''
+          }`,
         );
         break;
       case 'damage_dealt': {

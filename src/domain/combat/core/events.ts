@@ -31,11 +31,20 @@ export type CanonicalEvent =
   | {
       t: number;
       eventIndex: number;
+      type: 'unit_moved';
+      unitId: UnitId;
+      fromTileId: TileId;
+      toTileId: TileId;
+    }
+  | {
+      t: number;
+      eventIndex: number;
       type: 'unit_acted';
       unitId: UnitId;
-      action: 'attack' | 'cast' | 'wait';
+      action: 'attack' | 'cast' | 'move' | 'wait';
       targetId?: UnitId;
       skillId?: SkillId;
+      toTileId?: TileId;
     }
   | {
       t: number;

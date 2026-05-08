@@ -19,6 +19,7 @@ export interface BattleInput {
   battleId: BattleId;
   units: readonly UnitSpec[];
   maxTicks: number;
+  obstacles?: ReadonlySet<TileId>;
   /** Skill template resolver (defaults to `getMoveTemplate`). */
   getSkillTemplate?: (id: string) => import('../../types/combat.ts').MoveTemplate | undefined;
   /** Default: `Math.random`. */

@@ -1,4 +1,5 @@
 import {
+  axialNeighbors,
   axialDistance,
   isAxialNeighbor,
   parseHexKey,
@@ -13,6 +14,11 @@ export const softHexGrid: IHexGrid = {
   },
   tileIdFromAxial(coord: AxialCoord): TileId {
     return `${coord.q},${coord.r}`;
+  },
+  neighbors(tileId: TileId): readonly TileId[] {
+    const c = parseHexKey(tileId);
+    if (!c) return [];
+    return axialNeighbors(c.q, c.r).map((n) => `${n.q},${n.r}`);
   },
   distance(a: TileId, b: TileId): number {
     const ac = parseHexKey(a);
