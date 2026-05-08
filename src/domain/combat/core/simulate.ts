@@ -69,6 +69,21 @@ function livingTeams(unitsById: Record<UnitId, UnitState>): TeamId[] {
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
+function retreatParams(input: BattleInput): {
+  retreatHpFraction: number;
+  retreatChance: number;
+  permadeathChance: number;
+} {
+  const retreatHpFractionRaw = input.retreatHpFraction ?? 0.25;
+  const retreatChanceRaw = input.retreatChance ?? 0.35;
+  const permadeathChanceRaw = input.permadeathChance ?? 0.05;
+  return {
+    retreatHpFraction: Math.min(1, Math.max(0, retreatHpFractionRaw)),
+    retreatChance: Math.min(1, Math.max(0, retreatChanceRaw)),
+    permadeathChance: Math.min(1, Math.max(0, permadeathChanceRaw)),
+  };
+}
+
 function nearestEnemyId(
   state: BattleState,
   actor: UnitState,
@@ -242,6 +257,7 @@ export function simulateBattle(input: BattleInput): BattleResult {
   const maxTicks = Math.max(1, Math.floor(input.maxTicks));
   const getSkillTemplate = input.getSkillTemplate ?? getMoveTemplate;
   const obstacles = input.obstacles ?? new Set<string>();
+  const retreatCfg = retreatParams(input);
 
   const writer = createCanonicalEventWriter();
   writer.advanceToTick(input.startTick ?? 0);
@@ -308,6 +324,26 @@ export function simulateBattle(input: BattleInput): BattleResult {
     }
     const target = state.unitsById[targetId];
     if (!target || !target.alive || target.retreated) {
+      continue;
+    }
+
+    // Retreat check (hands-off). If it triggers, the unit exits the battle.
+    const actorHpFrac = actor.maxHp > 0 ? actor.hp / actor.maxHp : 0;
+    if (actorHpFrac <= retreatCfg.retreatHpFraction && rng() < retreatCfg.retreatChance) {
+      actor.retreated = true;
+      occupied.delete(actor.tileId);
+      writer.push({
+        type: 'unit_acted',
+        unitId: actor.unitId,
+        action: 'retreat',
+      });
+      writer.push({
+        type: 'unit_retreated',
+        unitId: actor.unitId,
+        reason: `hp<=${String(retreatCfg.retreatHpFraction)}`,
+      });
+
+      // Do not reschedule a retreated unit.
       continue;
     }
 
@@ -476,13 +512,16 @@ export function simulateBattle(input: BattleInput): BattleResult {
     }
 
     if (!target.alive) {
+      const permadeath =
+        !target.retreated && rng() < retreatCfg.permadeathChance;
       writer.push({
         type: 'unit_died',
         unitId: target.unitId,
         sourceId: actor.unitId,
-        permadeath: false,
+        permadeath,
       });
       stats.byUnit[actor.unitId]!.kills += 1;
+      occupied.delete(target.tileId);
     }
 
     // Reschedule actor.

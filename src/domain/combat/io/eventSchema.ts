@@ -70,6 +70,11 @@ export function validateEventRefs(events: readonly CanonicalEvent[]): void {
           throw new Error(`Event refs unknown targetId: ${e.type} targetId=${e.targetId}`);
         }
         break;
+      case 'unit_retreated':
+        if (!spawned.has(e.unitId)) {
+          throw new Error(`Event refs unknown unitId: ${e.type} unitId=${e.unitId}`);
+        }
+        break;
       case 'unit_died':
         if (!spawned.has(e.unitId)) {
           throw new Error(`Event refs unknown unitId: ${e.type} unitId=${e.unitId}`);

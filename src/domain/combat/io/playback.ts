@@ -11,6 +11,7 @@ export interface PlaybackUnitState {
   mana: number;
   maxMana: number;
   alive: boolean;
+  retreated: boolean;
 }
 
 export interface PlaybackResult {
@@ -41,6 +42,7 @@ export function playback(events: readonly CanonicalEvent[]): PlaybackResult {
           mana: e.mana,
           maxMana: e.maxMana,
           alive: e.hp > 0,
+          retreated: false,
         };
         break;
       case 'unit_moved': {
@@ -74,6 +76,12 @@ export function playback(events: readonly CanonicalEvent[]): PlaybackResult {
       case 'status_applied':
         // Slice 3: status effects don't affect playback state yet (only outcomes do).
         break;
+      case 'unit_retreated': {
+        const u = unitsById[e.unitId];
+        if (!u) break;
+        u.retreated = true;
+        break;
+      }
       case 'unit_died': {
         const u = unitsById[e.unitId];
         if (!u) break;
@@ -93,7 +101,7 @@ export function playback(events: readonly CanonicalEvent[]): PlaybackResult {
 
   const livingUnitsByTeam: Record<TeamId, number> = {};
   for (const u of Object.values(unitsById)) {
-    if (!u.alive) continue;
+    if (!u.alive || u.retreated) continue;
     livingUnitsByTeam[u.teamId] = (livingUnitsByTeam[u.teamId] ?? 0) + 1;
   }
 

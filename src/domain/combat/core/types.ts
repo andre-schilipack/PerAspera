@@ -24,6 +24,13 @@ export interface BattleInput {
   getSkillTemplate?: (id: string) => import('../../types/combat.ts').MoveTemplate | undefined;
   /** Default: `Math.random`. */
   randomSource?: () => number;
+
+  /** Retreat triggers when hp/maxHp <= this fraction. Default 0.25. */
+  retreatHpFraction?: number;
+  /** Once in retreat zone, roll per action to retreat. Default 0.35. */
+  retreatChance?: number;
+  /** Permadeath roll when a unit dies (and did not retreat). Default 0.05. */
+  permadeathChance?: number;
 }
 
 export interface UnitState {

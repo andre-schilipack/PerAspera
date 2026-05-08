@@ -41,7 +41,7 @@ export type CanonicalEvent =
       eventIndex: number;
       type: 'unit_acted';
       unitId: UnitId;
-      action: 'attack' | 'cast' | 'move' | 'wait';
+      action: 'attack' | 'cast' | 'move' | 'retreat' | 'wait';
       targetId?: UnitId;
       skillId?: SkillId;
       toTileId?: TileId;
@@ -72,6 +72,13 @@ export type CanonicalEvent =
       targetId: UnitId;
       statusId: StatusId;
       turns?: number;
+    }
+  | {
+      t: number;
+      eventIndex: number;
+      type: 'unit_retreated';
+      unitId: UnitId;
+      reason: string;
     }
   | {
       t: number;

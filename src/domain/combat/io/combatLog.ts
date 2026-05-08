@@ -47,7 +47,7 @@ export function canonicalEventsToCombatText(
         lines.push(
           `[t${String(e.t)}] ${e.unitId} died${
             e.sourceId ? ` (by ${e.sourceId})` : ''
-          }`,
+          }${e.permadeath ? ' [permadeath]' : ''}`,
         );
         break;
       case 'healed':
@@ -62,6 +62,11 @@ export function canonicalEventsToCombatText(
           `[t${String(e.t)}] ${e.sourceId} applies ${e.statusId} to ${e.targetId}${
             e.turns ? ` (${String(e.turns)}t)` : ''
           }`,
+        );
+        break;
+      case 'unit_retreated':
+        lines.push(
+          `[t${String(e.t)}] ${e.unitId} retreated (${e.reason})`,
         );
         break;
       case 'battle_ended':
