@@ -7,6 +7,7 @@ import {
   resolveMoveTemplateStrike,
 } from '../../autobattle/autoplayStrike.ts';
 import { getMoveTemplate } from '../../../content/catalogs/moves.ts';
+import { listAxialInDisk, parseHexKey } from '../../hex.ts';
 
 import { MinHeap } from './heap.ts';
 import {
@@ -135,6 +136,92 @@ function initUnitState(spec: UnitSpec): UnitState {
     retreated: false,
     nextActAt: 0,
   };
+}
+
+function isValidTileId(tileId: string): boolean {
+  if (!tileId) return false;
+  return parseHexKey(tileId) !== null;
+}
+
+function placeUnitsByRole(params: {
+  units: UnitState[];
+  obstacles: ReadonlySet<string>;
+}): void {
+  const { units, obstacles } = params;
+
+  // Group by team, stable order.
+  const byTeam = new Map<string, UnitState[]>();
+  for (const u of units) {
+    const arr = byTeam.get(u.teamId) ?? [];
+    arr.push(u);
+    byTeam.set(u.teamId, arr);
+  }
+
+  const teams = [...byTeam.keys()].sort((a, b) => a.localeCompare(b));
+  const defaultAnchors = ['0,0', '0,6', '0,-6', '6,0', '-6,0'];
+
+  const globallyOccupied = new Set<string>();
+
+  for (let ti = 0; ti < teams.length; ti++) {
+    const teamId = teams[ti]!;
+    const teamUnits = (byTeam.get(teamId) ?? []).sort((a, b) =>
+      a.unitId.localeCompare(b.unitId),
+    );
+
+    // Pick anchor: first valid tileId among team, else default.
+    const anchor =
+      teamUnits.find((u) => isValidTileId(u.tileId))?.tileId ??
+      defaultAnchors[ti] ??
+      '0,0';
+    const anchorCoord = parseHexKey(anchor) ?? { q: 0, r: 0 };
+
+    // Order by role: frontline, ranged, support.
+    const roleRank = (r: string) =>
+      r === 'frontline' ? 0 : r === 'ranged' ? 1 : 2;
+    teamUnits.sort(
+      (a, b) =>
+        roleRank(a.role) - roleRank(b.role) || a.unitId.localeCompare(b.unitId),
+    );
+
+    for (const u of teamUnits) {
+      // If already valid and not colliding/blocked, keep it.
+      const ok =
+        isValidTileId(u.tileId) &&
+        !obstacles.has(u.tileId) &&
+        !globallyOccupied.has(u.tileId);
+      if (ok) {
+        globallyOccupied.add(u.tileId);
+        continue;
+      }
+
+      const desired =
+        u.role === 'frontline' ? 1 : u.role === 'ranged' ? 2 : 3;
+
+      // Search expanding rings starting at desired radius.
+      let placed: string | null = null;
+      for (let radius = desired; radius <= desired + 4; radius++) {
+        const disk = listAxialInDisk(radius)
+          .map((d) => ({ q: anchorCoord.q + d.q, r: anchorCoord.r + d.r }))
+          .map((c) => `${c.q},${c.r}`);
+        // Filter exact ring first (distance == radius).
+        const ring = disk.filter(
+          (tid) => softHexGrid.distance(anchor, tid) === radius,
+        );
+        const candidates = (ring.length > 0 ? ring : disk).filter(
+          (tid) => !obstacles.has(tid) && !globallyOccupied.has(tid),
+        );
+        candidates.sort((a, b) => a.localeCompare(b));
+        if (candidates.length > 0) {
+          placed = candidates[0]!;
+          break;
+        }
+      }
+
+      // Fallback to anchor if everything is blocked (should be rare).
+      u.tileId = placed ?? anchor;
+      globallyOccupied.add(u.tileId);
+    }
+  }
 }
 
 function decrementRecordByTicks(
@@ -266,6 +353,13 @@ export function simulateBattle(input: BattleInput): BattleResult {
   for (const spec of input.units) {
     unitsById[spec.unitId] = initUnitState(spec);
   }
+
+  // Slice 7: auto-placement by role. If a unit's tileId is empty/invalid/colliding/blocked,
+  // the engine chooses a valid tile around a per-team anchor.
+  placeUnitsByRole({
+    units: Object.values(unitsById),
+    obstacles,
+  });
 
   // Emit spawns in stable order.
   const spawnOrder = [...Object.values(unitsById)].sort((a, b) =>

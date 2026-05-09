@@ -1120,11 +1120,20 @@ export default function GameApp() {
           <p>Home {character.homeHexId}</p>
           <CombatLoadoutEditor
             skillIds={character.combatLoadout.skillIds}
+            combatRole={character.combatLoadout.combatRole ?? 'frontline'}
             onChangeSkillIds={(skillIds) =>
               updateCharacter(character.id, {
                 combatLoadout: {
                   ...character.combatLoadout,
                   skillIds,
+                },
+              })
+            }
+            onChangeCombatRole={(combatRole) =>
+              updateCharacter(character.id, {
+                combatLoadout: {
+                  ...character.combatLoadout,
+                  combatRole,
                 },
               })
             }

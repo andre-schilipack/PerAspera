@@ -27,6 +27,8 @@ export interface CombatLoadout {
   skillIds: MoveTemplateId[];
   /** Future: gear that modifies autoplay / damage (item instance ids). */
   equippedItemInstanceIds: string[];
+  /** Slice 7: simple role selector for auto-placement in combat. */
+  combatRole?: 'frontline' | 'ranged' | 'support';
 }
 
 export interface Character {

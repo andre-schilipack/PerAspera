@@ -11,6 +11,7 @@ import {
 export const DEFAULT_COMBAT_LOADOUT: CombatLoadout = {
   skillIds: ['basic_attack', 'int_spike'],
   equippedItemInstanceIds: [],
+  combatRole: 'frontline',
 };
 
 /**
@@ -46,6 +47,12 @@ function mergeCombatLoadout(raw: LegacyCharacterShape): CombatLoadout {
       )
         ? [...fromLoadout.equippedItemInstanceIds]
         : [],
+      combatRole:
+        fromLoadout.combatRole === 'frontline' ||
+        fromLoadout.combatRole === 'ranged' ||
+        fromLoadout.combatRole === 'support'
+          ? fromLoadout.combatRole
+          : DEFAULT_COMBAT_LOADOUT.combatRole,
     };
   }
 
@@ -53,12 +60,14 @@ function mergeCombatLoadout(raw: LegacyCharacterShape): CombatLoadout {
     return {
       skillIds: clampCombatSkillIds(raw.availableMoves),
       equippedItemInstanceIds: [],
+      combatRole: DEFAULT_COMBAT_LOADOUT.combatRole,
     };
   }
 
   return {
     skillIds: clampCombatSkillIds(DEFAULT_COMBAT_LOADOUT.skillIds),
     equippedItemInstanceIds: [...DEFAULT_COMBAT_LOADOUT.equippedItemInstanceIds],
+    combatRole: DEFAULT_COMBAT_LOADOUT.combatRole,
   };
 }
 

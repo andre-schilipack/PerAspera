@@ -18,6 +18,8 @@ function poolSortedByName(): readonly MoveTemplateId[] {
 export interface CombatLoadoutEditorProps {
   skillIds: readonly string[];
   onChangeSkillIds: (next: string[]) => void;
+  combatRole: 'frontline' | 'ranged' | 'support';
+  onChangeCombatRole: (next: 'frontline' | 'ranged' | 'support') => void;
 }
 
 export function CombatLoadoutEditor(props: CombatLoadoutEditorProps) {
@@ -60,6 +62,24 @@ export function CombatLoadoutEditor(props: CombatLoadoutEditorProps) {
         dano unificado; efeitos de buff/cura completos chegam nas próximas
         iterações.
       </p>
+      <div className="combat-loadout-role">
+        <h4 className="combat-loadout-subheading">Role</h4>
+        <p className="game-muted">
+          Define o posicionamento automático no início do combate (Slice 7).
+        </p>
+        <select
+          value={props.combatRole}
+          onChange={(e) =>
+            props.onChangeCombatRole(
+              e.target.value as 'frontline' | 'ranged' | 'support',
+            )
+          }
+        >
+          <option value="frontline">Frontline</option>
+          <option value="ranged">Ranged</option>
+          <option value="support">Support</option>
+        </select>
+      </div>
       <div className="combat-loadout-columns">
         <div>
           <h4 className="combat-loadout-subheading">Equipadas</h4>
