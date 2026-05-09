@@ -1,4 +1,4 @@
-import type { MoveDamageKind, MoveTemplate } from '../../types/combat.ts';
+import type { MoveDamageKind, MoveTargetScope, MoveTemplate } from '../../types/combat.ts';
 import { resolveStrikeDamage } from '../../autobattle/damageResolution.ts';
 import type { MeleeResolveResult } from '../../combatResolution.ts';
 import { combatBeatPhaseFromTurns } from '../../autobattle/combatBeatPhase.ts';
@@ -27,6 +27,33 @@ import type {
 import { softHexGrid } from '../grid/softHexGrid.ts';
 
 type QueueItem = { nextActAt: number; unitId: UnitId };
+
+/** Slice 9: avoid scanning all units when enumerating enemies/allies. */
+type LivingByTeam = Record<TeamId, Set<UnitId>>;
+
+function initLivingByTeam(unitsById: Record<UnitId, UnitState>): LivingByTeam {
+  const livingByTeam: LivingByTeam = {};
+  for (const u of Object.values(unitsById)) {
+    if (!u.alive || u.retreated) continue;
+    if (!livingByTeam[u.teamId]) livingByTeam[u.teamId] = new Set();
+    livingByTeam[u.teamId]!.add(u.unitId);
+  }
+  return livingByTeam;
+}
+
+function removeLivingUnit(
+  livingByTeam: LivingByTeam,
+  teamId: TeamId,
+  unitId: UnitId,
+): void {
+  livingByTeam[teamId]?.delete(unitId);
+}
+
+function livingTeamIds(livingByTeam: LivingByTeam): TeamId[] {
+  return Object.keys(livingByTeam)
+    .filter((tid) => (livingByTeam[tid]?.size ?? 0) > 0)
+    .sort((a, b) => a.localeCompare(b));
+}
 
 function compareQueue(a: QueueItem, b: QueueItem): number {
   if (a.nextActAt !== b.nextActAt) return a.nextActAt - b.nextActAt;
@@ -62,14 +89,6 @@ function pickGreedyStep(params: {
   return best.d < curD ? best.n : null;
 }
 
-function livingTeams(unitsById: Record<UnitId, UnitState>): TeamId[] {
-  const set = new Set<TeamId>();
-  for (const u of Object.values(unitsById)) {
-    if (u.alive && !u.retreated) set.add(u.teamId);
-  }
-  return [...set].sort((a, b) => a.localeCompare(b));
-}
-
 function retreatParams(input: BattleInput): {
   retreatHpFraction: number;
   retreatChance: number;
@@ -88,27 +107,110 @@ function retreatParams(input: BattleInput): {
 function nearestEnemyId(
   state: BattleState,
   actor: UnitState,
+  livingByTeam: LivingByTeam,
 ): UnitId | null {
   let best: { id: UnitId; dist: number; hp: number } | null = null;
-  for (const u of Object.values(state.unitsById)) {
-    if (!u.alive || u.retreated) continue;
-    if (u.teamId === actor.teamId) continue;
-    const dist = softHexGrid.distance(actor.tileId, u.tileId);
-    if (!Number.isFinite(dist)) continue;
-    const cand = { id: u.unitId, dist, hp: u.hp };
-    if (!best) {
-      best = cand;
-      continue;
-    }
-    // Prefer nearest, then lowest HP, then stable id.
-    if (
-      cand.dist < best.dist ||
-      (cand.dist === best.dist && (cand.hp < best.hp || (cand.hp === best.hp && cand.id < best.id)))
-    ) {
-      best = cand;
+  for (const [teamId, ids] of Object.entries(livingByTeam)) {
+    if (teamId === actor.teamId) continue;
+    for (const id of ids) {
+      const u = state.unitsById[id];
+      if (!u || !u.alive || u.retreated) continue;
+      const dist = softHexGrid.distance(actor.tileId, u.tileId);
+      if (!Number.isFinite(dist)) continue;
+      const cand = { id: u.unitId, dist, hp: u.hp };
+      if (!best) {
+        best = cand;
+        continue;
+      }
+      if (
+        cand.dist < best.dist ||
+        (cand.dist === best.dist &&
+          (cand.hp < best.hp || (cand.hp === best.hp && cand.id < best.id)))
+      ) {
+        best = cand;
+      }
     }
   }
   return best?.id ?? null;
+}
+
+function skillRangeFromTemplate(template: MoveTemplate, isRangedMove: boolean): number {
+  const raw = (template as { range?: number }).range;
+  if (typeof raw === 'number') return Math.max(1, Math.floor(raw));
+  return isRangedMove ? 3 : 1;
+}
+
+function enemiesInSkillRange(
+  state: BattleState,
+  actor: UnitState,
+  range: number,
+  livingByTeam: LivingByTeam,
+): UnitState[] {
+  const out: UnitState[] = [];
+  for (const [teamId, ids] of Object.entries(livingByTeam)) {
+    if (teamId === actor.teamId) continue;
+    for (const id of ids) {
+      const u = state.unitsById[id];
+      if (!u || !u.alive || u.retreated) continue;
+      const dist = softHexGrid.distance(actor.tileId, u.tileId);
+      if (Number.isFinite(dist) && dist <= range) out.push(u);
+    }
+  }
+  out.sort((a, b) => a.unitId.localeCompare(b.unitId));
+  return out;
+}
+
+function nearestEnemyInSkillRange(
+  state: BattleState,
+  actor: UnitState,
+  range: number,
+  livingByTeam: LivingByTeam,
+): UnitState | null {
+  let best: UnitState | null = null;
+  let bestKey: { dist: number; hp: number; id: UnitId } | null = null;
+  for (const [teamId, ids] of Object.entries(livingByTeam)) {
+    if (teamId === actor.teamId) continue;
+    for (const id of ids) {
+      const u = state.unitsById[id];
+      if (!u || !u.alive || u.retreated) continue;
+      const dist = softHexGrid.distance(actor.tileId, u.tileId);
+      if (!Number.isFinite(dist) || dist > range) continue;
+      const cand = { dist, hp: u.hp, id: u.unitId };
+      if (
+        !bestKey ||
+        cand.dist < bestKey.dist ||
+        (cand.dist === bestKey.dist &&
+          (cand.hp < bestKey.hp || (cand.hp === bestKey.hp && cand.id < bestKey.id)))
+      ) {
+        best = u;
+        bestKey = cand;
+      }
+    }
+  }
+  return best;
+}
+
+/** Slice 8: multi-target cluster — primary hex + neighbors; max N targets (stable order). */
+const MULTI_CLUSTER_MAX = 3;
+
+function clusterEnemyTargetsFromPrimary(
+  primary: UnitState,
+  state: BattleState,
+  actorTeamId: TeamId,
+  livingByTeam: LivingByTeam,
+): UnitState[] {
+  const tileSet = new Set<string>([primary.tileId, ...softHexGrid.neighbors(primary.tileId)]);
+  const candidates: UnitState[] = [];
+  for (const [teamId, ids] of Object.entries(livingByTeam)) {
+    if (teamId === actorTeamId) continue;
+    for (const id of ids) {
+      const u = state.unitsById[id];
+      if (!u || !u.alive || u.retreated) continue;
+      if (tileSet.has(u.tileId)) candidates.push(u);
+    }
+  }
+  candidates.sort((a, b) => a.unitId.localeCompare(b.unitId));
+  return candidates.slice(0, MULTI_CLUSTER_MAX);
 }
 
 function initUnitState(spec: UnitSpec): UnitState {
@@ -237,12 +339,19 @@ function decrementRecordByTicks(
   return next;
 }
 
-function decayAllByTicks(state: BattleState, deltaTicks: number): void {
+function decayLivingByTicks(
+  state: BattleState,
+  deltaTicks: number,
+  livingByTeam: LivingByTeam,
+): void {
   if (deltaTicks <= 0) return;
-  for (const u of Object.values(state.unitsById)) {
-    if (!u.alive || u.retreated) continue;
-    u.cooldowns = decrementRecordByTicks(u.cooldowns, deltaTicks);
-    u.statuses = decrementRecordByTicks(u.statuses, deltaTicks);
+  for (const ids of Object.values(livingByTeam)) {
+    for (const id of ids) {
+      const u = state.unitsById[id];
+      if (!u || !u.alive || u.retreated) continue;
+      u.cooldowns = decrementRecordByTicks(u.cooldowns, deltaTicks);
+      u.statuses = decrementRecordByTicks(u.statuses, deltaTicks);
+    }
   }
 }
 
@@ -279,23 +388,36 @@ function resolveMeleeAttack(params: {
   return { damageKind, hit };
 }
 
-function averageEnemyHpFraction(state: BattleState, actor: UnitState): number {
+function averageEnemyHpFraction(
+  state: BattleState,
+  actor: UnitState,
+  livingByTeam: LivingByTeam,
+): number {
   let sum = 0;
   let count = 0;
-  for (const u of Object.values(state.unitsById)) {
-    if (!u.alive || u.retreated) continue;
-    if (u.teamId === actor.teamId) continue;
-    sum += u.maxHp > 0 ? u.hp / u.maxHp : 0;
-    count++;
+  for (const [teamId, ids] of Object.entries(livingByTeam)) {
+    if (teamId === actor.teamId) continue;
+    for (const id of ids) {
+      const u = state.unitsById[id];
+      if (!u || !u.alive || u.retreated) continue;
+      sum += u.maxHp > 0 ? u.hp / u.maxHp : 0;
+      count++;
+    }
   }
   return count > 0 ? sum / count : 1;
 }
 
-function mostWoundedAllyId(state: BattleState, actor: UnitState): UnitId | null {
+function mostWoundedAllyId(
+  state: BattleState,
+  actor: UnitState,
+  livingByTeam: LivingByTeam,
+): UnitId | null {
+  const allyIds = livingByTeam[actor.teamId];
+  if (!allyIds) return null;
   let best: { id: UnitId; frac: number } | null = null;
-  for (const u of Object.values(state.unitsById)) {
-    if (!u.alive || u.retreated) continue;
-    if (u.teamId !== actor.teamId) continue;
+  for (const id of allyIds) {
+    const u = state.unitsById[id];
+    if (!u || !u.alive || u.retreated) continue;
     const frac = u.maxHp > 0 ? u.hp / u.maxHp : 0;
     if (frac >= 1) continue;
     const cand = { id: u.unitId, frac };
@@ -319,23 +441,25 @@ function pickSkillTemplate(params: {
   state: BattleState;
   rng: () => number;
   getSkillTemplate: (id: string) => MoveTemplate | undefined;
+  livingByTeam: LivingByTeam;
 }): MoveTemplate | null {
-  const { actor, state, rng, getSkillTemplate } = params;
+  const { actor, state, rng, getSkillTemplate, livingByTeam } = params;
   const available = actor.skillIds.filter((id) => {
     const t = getSkillTemplate(id);
     return t ? isSkillActionable(actor, t) : false;
   });
   if (available.length === 0) return null;
+  const defenderFrac = averageEnemyHpFraction(state, actor, livingByTeam);
   const beat = combatBeatPhaseFromTurns({
     turn: Math.max(1, state.tick + 1),
     attackerHpFraction: actor.maxHp > 0 ? actor.hp / actor.maxHp : 0,
-    defenderHpFraction: averageEnemyHpFraction(state, actor),
+    defenderHpFraction: defenderFrac,
   });
   return pickAutoplayMoveTemplate(
     available,
     getSkillTemplate,
     actor.attributes,
-    { combatBeatPhase: beat, defenderHpFraction: averageEnemyHpFraction(state, actor), rng },
+    { combatBeatPhase: beat, defenderHpFraction: defenderFrac, rng },
   );
 }
 
@@ -382,6 +506,8 @@ export function simulateBattle(input: BattleInput): BattleResult {
   const state: BattleState = { tick: writer.currentTick, unitsById };
   const stats = initStats(input.units);
 
+  const livingByTeam = initLivingByTeam(unitsById);
+
   const queue = new MinHeap<QueueItem>(compareQueue);
   const occupied = new Set<string>();
   const lastTileByUnit = new Map<UnitId, string>();
@@ -395,7 +521,7 @@ export function simulateBattle(input: BattleInput): BattleResult {
   let ticksElapsed = 0;
   let lastTick = state.tick;
   while (ticksElapsed < maxTicks) {
-    const teams = livingTeams(state.unitsById);
+    const teams = livingTeamIds(livingByTeam);
     if (teams.length <= 1) break;
 
     const next = queue.pop();
@@ -408,10 +534,10 @@ export function simulateBattle(input: BattleInput): BattleResult {
     writer.advanceToTick(next.nextActAt);
     state.tick = writer.currentTick;
     ticksElapsed = Math.max(ticksElapsed, state.tick);
-    decayAllByTicks(state, Math.max(0, state.tick - lastTick));
+    decayLivingByTicks(state, Math.max(0, state.tick - lastTick), livingByTeam);
     lastTick = state.tick;
 
-    const targetId = nearestEnemyId(state, actor);
+    const targetId = nearestEnemyId(state, actor, livingByTeam);
     if (!targetId) {
       // No enemies (should be handled by teams check), but be safe.
       break;
@@ -426,6 +552,7 @@ export function simulateBattle(input: BattleInput): BattleResult {
     if (actorHpFrac <= retreatCfg.retreatHpFraction && rng() < retreatCfg.retreatChance) {
       actor.retreated = true;
       occupied.delete(actor.tileId);
+      removeLivingUnit(livingByTeam, actor.teamId, actor.unitId);
       writer.push({
         type: 'unit_acted',
         unitId: actor.unitId,
@@ -446,60 +573,108 @@ export function simulateBattle(input: BattleInput): BattleResult {
       state,
       rng,
       getSkillTemplate,
+      livingByTeam,
     });
 
     const isAdjacent = softHexGrid.isAdjacent(actor.tileId, target.tileId);
     const canMelee = isAdjacent;
     const isRanged = pickedSkill?.tags.includes('ranged') ?? false;
-    const skillRange =
-      typeof (pickedSkill as any)?.range === 'number'
-        ? Math.max(1, Math.floor((pickedSkill as any).range))
-        : isRanged
-          ? 3
-          : 1;
+    const skillRange = pickedSkill
+      ? skillRangeFromTemplate(pickedSkill, isRanged)
+      : 1;
     const inRange = softHexGrid.distance(actor.tileId, target.tileId) <= skillRange;
 
-    if (pickedSkill && (canMelee || (isRanged && inRange))) {
+    const damageScope: MoveTargetScope =
+      pickedSkill?.effect.kind === 'damage' ? pickedSkill.targets : 'single';
+    const hasEnemyInSkillRange =
+      enemiesInSkillRange(state, actor, skillRange, livingByTeam).length > 0;
+    const canCastSkill =
+      !!pickedSkill &&
+      (pickedSkill.effect.kind !== 'damage' || damageScope === 'single'
+        ? canMelee || (isRanged && inRange)
+        : hasEnemyInSkillRange);
+
+    if (pickedSkill && canCastSkill) {
       // Spend mana + apply cooldown.
       const manaCost = Math.max(0, Math.floor(pickedSkill.cost ?? 0));
       actor.mana = Math.max(0, actor.mana - manaCost);
       const cd = Math.max(0, Math.floor(pickedSkill.cooldownTurns ?? 0));
       if (cd > 0) actor.cooldowns[pickedSkill.id] = cd;
 
+      const castFocus =
+        pickedSkill.effect.kind === 'damage' && damageScope !== 'single'
+          ? nearestEnemyInSkillRange(state, actor, skillRange, livingByTeam) ?? target
+          : target;
+
       writer.push({
         type: 'unit_acted',
         unitId: actor.unitId,
         action: 'cast',
-        targetId: target.unitId,
+        targetId: castFocus.unitId,
         skillId: pickedSkill.id,
       });
 
       if (pickedSkill.effect.kind === 'damage') {
-        const hit = resolveMoveTemplateStrike({
-          template: pickedSkill,
-          attackerAttributes: actor.attributes,
-          defenderReceivingStrike: target.attributes,
-          rng,
-        });
-        writer.push({
-          type: 'damage_dealt',
-          sourceId: actor.unitId,
-          targetId: target.unitId,
-          amount: hit.finalDamage,
-          damageKind: pickedSkill.damageKind,
-          flags: {
-            dodged: hit.flags.dodged || undefined,
-            blocked: hit.flags.blocked || undefined,
-          },
-        });
-        stats.byUnit[actor.unitId]!.damageDealt += hit.finalDamage;
-        stats.byUnit[target.unitId]!.damageTaken += hit.finalDamage;
-        if (!hit.flags.dodged && hit.finalDamage > 0) {
-          target.hp = Math.max(0, target.hp - hit.finalDamage);
-          target.alive = target.hp > 0;
+        let dmgTargets: UnitState[];
+        if (damageScope === 'all') {
+          dmgTargets = enemiesInSkillRange(state, actor, skillRange, livingByTeam);
+        } else if (damageScope === 'multi') {
+          const primary = nearestEnemyInSkillRange(
+            state,
+            actor,
+            skillRange,
+            livingByTeam,
+          );
+          dmgTargets = primary
+            ? clusterEnemyTargetsFromPrimary(primary, state, actor.teamId, livingByTeam)
+            : [];
+        } else {
+          dmgTargets = [target];
+        }
+
+        for (const hitTarget of dmgTargets) {
+          const hit = resolveMoveTemplateStrike({
+            template: pickedSkill,
+            attackerAttributes: actor.attributes,
+            defenderReceivingStrike: hitTarget.attributes,
+            rng,
+          });
+          writer.push({
+            type: 'damage_dealt',
+            sourceId: actor.unitId,
+            targetId: hitTarget.unitId,
+            amount: hit.finalDamage,
+            damageKind: pickedSkill.damageKind,
+            flags: {
+              dodged: hit.flags.dodged || undefined,
+              blocked: hit.flags.blocked || undefined,
+            },
+          });
+          stats.byUnit[actor.unitId]!.damageDealt += hit.finalDamage;
+          stats.byUnit[hitTarget.unitId]!.damageTaken += hit.finalDamage;
+          if (!hit.flags.dodged && hit.finalDamage > 0) {
+            hitTarget.hp = Math.max(0, hitTarget.hp - hit.finalDamage);
+            hitTarget.alive = hitTarget.hp > 0;
+          }
+        }
+
+        for (const hitTarget of dmgTargets) {
+          if (!hitTarget.alive) {
+            const permadeath =
+              !hitTarget.retreated && rng() < retreatCfg.permadeathChance;
+            writer.push({
+              type: 'unit_died',
+              unitId: hitTarget.unitId,
+              sourceId: actor.unitId,
+              permadeath,
+            });
+            stats.byUnit[actor.unitId]!.kills += 1;
+            occupied.delete(hitTarget.tileId);
+            removeLivingUnit(livingByTeam, hitTarget.teamId, hitTarget.unitId);
+          }
         }
       } else if (pickedSkill.effect.kind === 'heal') {
-        const allyId = mostWoundedAllyId(state, actor);
+        const allyId = mostWoundedAllyId(state, actor, livingByTeam);
         if (allyId) {
           const ally = state.unitsById[allyId]!;
           const amount = Math.max(
@@ -603,19 +778,20 @@ export function simulateBattle(input: BattleInput): BattleResult {
         target.hp = Math.max(0, target.hp - hit.finalDamage);
         target.alive = target.hp > 0;
       }
-    }
 
-    if (!target.alive) {
-      const permadeath =
-        !target.retreated && rng() < retreatCfg.permadeathChance;
-      writer.push({
-        type: 'unit_died',
-        unitId: target.unitId,
-        sourceId: actor.unitId,
-        permadeath,
-      });
-      stats.byUnit[actor.unitId]!.kills += 1;
-      occupied.delete(target.tileId);
+      if (!target.alive) {
+        const permadeath =
+          !target.retreated && rng() < retreatCfg.permadeathChance;
+        writer.push({
+          type: 'unit_died',
+          unitId: target.unitId,
+          sourceId: actor.unitId,
+          permadeath,
+        });
+        stats.byUnit[actor.unitId]!.kills += 1;
+        occupied.delete(target.tileId);
+        removeLivingUnit(livingByTeam, target.teamId, target.unitId);
+      }
     }
 
     // Reschedule actor.
@@ -623,7 +799,7 @@ export function simulateBattle(input: BattleInput): BattleResult {
     queue.push({ nextActAt: actor.nextActAt, unitId: actor.unitId });
   }
 
-  const teamsLeft = livingTeams(state.unitsById);
+  const teamsLeft = livingTeamIds(livingByTeam);
   const winningTeamId = teamsLeft.length === 1 ? teamsLeft[0]! : null;
   if (winningTeamId) {
     writer.push({ type: 'battle_ended', winningTeamId });

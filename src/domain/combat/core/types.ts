@@ -19,6 +19,8 @@ export interface BattleInput {
   battleId: BattleId;
   units: readonly UnitSpec[];
   maxTicks: number;
+  /** Initial simulation clock (tick). Defaults to 0. */
+  startTick?: number;
   obstacles?: ReadonlySet<TileId>;
   /** Skill template resolver (defaults to `getMoveTemplate`). */
   getSkillTemplate?: (id: string) => import('../../types/combat.ts').MoveTemplate | undefined;
