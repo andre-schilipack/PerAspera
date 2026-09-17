@@ -84,3 +84,7 @@ export {
   massCombatStructuralPresenceNightlyWall,
   massCombatStructuralPresencePrefeituraSiege,
 } from './massCombat.ts';
+export type {
+  StreetSkirmishOutcome,
+  StreetSkirmishSession,
+} from './skirmish.ts';

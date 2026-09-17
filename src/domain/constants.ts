@@ -107,11 +107,28 @@ export const STAMINA_MAX_BASE = 240;
 /** STA spent per hex move (patrol / travel). */
 export const PATROL_STA_COST = 1;
 
+/**
+ * Street encounter roll after moving to a neighbor hex.
+ * Chance = base + (danger/100)*weight, capped.
+ */
+export const PATROL_ENCOUNTER_BASE_CHANCE = 0.06;
+/** Extra chance at danger 100 (before cap). */
+export const PATROL_ENCOUNTER_DANGER_WEIGHT = 0.34;
+/** Maximum encounter chance per patrol step (avoid frustration). */
+export const PATROL_ENCOUNTER_CHANCE_CAP = 0.42;
+
 /** Max equipped combat skills per character (deck-style loadout). */
 export const MAX_COMBAT_SKILL_SLOTS = 6;
 
 /** Default max (and starting) HP for playable characters. */
 export const PLAYER_BASE_MAX_HP = 42;
+
+/** Score granted when you clear a street encounter (no creds from enemies). */
+export const STREET_SKIRMISH_WIN_SCORE = 4;
+/** Scrap metal units granted on street skirmish win. */
+export const STREET_SKIRMISH_SCRAP_REWARD_QTY = 2;
+/** Hard cap for one street auto-battle (ticks). */
+export const STREET_SKIRMISH_MAX_TICKS = 200;
 
 /** Base dodge chance (0–1) for melee resolution. */
 export const BASE_MELEE_DODGE_CHANCE = 0.1;

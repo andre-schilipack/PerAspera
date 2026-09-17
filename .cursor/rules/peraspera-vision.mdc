@@ -1,0 +1,33 @@
+---
+description: perAspera product vision and durable architecture constraints
+alwaysApply: true
+---
+
+# perAspera (working name; alts: Robusto2050)
+
+Web-based stamina MMORPG / roguelike co-op with economy simulation.
+
+## Act 1 loop
+
+- Players start in a small post-catastrophe survivor town.
+- Official runs last ~1–3 months (TBD). Success unlocks account progress toward Act 2 (future).
+- Economy: economic ticks, private property, production/transform/generation on tiles, NPC civil worker pool.
+- Daily “Friday the 13th” wall defense: enlist, share XP/loot; buildings + participation + MVP feed a permanent city hero fame board. Run score is stored forever on win/loss.
+- Explore, clear monsters, expand city/tech; ruin/mining contracts are party-based.
+
+## Combat
+
+- Autobattler (Pretty Derby–like: characters decide actions from intelligence/build).
+- Headless engine: `simulateBattle` → canonical event log; UI = playback (not re-sim).
+- Phase 2: simulation moves to backend; client only fetches `BattleResult` / replay (anti-cheat / lock rules).
+
+## Tone
+
+- Dark fantasy modern (2000–2050 TBD). Visual direction: cyberpunk / Berserk-adjacent.
+
+## Code boundaries
+
+- Domain combat lives under `src/domain/combat/**` (no React/DOM/network/wall-clock for combat logic).
+- Nightly defense today still uses legacy `encounterCombat*`; migration is adapter + tick-grouped presentation, phased — do not silently rewrite the whole encounter resolver in one PR.
+- Prefer Portuguese for user-facing chat; code and comments in English.
+- Prefer small, vertical slices with tests; update `AGENTS.md` “Now/Next” when session focus changes.

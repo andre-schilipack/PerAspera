@@ -860,6 +860,11 @@
   color: var(--text-h);
 }
 
+.game-skirmish-result {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
 .game-combat-hud__note {
   margin: 0;
   font-size: 0.82rem;

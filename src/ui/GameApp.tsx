@@ -14,6 +14,8 @@ import {
   INITIAL_CIVILIAN_POPULATION,
   NPC_OWNER_CITY,
   PATROL_STA_COST,
+  STREET_SKIRMISH_SCRAP_REWARD_QTY,
+  STREET_SKIRMISH_WIN_SCORE,
   STAMINA_REGEN_UI_INTERVAL_MS,
   WALL_REPAIR_CREDS_COST,
   WALL_REPAIR_INTEGRITY_PER_ACTION,
@@ -101,11 +103,16 @@ import { buildDefenderLineFromLocks } from '../domain/nightlyDefenseCombat.ts';
 import { runEconomicCatchUp } from '../game/economicCatchUp.ts';
 import { startNewGame } from '../game/startNewGame.ts';
 import { syncGlobalScoreboardFromCharacters } from '../game/syncScoreboard.ts';
+import {
+  formatEncounterChancePercent,
+  rollPatrolEncounter,
+} from '../domain/patrolEncounter.ts';
 import { useCharactersStore } from '../stores/useCharactersStore.ts';
 import { useContractsStore } from '../stores/useContractsStore.ts';
 import { useCityStore } from '../stores/useCityStore.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
+import { useSkirmishStore } from '../stores/useSkirmishStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 
 import { CombatLogTurnTabPanel } from './CombatLogTurnTabPanel.tsx';
@@ -236,6 +243,9 @@ export default function GameApp() {
   const dismissDefenseCatchUpSummary = useDefenseStore(
     (s) => s.dismissDefenseCatchUpSummary,
   );
+  const skirmishSession = useSkirmishStore((s) => s.session);
+  const startSkirmishFromPatrol = useSkirmishStore((s) => s.startFromPatrol);
+  const dismissSkirmish = useSkirmishStore((s) => s.dismiss);
   const cityCore = useCityStore((s) => s.cityCore);
   const civilianPopulation = useCityStore(
     (s) => s.civilianPopulation ?? INITIAL_CIVILIAN_POPULATION,
@@ -293,6 +303,20 @@ export default function GameApp() {
     defenseCombatSessionKey,
     COMBAT_UI_LOG_LINE_MS,
   );
+
+  const skirmishRevealKey = skirmishSession
+    ? `sk-${skirmishSession.characterId}-${skirmishSession.hexId}-${String(skirmishSession.combatLog[0]?.id ?? 0)}`
+    : 'sk-idle';
+  const skirmishReveal = useCombatLogReveal(
+    skirmishSession?.combatLog ?? [],
+    skirmishRevealKey,
+    COMBAT_UI_LOG_LINE_MS,
+  );
+
+  useEffect(() => {
+    if (!skirmishSession) return;
+    playCombatStartSound();
+  }, [skirmishRevealKey]);
 
   useEffect(() => {
     if (!inGame || gameOver) return;
@@ -506,6 +530,7 @@ export default function GameApp() {
     const hex = hexMap.hexes[targetHexId];
     if (!hex?.isUnlocked) return;
     if (character.stamina.current < PATROL_STA_COST) return;
+    if (skirmishSession) return;
     const t = now;
     updateCharacter(character.id, {
       currentHexId: targetHexId,
@@ -515,6 +540,24 @@ export default function GameApp() {
         lastUpdated: t,
       },
     });
+    if (
+      rollPatrolEncounter({
+        danger: hex.danger,
+        random: Math.random,
+      })
+    ) {
+      startSkirmishFromPatrol({
+        hexId: targetHexId,
+        danger: hex.danger,
+        characterId: character.id,
+        characterName: character.name,
+        playerHealth: character.health.current,
+        playerMaxHealth: character.health.max,
+        coreAttributes: character.coreAttributes,
+        skillIds: character.combatLoadout.skillIds,
+        combatRole: character.combatLoadout.combatRole,
+      });
+    }
   }
 
   function tryLockDefense() {
@@ -1089,9 +1132,13 @@ export default function GameApp() {
           <h2>Hex map</h2>
           <p className="game-muted">
             You are at <strong>{character.currentHexId}</strong>. Neighbors
-            cost {PATROL_STA_COST} STA. <strong>dng</strong> is local threat
-            (used by other systems). City economy simulates every 30 min
-            (including offline catch-up when you load the game).
+            cost {PATROL_STA_COST} STA. Entering a hex may trigger a street
+            encounter; higher <strong>dng</strong> raises the chance (approx{' '}
+            {formatEncounterChancePercent(
+              hexMap?.hexes[character.currentHexId]?.danger ?? 0,
+            )}{' '}
+            here). City economy simulates every 30 min (including offline
+            catch-up when you load the game).
           </p>
           <p className="game-muted game-map-npc">
             <strong>Centro</strong> ({CENTER_HEX_ID}): Mercado Municipal,
@@ -1881,6 +1928,86 @@ export default function GameApp() {
           </p>
         </section>
       )}
+
+      {skirmishSession ? (
+        <CombatModal
+          open
+          title="Street fight"
+          subtitle={
+            <>
+              Hex {skirmishSession.hexId} · danger{' '}
+              {Math.round(skirmishSession.danger)} ·{' '}
+              {skirmishSession.characterName} · tabs = combat ticks
+            </>
+          }
+          hud={
+            <div className="game-combat-hud">
+              <div className="game-combat-hud__row">
+                <span>Your HP</span>
+                <strong>
+                  {skirmishSession.playerHealth}/
+                  {skirmishSession.playerMaxHealth}
+                </strong>
+              </div>
+              <div className="game-combat-hud__row">
+                <span>{skirmishSession.enemyLabel}</span>
+                <strong>
+                  {skirmishSession.enemyHp}/{skirmishSession.enemyMaxHp}
+                </strong>
+              </div>
+              {skirmishReveal.pendingApprox > 0 ? (
+                <p className="game-combat-hud__pending" role="status">
+                  {String(skirmishReveal.pendingApprox)} line
+                  {skirmishReveal.pendingApprox === 1 ? '' : 's'} queued…
+                </p>
+              ) : null}
+            </div>
+          }
+          footer={
+            <>
+              {skirmishReveal.pendingApprox > 0 ? (
+                <button
+                  type="button"
+                  className="game-combat-modal__secondary"
+                  onClick={() => skirmishReveal.flushPending()}
+                >
+                  Show all lines now
+                </button>
+              ) : null}
+              {skirmishReveal.pendingApprox === 0 ? (
+                <>
+                  {skirmishSession.outcome === 'win' ? (
+                    <p className="game-skirmish-result">
+                      Victory — +{STREET_SKIRMISH_SCRAP_REWARD_QTY} scrap metal, +
+                      {STREET_SKIRMISH_WIN_SCORE} score (already applied).
+                    </p>
+                  ) : skirmishSession.outcome === 'loss' ? (
+                    <p className="game-skirmish-result">
+                      You went down. Heal up and keep patrolling.
+                    </p>
+                  ) : (
+                    <p className="game-skirmish-result">
+                      Stalemate — the street goes quiet.
+                    </p>
+                  )}
+                  <button type="button" onClick={() => dismissSkirmish()}>
+                    Close
+                  </button>
+                </>
+              ) : null}
+            </>
+          }
+        >
+          <h3>Battle feed</h3>
+          <CombatLogTurnTabPanel
+            fullLog={skirmishSession.combatLog}
+            visibleEntries={skirmishReveal.visibleEntries}
+            resetKey={skirmishRevealKey}
+            listClassName="game-combat-log--theater"
+            autoScroll
+          />
+        </CombatModal>
+      ) : null}
 
       {showDefenseCombatModal ? (
         <CombatModal
