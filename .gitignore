@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local agent / design notes (keep on disk, do not publish)
+AGENTS.md
+.cursor/rules/peraspera-vision.mdc
+docs/act1-player-loop.md
