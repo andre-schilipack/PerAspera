@@ -135,7 +135,7 @@ function nearestEnemyId(
 }
 
 function skillRangeFromTemplate(template: MoveTemplate, isRangedMove: boolean): number {
-  const raw = (template as { range?: number }).range;
+  const raw = template.range;
   if (typeof raw === 'number') return Math.max(1, Math.floor(raw));
   return isRangedMove ? 3 : 1;
 }
@@ -237,6 +237,8 @@ function initUnitState(spec: UnitSpec): UnitState {
     alive: hp > 0,
     retreated: false,
     nextActAt: 0,
+    immobile: spec.immobile === true,
+    vital: spec.vital === true,
   };
 }
 
@@ -520,7 +522,13 @@ export function simulateBattle(input: BattleInput): BattleResult {
 
   let ticksElapsed = 0;
   let lastTick = state.tick;
-  while (ticksElapsed < maxTicks) {
+  /** Team that lost because a vital anchor died. */
+  let anchorLoser: TeamId | null = null;
+  const noteVitalDeath = (unit: UnitState) => {
+    if (unit.vital && !unit.alive) anchorLoser = unit.teamId;
+  };
+
+  while (ticksElapsed < maxTicks && !anchorLoser) {
     const teams = livingTeamIds(livingByTeam);
     if (teams.length <= 1) break;
 
@@ -549,7 +557,12 @@ export function simulateBattle(input: BattleInput): BattleResult {
 
     // Retreat check (hands-off). If it triggers, the unit exits the battle.
     const actorHpFrac = actor.maxHp > 0 ? actor.hp / actor.maxHp : 0;
-    if (actorHpFrac <= retreatCfg.retreatHpFraction && rng() < retreatCfg.retreatChance) {
+    if (
+      !actor.immobile &&
+      !actor.vital &&
+      actorHpFrac <= retreatCfg.retreatHpFraction &&
+      rng() < retreatCfg.retreatChance
+    ) {
       actor.retreated = true;
       occupied.delete(actor.tileId);
       removeLivingUnit(livingByTeam, actor.teamId, actor.unitId);
@@ -671,6 +684,7 @@ export function simulateBattle(input: BattleInput): BattleResult {
             stats.byUnit[actor.unitId]!.kills += 1;
             occupied.delete(hitTarget.tileId);
             removeLivingUnit(livingByTeam, hitTarget.teamId, hitTarget.unitId);
+            noteVitalDeath(hitTarget);
           }
         }
       } else if (pickedSkill.effect.kind === 'heal') {
@@ -708,6 +722,12 @@ export function simulateBattle(input: BattleInput): BattleResult {
           turns: dur,
         });
       }
+    } else if (!canMelee && actor.immobile) {
+      writer.push({
+        type: 'unit_acted',
+        unitId: actor.unitId,
+        action: 'wait',
+      });
     } else if (!canMelee) {
       // Temporarily free actor's current tile so it can move.
       occupied.delete(actor.tileId);
@@ -791,8 +811,11 @@ export function simulateBattle(input: BattleInput): BattleResult {
         stats.byUnit[actor.unitId]!.kills += 1;
         occupied.delete(target.tileId);
         removeLivingUnit(livingByTeam, target.teamId, target.unitId);
+        noteVitalDeath(target);
       }
     }
+
+    if (anchorLoser) break;
 
     // Reschedule actor.
     actor.nextActAt = state.tick + baseDelayFromSpeed(actor.speed);
@@ -800,7 +823,13 @@ export function simulateBattle(input: BattleInput): BattleResult {
   }
 
   const teamsLeft = livingTeamIds(livingByTeam);
-  const winningTeamId = teamsLeft.length === 1 ? teamsLeft[0]! : null;
+  const winningTeamId = anchorLoser
+    ? (Object.keys(state.unitsById)
+        .map((id) => state.unitsById[id]!.teamId)
+        .find((teamId) => teamId !== anchorLoser) ?? null)
+    : teamsLeft.length === 1
+      ? teamsLeft[0]!
+      : null;
   if (winningTeamId) {
     writer.push({ type: 'battle_ended', winningTeamId });
   }

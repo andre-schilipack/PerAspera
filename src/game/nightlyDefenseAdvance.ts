@@ -8,7 +8,7 @@ import {
   DEFENSE_VICTORY_SCORE,
 } from '../domain/constants.ts';
 import { advanceNightlyDefenseRound } from '../domain/nightlyDefenseCombat.ts';
-import { advancePrefeituraSiegeRound } from '../domain/prefeituraSiegeCombat.ts';
+import { resolveDefenseFieldBattle } from '../domain/defenseFieldBattle.ts';
 import {
   distributeItemsAmongParticipants,
 } from '../domain/nightlyDefenseLoot.ts';
@@ -99,11 +99,13 @@ export function buildNightlyDefenseAdvanceCommit(
       };
     }
 
-    const siegeResult = advancePrefeituraSiegeRound(
-      dd,
-      snapshot.hexMap,
+    const siegeResult = resolveDefenseFieldBattle({
+      daily: dd,
+      hexMap: snapshot.hexMap,
+      theater: 'siege',
       rng,
-    );
+      nowMs: now,
+    });
     let nextId = startId;
     const siegeLines: CombatLogEntry[] = siegeResult.newLogLines.map((l) => {
       nextId += 1;
@@ -118,7 +120,7 @@ export function buildNightlyDefenseAdvanceCommit(
     const base: NightlyDefenseAdvanceCommit = {
       nextCombatLogEntryId: nextId,
       dailyDefense: nextDaily,
-      updatedHexMap: siegeResult.hexMap,
+      updatedHexMap: siegeResult.hexMap ?? siegeResult.wallResult.hexMap,
     };
 
     if (!siegeResult.fightEnded) {
@@ -242,6 +244,68 @@ export function buildNightlyDefenseAdvanceCommit(
       rng,
       now,
     });
+
+    if (
+      opened.dailyDefense.outcome === 'prefeitura_siege' &&
+      opened.breachRaid !== 'skipped'
+    ) {
+      const siege = resolveDefenseFieldBattle({
+        daily: opened.dailyDefense,
+        hexMap: opened.breachRaid.hexMap,
+        theater: 'siege',
+        rng,
+        nowMs: now,
+      });
+      let siegeId = opened.nextCombatLogEntryId;
+      const siegeLines: CombatLogEntry[] = siege.newLogLines.map((l) => {
+        siegeId += 1;
+        return { ...l, id: siegeId };
+      });
+      const siegeDaily: DailyDefenseState = {
+        ...siege.nextDaily,
+        combatLog: [...opened.dailyDefense.combatLog, ...siegeLines],
+      };
+      const siegeHp: DefenderHpSyncPayload = {
+        line: siege.nextDaily.defenderLine.map((d) => ({
+          characterId: d.characterId,
+          currentHp: d.currentHp,
+          maxHp: d.maxHp,
+        })),
+        lastUpdated: now,
+      };
+      if (siegeDaily.outcome === 'victory') {
+        const participantIds = siegeDaily.defenderLine.map((d) => d.characterId);
+        return {
+          nextCombatLogEntryId: siegeId,
+          dailyDefense: { ...siegeDaily, victoryLootPool: [] },
+          defenderHpSync: siegeHp,
+          breachRaid: opened.breachRaid,
+          updatedHexMap: siege.hexMap ?? siege.wallResult.hexMap,
+          victoryRewards: siegeDaily.defenderLine.map((d) => ({
+            characterId: d.characterId,
+            scoreDelta: DEFENSE_VICTORY_SCORE,
+            reputationDelta: DEFENSE_VICTORY_REPUTATION,
+            credsDelta: DEFENSE_VICTORY_CREDS,
+          })),
+          victoryLootGrants: distributeItemsAmongParticipants(
+            dd.victoryLootPool,
+            participantIds,
+            rng,
+          ),
+        };
+      }
+      if (siegeDaily.outcome === 'loss') {
+        return {
+          nextCombatLogEntryId: siegeId,
+          dailyDefense: { ...siegeDaily, victoryLootPool: [] },
+          defenderHpSync: siegeHp,
+          breachRaid: opened.breachRaid,
+          updatedHexMap: siege.hexMap ?? siege.wallResult.hexMap,
+          declareGameOver: { reason: 'prefeitura_fallen', at: now },
+        };
+      }
+    }
+
     return {
       nextCombatLogEntryId: opened.nextCombatLogEntryId,
       dailyDefense: opened.dailyDefense,

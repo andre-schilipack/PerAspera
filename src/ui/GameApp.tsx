@@ -1,11 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
-  ALLY_SPIRIT_INITIAL,
-  ALLY_SPIRIT_MAX,
   CENTER_HEX_ID,
   COMBAT_UI_LOG_LINE_MS,
-  COMBAT_UI_ROUND_INTERVAL_MS,
   DEFAULT_BUSINESS_STRUCTURE_MAX_HP,
   DEFENSE_LOCK_STA_COST,
   DEFENSE_START_HOUR,
@@ -379,7 +376,7 @@ export default function GameApp() {
     return () => window.clearInterval(intervalId);
   }, [inGame, gameOver, dailyDefense.date]);
 
-  /** Nightly defense: 5s prep then first round; then 3s auto rounds. */
+  /** Nightly defense: short prep, then one full simulateBattle (playback only). */
   useEffect(() => {
     if (!inGame || gameOver || dailyDefense.phase !== 'preparing') return;
     playCombatStartSound();
@@ -390,32 +387,6 @@ export default function GameApp() {
     return () => window.clearTimeout(prepTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset prep on phase/date identity
   }, [inGame, gameOver, dailyDefense.phase, dailyDefense.date]);
-
-  useEffect(() => {
-    if (
-      !inGame ||
-      gameOver ||
-      dailyDefense.phase !== 'fighting' ||
-      dailyDefense.isCompleted
-    ) {
-      return;
-    }
-    const intervalId = window.setInterval(() => {
-      advanceNightlyDefenseRound();
-      const s = useDefenseStore.getState().dailyDefense;
-      if (s.isCompleted) {
-        window.clearInterval(intervalId);
-      }
-    }, COMBAT_UI_ROUND_INTERVAL_MS);
-    return () => window.clearInterval(intervalId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    inGame,
-    gameOver,
-    dailyDefense.phase,
-    dailyDefense.isCompleted,
-    dailyDefense.date,
-  ]);
 
   function selectPlayableCharacter(characterId: string) {
     setCurrentCharacterId(characterId);
@@ -1489,9 +1460,7 @@ export default function GameApp() {
             </p>
           ) : dailyDefense.phase === 'fighting' && !dailyDefense.isCompleted ? (
             <p className="game-muted" role="status">
-              {dailyDefense.outcome === 'prefeitura_siege'
-                ? `Prefeitura siege — theater mode · ~${String(Math.round(COMBAT_UI_ROUND_INTERVAL_MS / 1000))}s per round.`
-                : `Theater mode · ~${String(Math.round(COMBAT_UI_ROUND_INTERVAL_MS / 1000))}s per round.`}
+              The fight resolves in one pass. The feed plays it back.
             </p>
           ) : null}
           {dailyDefense.defenderLine.length > 0 ? (
@@ -2032,31 +2001,6 @@ export default function GameApp() {
           }
           hud={
             <div className="game-combat-hud">
-              <div className="game-combat-hud__spirit">
-                <div className="game-combat-hud__row">
-                  <span>Ally spirit</span>
-                  <strong>
-                    {dailyDefense.allySpirit ?? ALLY_SPIRIT_INITIAL}/
-                    {ALLY_SPIRIT_MAX}
-                  </strong>
-                </div>
-                <meter
-                  className="game-combat-spirit-meter"
-                  value={dailyDefense.allySpirit ?? ALLY_SPIRIT_INITIAL}
-                  min={0}
-                  max={ALLY_SPIRIT_MAX}
-                />
-                {(dailyDefense.moraleShockTurnsRemaining ?? 0) > 0 ? (
-                  <p className="game-combat-shock" role="status">
-                    Morale shock — defender pressure damped ·{' '}
-                    {String(dailyDefense.moraleShockTurnsRemaining ?? 0)} round
-                    {(dailyDefense.moraleShockTurnsRemaining ?? 0) === 1
-                      ? ''
-                      : 's'}{' '}
-                    left
-                  </p>
-                ) : null}
-              </div>
               <div className="game-combat-hud__grid">
                 <div>
                   <span className="game-muted">Round</span>
@@ -2165,7 +2109,7 @@ export default function GameApp() {
             </p>
           ) : dailyDefense.phase === 'fighting' && !dailyDefense.isCompleted ? (
             <p className="game-muted" role="status">
-              Rounds advance ~ every {String(Math.round(COMBAT_UI_ROUND_INTERVAL_MS / 1000))}s; each line appears ~ every {String(Math.round(COMBAT_UI_LOG_LINE_MS / 1000))}s.
+              Resolving the fight… lines appear ~ every {String(Math.round(COMBAT_UI_LOG_LINE_MS / 1000))}s.
             </p>
           ) : null}
           <h3>Battle feed</h3>

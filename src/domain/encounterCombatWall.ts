@@ -219,6 +219,27 @@ export function patchHexInMap(
   };
 }
 
+/** Set city hall structural HP and keep the Prefeitura slot in sync. */
+export function setCityHallFeatureHp(
+  hexMap: HexMap,
+  cityHallHexId: string,
+  currentHp: number,
+  maxHp: number,
+): HexMap {
+  return patchHexInMap(hexMap, cityHallHexId, (tile) => {
+    const max = Math.max(1, maxHp);
+    const current = Math.min(max, Math.max(0, currentHp));
+    const rest = (tile.features ?? []).filter((f) => f.type !== 'city_hall');
+    const hall: HexTileCityHallFeature = {
+      type: 'city_hall',
+      currentHp: current,
+      maxHp: max,
+    };
+    const withHall: HexTile = { ...tile, features: [...rest, hall] };
+    return syncPrefeituraSlotStructureHpFromCityHall(withHall);
+  });
+}
+
 /** Replace or insert wall pool HP (e.g. legacy save migration). */
 export function upsertWallFeatureHp(
   tile: HexTile,

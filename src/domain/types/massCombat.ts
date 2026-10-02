@@ -1,6 +1,5 @@
 import type { CombatLogEntry } from './combat.ts';
 import type { HexMap } from './map.ts';
-import type { EncounterCombatStateDelta } from '../encounterCombatTypes.ts';
 
 /**
  * Mass combat (nightly defense, Prefeitura siege, future ally-only fights) shares one
@@ -75,11 +74,6 @@ export interface MassCombatRoundResultBase {
   newLogLines: Omit<CombatLogEntry, 'id'>[];
   wallResult: MassCombatWallSnapshot;
 }
-
-/** Full round result (domain-specific state delta; merge to session in the game layer). */
-export type MassCombatRoundResult = MassCombatRoundResultBase & {
-  stateDelta: EncounterCombatStateDelta;
-};
 
 export function massCombatStructuralPresent(
   presence: MassCombatStructuralPresence,

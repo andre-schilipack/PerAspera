@@ -72,12 +72,12 @@ describe('nightly defense regression (domain)', () => {
     expect(r.nextDaily.enemies.length).toBe(0);
   });
 
-  it('breaches thin wall when strike cycle is wall-only and hostile hits hard', () => {
+  it('breaches the sector wall when the field is lost', () => {
     const enemies = [
       {
         enemyId: 'ram',
-        currentHealth: 500,
-        maxHealth: 500,
+        currentHealth: 8000,
+        maxHealth: 8000,
         tacticalBucket: 'front' as const,
         buffs: {},
       },
@@ -86,12 +86,17 @@ describe('nightly defense regression (domain)', () => {
       enemies,
       totalEnemyPoints: sumLivingThreatPoints(enemies),
       defenderLine: [],
+      targetHexId: HOME_HEX_ID,
     });
     const hexMap = hexMapWithWallHp(HOME_HEX_ID, 4, 400);
     const r = advanceNightlyDefenseRound(daily, hexMap, () => 0.95);
     expect(r.wallResult.breached).toBe(true);
     expect(r.nextDaily.outcome).toBe('breach');
     expect(r.fightEnded).toBe(true);
+    const wall = r.wallResult.hexMap?.hexes[HOME_HEX_ID]?.features?.find(
+      (f) => f.type === 'wall',
+    );
+    expect(wall && wall.type === 'wall' ? wall.currentHp : -1).toBe(0);
   });
 
   it('does not throw with extreme low RNG stream', () => {

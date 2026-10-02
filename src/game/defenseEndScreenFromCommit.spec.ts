@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ALLY_SPIRIT_INITIAL, HOME_HEX_ID } from '../domain/constants.ts';
+import { HOME_HEX_ID } from '../domain/constants.ts';
 import { defenseEndScreenFromCommit } from './defenseEndScreenFromCommit.ts';
 import type { NightlyDefenseAdvanceCommit } from './nightlyDefenseAdvance.ts';
 
@@ -26,8 +26,6 @@ describe('defenseEndScreenFromCommit', () => {
         phase: 'ended',
         outcome: 'breach',
         defenderLine: [],
-        allySpirit: ALLY_SPIRIT_INITIAL,
-        moraleShockTurnsRemaining: 0,
         victoryLootPool: [],
       },
     };
@@ -65,8 +63,6 @@ describe('defenseEndScreenFromCommit', () => {
             tacticalBucket: 'front',
           },
         ],
-        allySpirit: ALLY_SPIRIT_INITIAL,
-        moraleShockTurnsRemaining: 0,
         victoryLootPool: [],
       },
       victoryRewards: [

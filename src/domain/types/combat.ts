@@ -89,6 +89,8 @@ export interface MoveTemplate {
   cost: number;
   power: MovePower;
   tags: MoveTag[];
+  /** Hex distance for ranged casts. Omitted ranged skills default to 3 in the engine. */
+  range?: number;
   /** Turns before reuse (documented for UI / future cooldown rules). */
   cooldownTurns?: number;
   /** Buff/debuff duration (documented for UI / future duration rules). */

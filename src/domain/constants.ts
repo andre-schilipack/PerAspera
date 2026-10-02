@@ -139,29 +139,25 @@ export const BASE_MELEE_BLOCK_CHANCE = 0.1;
 /** Damage multiplier when a hit is blocked (mitigated). */
 export const BLOCK_DAMAGE_FACTOR = 0.5;
 
-/** Ally morale / cohesion during mass defense (0–100). */
-export const ALLY_SPIRIT_INITIAL = 58;
-export const ALLY_SPIRIT_MAX = 100;
-/** Per hostile eliminated during the allied phase. */
-export const ALLY_SPIRIT_PER_KILL = 4;
-/** When a defender takes HP damage from an enemy strike. */
-export const ALLY_SPIRIT_DEFENDER_HIT = -3;
-/** When the wall or Prefeitura takes structural pressure from this strike pass. */
-export const ALLY_SPIRIT_STRUCTURE_HIT = -2;
-/** No living hostiles left in the front bucket while others remain. */
-export const ALLY_SPIRIT_FRONT_GAP = -9;
-/** Support-role defender stabilizes the line when they connect. */
-export const ALLY_SPIRIT_SUPPORT_CONNECT = 5;
-/** Below this spirit, morale shock can trigger (ally-side drama). */
-export const ALLY_SPIRIT_MORALE_SHOCK_THRESHOLD = 28;
-export const MORALE_SHOCK_DURATION_TURNS = 2;
-/** Outgoing player defender damage multiplier while shock is active. */
-export const MORALE_SHOCK_OUTGOING_DAMAGE_FACTOR = 0.88;
-
 /** Combat UI: delay between each revealed log line (cinematic pacing). */
 export const COMBAT_UI_LOG_LINE_MS = 840;
-/** Combat UI: interval between auto-battle rounds (street + nightly). */
+/** Combat UI: interval between auto-battle rounds (legacy pacing constant). */
 export const COMBAT_UI_ROUND_INTERVAL_MS = 5200;
+
+/** One-shot field battle budget for nightly wall and Prefeitura siege. */
+export const NIGHTLY_FIELD_MAX_TICKS = 240;
+
+/** Extra max HP for warriors while the sector wall is still standing. */
+export const NIGHTLY_WALL_COVER_HP_BONUS = 0.3;
+
+export const DEFENSE_TEAM_DEFENDERS = 'defenders' as const;
+export const DEFENSE_TEAM_HOSTILES = 'hostiles' as const;
+
+export const DEFENSE_TOWER_MAX_HP = 80;
+export const DEFENSE_GUARD_MAX_HP = 36;
+
+/** Vital structure unit id during the Prefeitura siege. */
+export const DEFENSE_CITY_HALL_UNIT_ID = 'structure_city_hall' as const;
 
 /** STA spent to lock participation in nightly defense. */
 export const DEFENSE_LOCK_STA_COST = 50;

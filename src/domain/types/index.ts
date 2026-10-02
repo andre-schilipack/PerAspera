@@ -71,7 +71,6 @@ export type {
   CombatStrikeTargetKind,
   MassCombatModeFlags,
   MassCombatRoundConfig,
-  MassCombatRoundResult,
   MassCombatRoundResultBase,
   MassCombatStructuralPresence,
   MassCombatWallSnapshot,

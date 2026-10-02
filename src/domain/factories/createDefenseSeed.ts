@@ -1,5 +1,4 @@
 import {
-  ALLY_SPIRIT_INITIAL,
   CENTER_HEX_ID,
   DEFENSE_START_HOUR,
   HOME_HEX_ID,
@@ -50,8 +49,6 @@ export function createEmptyDailyDefense(params?: {
     phase: 'idle',
     outcome: 'active',
     defenderLine: [],
-    allySpirit: ALLY_SPIRIT_INITIAL,
-    moraleShockTurnsRemaining: 0,
     victoryLootPool: [],
   };
 }
@@ -99,8 +96,6 @@ export function rollDailyDefenseStateForNewDay(params: {
     phase: 'idle',
     outcome: 'active',
     defenderLine: [],
-    allySpirit: ALLY_SPIRIT_INITIAL,
-    moraleShockTurnsRemaining: 0,
     victoryLootPool,
   };
 }

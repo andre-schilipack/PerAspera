@@ -176,6 +176,7 @@ export const MOVE_CATALOG: Record<string, MoveTemplate> = {
     cost: 0,
     power: { mode: 'flat', basePower: 11 },
     tags: ['burst', 'ranged', 'single'],
+    range: 8,
   },
   [MOVE_ID_GUARD_DISPARO]: {
     id: MOVE_ID_GUARD_DISPARO,
@@ -187,6 +188,7 @@ export const MOVE_CATALOG: Record<string, MoveTemplate> = {
     cost: 0,
     power: { mode: 'flat', basePower: 7 },
     tags: ['ranged', 'single'],
+    range: 8,
   },
 };
 

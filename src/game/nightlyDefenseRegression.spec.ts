@@ -146,12 +146,12 @@ describe('nightly defense advance regression (game layer)', () => {
     expect(c.declareGameOver).toBeUndefined();
   });
 
-  it('wall breach with hex map opens Prefeitura siege when hostiles remain after raid', () => {
+  it('lost field breaches, raids, and resolves the Prefeitura siege in the same commit', () => {
     const enemies = [
       {
         enemyId: 'ram',
-        currentHealth: 300,
-        maxHealth: 300,
+        currentHealth: 8000,
+        maxHealth: 8000,
         tacticalBucket: 'front' as const,
         buffs: {},
       },
@@ -173,9 +173,9 @@ describe('nightly defense advance regression (game layer)', () => {
       () => 0.96,
       1_760_000_000_000,
     );
-    expect(c.dailyDefense.outcome).toBe('prefeitura_siege');
-    expect(c.dailyDefense.phase).toBe('fighting');
     expect(c.breachRaid).not.toBe('skipped');
+    expect(c.dailyDefense.isCompleted).toBe(true);
+    expect(['victory', 'loss']).toContain(c.dailyDefense.outcome);
   });
 
   it('runs one siege round when hex map exists', () => {
@@ -221,6 +221,6 @@ describe('nightly defense advance regression (game layer)', () => {
     );
     expect(c.dailyDefense.combatLog.length).toBeGreaterThan(startLen);
     expect(c.updatedHexMap).toBeDefined();
-    expect(c.declareGameOver).toBeUndefined();
+    expect(c.dailyDefense.isCompleted).toBe(true);
   });
 });

@@ -13,6 +13,13 @@ export interface UnitSpec {
   mana?: number;
   skillIds?: readonly string[];
   speed: number;
+  /** Cannot step. Still acts (attack, cast, wait). */
+  immobile?: boolean;
+  /**
+   * If this unit dies, its team loses immediately — even if other allies live.
+   * Used for scenario anchors (Prefeitura).
+   */
+  vital?: boolean;
 }
 
 export interface BattleInput {
@@ -52,6 +59,8 @@ export interface UnitState {
   alive: boolean;
   retreated: boolean;
   nextActAt: number;
+  immobile: boolean;
+  vital: boolean;
 }
 
 export interface BattleState {

@@ -16,7 +16,6 @@ import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useCityStore } from '../stores/useCityStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 import {
-  ALLY_SPIRIT_INITIAL,
   CENTER_HEX_ID,
   DEFAULT_BUSINESS_STRUCTURE_MAX_HP,
   HOME_HEX_ID,
@@ -98,15 +97,6 @@ function ensureDailyDefenseShape(): void {
     patch.targetHexId = HOME_HEX_ID;
     needsPatch = true;
   }
-  if (typeof d.allySpirit !== 'number') {
-    patch.allySpirit = ALLY_SPIRIT_INITIAL;
-    needsPatch = true;
-  }
-  if (typeof d.moraleShockTurnsRemaining !== 'number') {
-    patch.moraleShockTurnsRemaining = 0;
-    needsPatch = true;
-  }
-
   const rawEnemies = d.enemies;
   if (Array.isArray(rawEnemies)) {
     let migEnemy = false;

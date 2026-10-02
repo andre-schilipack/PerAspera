@@ -73,10 +73,6 @@ export interface DailyDefenseState {
   outcome: NightlyDefenseOutcome;
   /** Snapshot per fight; filled when combat starts. */
   defenderLine: DefenderLineEntry[];
-  /** Ally-side cohesion meter (combat rounds only). */
-  allySpirit: number;
-  /** While > 0, defender melee pressure is suppressed (morale shock). */
-  moraleShockTurnsRemaining: number;
   /**
    * Rolled when the wave is seeded; split randomly among `defenderLine` on victory.
    */
