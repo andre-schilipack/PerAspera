@@ -81,7 +81,7 @@ export function buildNightlyDefenseAdvanceCommit(
       const nextId = startId + 1;
       const line: CombatLogEntry = {
         id: nextId,
-        turn: dd.currentTurn,
+        turn: 0,
         timestamp: now,
         text: 'Prefeitura siege aborted — city map missing.',
         type: 'system',

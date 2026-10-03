@@ -475,7 +475,7 @@ export interface IHexGrid {
 
 - `schemaVersion: number` (no `BattleResult`)
 - `battleId: string` (gerado fora do motor, ou pelo chamador)
-- `t: number` (tick lógico)
+- `t: number` (tick lógico). Escala de apresentação: **1 tick = 0,1 s** de tempo de luta (`formatCombatClock`). O replay da UI não avança em tempo real nessa escala; só rotula a linha do tempo.
 - `eventIndex: number` (monotônico dentro da batalha)
 - `type: CanonicalEventType`
 - `actorId?: string` (quando aplicável)

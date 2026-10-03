@@ -73,13 +73,17 @@ export function openPrefeituraPhaseAfterWallBreach(
   });
 
   let mergedLog: CombatLogEntry[] = nextDaily.combatLog;
+  const raidTick = nextDaily.combatLog.reduce(
+    (latest, entry) => Math.max(latest, entry.turn),
+    0,
+  );
   for (const text of raid.logLines) {
     nextId += 1;
     mergedLog = [
       ...mergedLog,
       {
         id: nextId,
-        turn: nextDaily.currentTurn,
+        turn: raidTick,
         timestamp: now,
         text,
         type: 'system',

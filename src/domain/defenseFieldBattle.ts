@@ -241,7 +241,7 @@ export function resolveDefenseFieldBattle(params: {
       fightEnded: true,
       newLogLines: [
         {
-          turn: daily.currentTurn,
+          turn: 0,
           timestamp: nowMs,
           text:
             theater === 'siege'
@@ -396,7 +396,7 @@ export function resolveDefenseFieldBattle(params: {
 
   const lines: Omit<CombatLogEntry, 'id'>[] = [
     {
-      turn: daily.currentTurn,
+      turn: 0,
       timestamp: nowMs,
       text:
         theater === 'siege'
@@ -473,7 +473,7 @@ function terminalSiegeLoss(
     fightEnded: true,
     newLogLines: [
       {
-        turn: daily.currentTurn,
+        turn: 0,
         timestamp: nowMs,
         text: 'The Prefeitura falls.',
         type: 'system',

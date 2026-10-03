@@ -62,7 +62,7 @@ function compareQueue(a: QueueItem, b: QueueItem): number {
 
 function baseDelayFromSpeed(speed: number): number {
   const s = Number.isFinite(speed) ? Math.max(0.1, speed) : 1;
-  // Slice 1: keep it simple. Higher speed => smaller delay, but clamp.
+  // Higher speed => smaller delay. Tick scale for UI: 1 tick = 0.1s (combatClock).
   return Math.max(1, Math.floor(10 / s));
 }
 

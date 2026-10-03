@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 
+import { formatCombatClock } from '../domain/combat/io/combatClock.ts';
 import type { CombatLogEntry } from '../domain/types/index.ts';
 
 import { CombatLogList } from './CombatLogList.tsx';
@@ -20,8 +21,8 @@ export interface CombatLogTurnTabPanelProps {
 }
 
 /**
- * Single combat feed with turn tabs: unified `fullLog` order preserved; "All" shows
- * the visible stream; a numbered tab shows only lines for that `CombatLogEntry.turn`.
+ * Single combat feed with timeline tabs. `CombatLogEntry.turn` is the combat tick.
+ * Tabs show fight time (1 tick = 0.1s). "All" shows the visible stream.
  */
 export function CombatLogTurnTabPanel({
   fullLog,
@@ -58,7 +59,7 @@ export function CombatLogTurnTabPanel({
       <div
         className="game-combat-log-tabs"
         role="tablist"
-        aria-label="Combat log by turn"
+        aria-label="Combat timeline"
       >
         <button
           type="button"
@@ -80,7 +81,7 @@ export function CombatLogTurnTabPanel({
             data-active={selected === t ? 'true' : 'false'}
             onClick={() => setSelected(t)}
           >
-            Turn {t}
+            {formatCombatClock(t)}
           </button>
         ))}
       </div>

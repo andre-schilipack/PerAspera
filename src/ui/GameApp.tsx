@@ -1906,7 +1906,7 @@ export default function GameApp() {
             <>
               Hex {skirmishSession.hexId} · danger{' '}
               {Math.round(skirmishSession.danger)} ·{' '}
-              {skirmishSession.characterName} · tabs = combat ticks
+              {skirmishSession.characterName} · 1 tick = 0.1s
             </>
           }
           hud={
@@ -1989,7 +1989,7 @@ export default function GameApp() {
           subtitle={
             <>
               Night {dailyDefense.date} · game day {dailyDefense.gameDayIndex} ·
-              threat {dailyDefense.totalEnemyPoints} · phase{' '}
+              threat {dailyDefense.totalEnemyPoints} · 1 tick = 0.1s · phase{' '}
               <strong>{dailyDefense.phase}</strong>
               {dailyDefense.outcome !== 'active' ? (
                 <>
@@ -2003,7 +2003,7 @@ export default function GameApp() {
             <div className="game-combat-hud">
               <div className="game-combat-hud__grid">
                 <div>
-                  <span className="game-muted">Round</span>
+                  <span className="game-muted">Wave</span>
                   <strong>{dailyDefense.currentTurn}</strong>
                 </div>
                 <div>

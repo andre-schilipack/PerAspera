@@ -18,7 +18,7 @@ export interface StreetSkirmishSession {
   enemyHp: number;
   enemyMaxHp: number;
   outcome: StreetSkirmishOutcome;
-  /** `CombatLogEntry.turn` stores the combat tick for tab grouping. */
+  /** `CombatLogEntry.turn` stores the combat tick (1 tick = 0.1s on the timeline tabs). */
   combatLog: CombatLogEntry[];
   battleResult: BattleResult;
   rewardsApplied: boolean;
