@@ -120,6 +120,9 @@ export const PATROL_ENCOUNTER_CHANCE_CAP = 0.42;
 /** Max equipped combat skills per character (deck-style loadout). */
 export const MAX_COMBAT_SKILL_SLOTS = 6;
 
+/** Max ordered AlgoCombat rules stored on a character loadout. */
+export const MAX_ALGO_RULES = 8;
+
 /** Default max (and starting) HP for playable characters. */
 export const PLAYER_BASE_MAX_HP = 42;
 

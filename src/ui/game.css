@@ -202,6 +202,58 @@
   font-size: 0.85rem;
 }
 
+.combat-loadout-policy {
+  margin-top: 16px;
+}
+
+.combat-loadout-policy > select,
+.combat-loadout-algo select,
+.combat-loadout-algo input[type='number'] {
+  font: inherit;
+  color: var(--text-h);
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.combat-loadout-algo {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.combat-loadout-algo-list li {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.combat-loadout-algo-fields,
+.combat-loadout-algo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.combat-loadout-algo-check {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.combat-loadout-algo-percent {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.combat-loadout-algo-percent input {
+  width: 4.5rem;
+}
+
 .game-log {
   max-height: 220px;
   overflow: auto;

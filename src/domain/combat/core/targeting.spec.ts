@@ -52,7 +52,7 @@ describe('combat engine slice 4 targeting + obstacles', () => {
       cost: 0,
       power: { mode: 'flat', basePower: 5 },
       tags: ['ranged', 'single'],
-      cooldownTurns: 1,
+      cooldownSeconds: 1,
     };
 
     const res = simulateBattle({

@@ -325,7 +325,16 @@ export interface BattleStateSummary {
 
 ### Actions (internal decision contract)
 
-Actions são internas ao motor (policy → rules). Elas não precisam ser persistidas para replay, porque o replay reproduz os **resultados** via `CanonicalEvent`.
+A política devolve uma `PolicyDecision` (`retreat`, `wait`, ou `use` com `skillId` e `targetId`). O loop de `simulateBattle` resolve alcance, passo, mana, cooldown e o log. Unidade sem `algoProgram` usa `decideAutoplay` (o comportamento hands-off anterior). Unidade com `algoProgram` usa `decideAlgo`: a primeira regra válida da lista.
+
+```ts
+export type PolicyDecision =
+  | { kind: 'retreat' }
+  | { kind: 'wait' }
+  | { kind: 'use'; skillId: string; targetId: UnitId };
+```
+
+O rascunho abaixo descreve o contrato interno antigo (`Action`), ainda útil como mapa do que o resolvedor emite no log. A política não escolhe a casa do passo.
 
 ```ts
 export type Action =

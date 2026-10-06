@@ -285,6 +285,7 @@ export function resolveDefenseFieldBattle(params: {
         mana: 0,
         skillIds: skills,
         speed: speedFromAgility(attrs.agility),
+        algoProgram: d.algoProgram,
       };
     });
 

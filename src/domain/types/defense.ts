@@ -1,3 +1,4 @@
+import type { AlgoProgram } from '../combat/ai/policy.ts';
 import type { CoreAttributes } from './attributes.ts';
 import type {
   CombatLogEntry,
@@ -42,6 +43,11 @@ export interface DefenderLineEntry {
    * Deck for future autoplay on the line ({@link pickAutoplaySkill}); optional until wired.
    */
   skillIds?: MoveTemplateId[];
+  /**
+   * Copied from the character when their loadout mode is AlgoCombat.
+   * Absent means this defender uses autoplay.
+   */
+  algoProgram?: AlgoProgram;
   /**
    * Runtime state for a single defense session. Optional so old saves and tests start
    * with an empty state.

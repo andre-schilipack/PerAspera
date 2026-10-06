@@ -18,6 +18,7 @@ describe('buildDefenderLineFromLocks', () => {
     expect(line).toHaveLength(1);
     expect(line[0]!.coreAttributes?.strength).toBe(3);
     expect(line[0]!.skillIds).toEqual(['basic_attack', 'int_spike']);
+    expect(line[0]!.algoProgram).toBeUndefined();
     expect(line[0]!.tacticalBucket).toBe('front');
     expect(line[0]!.combatState).toEqual({ cooldowns: {}, statuses: {} });
   });
@@ -30,5 +31,29 @@ describe('buildDefenderLineFromLocks', () => {
     );
     expect(line[0]!.coreAttributes).toBeUndefined();
     expect(line[0]!.skillIds).toBeUndefined();
+    expect(line[0]!.algoProgram).toBeUndefined();
+  });
+
+  it('copies an AlgoCombat program only when the loadout mode is algo', () => {
+    const line = buildDefenderLineFromLocks(['a'], () => ({
+      name: 'Scripted',
+      health: { current: 20, max: 20 },
+      combatLoadout: {
+        skillIds: ['cure'],
+        policyMode: 'algo' as const,
+        algoRules: [
+          {
+            enabled: true,
+            when: { kind: 'self' as const },
+            do: { kind: 'skill' as const, skillId: 'cure' },
+          },
+        ],
+      },
+    }));
+    expect(line[0]!.algoProgram?.rules).toHaveLength(1);
+    expect(line[0]!.algoProgram?.rules[0]?.do).toEqual({
+      kind: 'skill',
+      skillId: 'cure',
+    });
   });
 });

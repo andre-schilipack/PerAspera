@@ -1,3 +1,4 @@
+import type { AlgoProgram } from '../ai/policy.ts';
 import type { CoreAttributes } from '../../types/attributes.ts';
 import type { BattleId, TeamId, TileId, UnitId, UnitRole } from './events.ts';
 
@@ -13,6 +14,11 @@ export interface UnitSpec {
   mana?: number;
   skillIds?: readonly string[];
   speed: number;
+  /**
+   * When set, this unit decides with AlgoCombat instead of autoplay.
+   * Absent means the hands-off autoplay policy.
+   */
+  algoProgram?: AlgoProgram;
   /** Cannot step. Still acts (attack, cast, wait). */
   immobile?: boolean;
   /**
@@ -61,6 +67,8 @@ export interface UnitState {
   nextActAt: number;
   immobile: boolean;
   vital: boolean;
+  /** Copied from the spec. Absent means autoplay. */
+  algoProgram?: AlgoProgram;
 }
 
 export interface BattleState {

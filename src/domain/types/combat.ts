@@ -91,10 +91,10 @@ export interface MoveTemplate {
   tags: MoveTag[];
   /** Hex distance for ranged casts. Omitted ranged skills default to 3 in the engine. */
   range?: number;
-  /** Turns before reuse (documented for UI / future cooldown rules). */
-  cooldownTurns?: number;
-  /** Buff/debuff duration (documented for UI / future duration rules). */
-  durationTurns?: number;
+  /** Fight-time seconds before reuse. One second is 10 ticks (`COMBAT_TICK_SECONDS`). */
+  cooldownSeconds?: number;
+  /** Buff/debuff duration in fight-time seconds. */
+  durationSeconds?: number;
 }
 
 export type CombatLogActor =

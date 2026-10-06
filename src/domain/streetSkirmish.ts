@@ -12,6 +12,7 @@ import type {
   StreetSkirmishOutcome,
   StreetSkirmishSession,
 } from './types/skirmish.ts';
+import type { AlgoProgram } from './combat/ai/policy.ts';
 import type { UnitRole } from './combat/core/events.ts';
 import type { BattleResult } from './combat/core/types.ts';
 
@@ -31,6 +32,8 @@ export interface RunStreetSkirmishParams {
   coreAttributes?: CoreAttributes;
   skillIds?: readonly string[];
   combatRole?: UnitRole;
+  /** Set only when the character loadout is in AlgoCombat mode. */
+  algoProgram?: AlgoProgram;
   /** Injectable RNG for tests. */
   randomSource?: () => number;
   /** First combat log id (inclusive). */
@@ -212,6 +215,7 @@ export function runStreetSkirmish(
         mana: 0,
         skillIds,
         speed: speedFromAgility(attrs.agility),
+        algoProgram: params.algoProgram,
       },
       {
         unitId: STREET_DRONE_UNIT_ID,

@@ -1,3 +1,5 @@
+import { sanitizeAlgoRules } from './combat/ai/algoProgram.ts';
+import type { CombatPolicyMode } from './types/character.ts';
 import {
   DEFAULT_CORE_ATTRIBUTES,
   type CoreAttributes,
@@ -12,6 +14,8 @@ export const DEFAULT_COMBAT_LOADOUT: CombatLoadout = {
   skillIds: ['basic_attack', 'int_spike'],
   equippedItemInstanceIds: [],
   combatRole: 'frontline',
+  policyMode: 'autoplay',
+  algoRules: [],
 };
 
 /**
@@ -37,6 +41,19 @@ function mergeCoreAttributes(raw?: Partial<CoreAttributes>): CoreAttributes {
   };
 }
 
+function policyFields(raw: unknown): Pick<CombatLoadout, 'policyMode' | 'algoRules'> {
+  const mode: CombatPolicyMode =
+    isPolicyRecord(raw) && raw.policyMode === 'algo' ? 'algo' : 'autoplay';
+  return {
+    policyMode: mode,
+    algoRules: sanitizeAlgoRules(isPolicyRecord(raw) ? raw.algoRules : undefined),
+  };
+}
+
+function isPolicyRecord(value: unknown): value is { policyMode?: unknown; algoRules?: unknown } {
+  return typeof value === 'object' && value !== null;
+}
+
 function mergeCombatLoadout(raw: LegacyCharacterShape): CombatLoadout {
   const fromLoadout = raw.combatLoadout;
   if (fromLoadout && Array.isArray(fromLoadout.skillIds)) {
@@ -53,6 +70,7 @@ function mergeCombatLoadout(raw: LegacyCharacterShape): CombatLoadout {
         fromLoadout.combatRole === 'support'
           ? fromLoadout.combatRole
           : DEFAULT_COMBAT_LOADOUT.combatRole,
+      ...policyFields(fromLoadout),
     };
   }
 
@@ -61,6 +79,7 @@ function mergeCombatLoadout(raw: LegacyCharacterShape): CombatLoadout {
       skillIds: clampCombatSkillIds(raw.availableMoves),
       equippedItemInstanceIds: [],
       combatRole: DEFAULT_COMBAT_LOADOUT.combatRole,
+      ...policyFields(undefined),
     };
   }
 
@@ -68,6 +87,7 @@ function mergeCombatLoadout(raw: LegacyCharacterShape): CombatLoadout {
     skillIds: clampCombatSkillIds(DEFAULT_COMBAT_LOADOUT.skillIds),
     equippedItemInstanceIds: [...DEFAULT_COMBAT_LOADOUT.equippedItemInstanceIds],
     combatRole: DEFAULT_COMBAT_LOADOUT.combatRole,
+    ...policyFields(undefined),
   };
 }
 

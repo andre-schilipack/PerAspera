@@ -62,6 +62,8 @@ describe('normalizeCharacter', () => {
     expect(normalized.combatLoadout.skillIds).toEqual(
       DEFAULT_COMBAT_LOADOUT.skillIds,
     );
+    expect(normalized.combatLoadout.policyMode).toBe('autoplay');
+    expect(normalized.combatLoadout.algoRules).toEqual([]);
     expect(normalized.coreAttributes).toEqual(DEFAULT_CORE_ATTRIBUTES);
   });
 });

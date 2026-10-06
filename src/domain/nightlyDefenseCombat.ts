@@ -1,7 +1,8 @@
 import type { CombatLogEntry } from './types/combat.ts';
 import type { CoreAttributes } from './types/attributes.ts';
 import type { DailyDefenseState, DefenderLineEntry } from './types/defense.ts';
-import type { MoveTemplateId } from './types/combat.ts';
+import { algoProgramFromLoadout } from './combat/ai/algoProgram.ts';
+import type { CombatLoadout } from './types/character.ts';
 import type { MassCombatWallSnapshot } from './types/massCombat.ts';
 import { defenderBucketForLineIndex } from './defenseTactics.ts';
 import type { HexMap } from './types/map.ts';
@@ -46,7 +47,7 @@ export function buildDefenderLineFromLocks(
         name: string;
         health: { current: number; max: number };
         coreAttributes?: CoreAttributes;
-        combatLoadout?: { skillIds: readonly MoveTemplateId[] };
+        combatLoadout?: Pick<CombatLoadout, 'skillIds' | 'policyMode' | 'algoRules'>;
       }
     | undefined,
 ): DefenderLineEntry[] {
@@ -68,6 +69,7 @@ export function buildDefenderLineFromLocks(
       coreAttributes:
         ch.coreAttributes !== undefined ? { ...ch.coreAttributes } : undefined,
       skillIds,
+      algoProgram: algoProgramFromLoadout(ch.combatLoadout),
       combatState: { cooldowns: {}, statuses: {} },
     });
   }

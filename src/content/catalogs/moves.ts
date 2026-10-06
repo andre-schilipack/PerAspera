@@ -54,7 +54,7 @@ export const MOVE_CATALOG: Record<string, MoveTemplate> = {
     id: 'defensive_stance',
     name: 'Postura defensiva',
     description:
-      '+50% block chance, 3 turn duration. 8 turn cooldown (full effect when turn engine supports it).',
+      '+50% block chance, 3s duration. 8s cooldown (full effect when turn engine supports it).',
     effect: {
       kind: 'selfBuff',
       statusId: 'defensive_stance',
@@ -65,14 +65,14 @@ export const MOVE_CATALOG: Record<string, MoveTemplate> = {
     cost: 0,
     power: { mode: 'flat', basePower: 0 },
     tags: ['buff', 'single'],
-    cooldownTurns: 8,
-    durationTurns: 3,
+    cooldownSeconds: 8,
+    durationSeconds: 3,
   },
   fireball: {
     id: 'fireball',
     name: 'Bola de fogo',
     description:
-      'Fire burst across a small hostile cluster; power scales with Intelligence. 5 turn cooldown.',
+      'Fire burst across a small hostile cluster; power scales with Intelligence. 5s cooldown.',
     effect: { kind: 'damage' },
     damageKind: 'fire',
     targets: 'multi',
@@ -84,7 +84,7 @@ export const MOVE_CATALOG: Record<string, MoveTemplate> = {
       base: 5,
     },
     tags: ['burst', 'ranged', 'aoe'],
-    cooldownTurns: 5,
+    cooldownSeconds: 5,
   },
   arc_burst: {
     id: 'arc_burst',
@@ -102,13 +102,13 @@ export const MOVE_CATALOG: Record<string, MoveTemplate> = {
       base: 3,
     },
     tags: ['burst', 'ranged', 'aoe'],
-    cooldownTurns: 6,
+    cooldownSeconds: 6,
   },
   cure: {
     id: 'cure',
     name: 'Cura leve',
     description:
-      'Restores the most wounded ally. Magnitude scales with Intelligence and Charisma. 3 turn cooldown.',
+      'Restores the most wounded ally. Magnitude scales with Intelligence and Charisma. 3s cooldown.',
     effect: { kind: 'heal' },
     damageKind: 'energy',
     targets: 'single',
@@ -122,13 +122,13 @@ export const MOVE_CATALOG: Record<string, MoveTemplate> = {
       ],
     },
     tags: ['buff', 'single'],
-    cooldownTurns: 3,
+    cooldownSeconds: 3,
   },
   be_like_water: {
     id: 'be_like_water',
     name: 'Seja como Água',
     description:
-      'Evade and counter up (documented); power scales with Agility. 3 turn duration, 7 turn cooldown.',
+      'Evade and counter up (documented); power scales with Agility. 3s duration, 7s cooldown.',
     effect: {
       kind: 'selfBuff',
       statusId: 'be_like_water',
@@ -144,14 +144,14 @@ export const MOVE_CATALOG: Record<string, MoveTemplate> = {
       base: 2,
     },
     tags: ['buff', 'single'],
-    cooldownTurns: 7,
-    durationTurns: 3,
+    cooldownSeconds: 7,
+    durationSeconds: 3,
   },
   concentration: {
     id: 'concentration',
     name: 'Concentração',
     description:
-      'Ranged attack focus — documented buff to ranged offense. 3 turn duration, 4 turn cooldown.',
+      'Ranged attack focus — documented buff to ranged offense. 3s duration, 4s cooldown.',
     effect: {
       kind: 'selfBuff',
       statusId: 'concentration',
@@ -162,8 +162,8 @@ export const MOVE_CATALOG: Record<string, MoveTemplate> = {
     cost: 0,
     power: { mode: 'flat', basePower: 7 },
     tags: ['buff', 'ranged', 'single'],
-    cooldownTurns: 4,
-    durationTurns: 3,
+    cooldownSeconds: 4,
+    durationSeconds: 3,
   },
   /** Midpoint ~ band for docs; nightly defense rolls raw damage before resolve. */
   [MOVE_ID_TOWER_RAJADA]: {

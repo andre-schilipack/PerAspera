@@ -16,7 +16,7 @@ describe('combat engine slice 3 skills', () => {
       cost: 5,
       power: { mode: 'flat', basePower: 50 },
       tags: ['ranged', 'single'],
-      cooldownTurns: 1,
+      cooldownSeconds: 1,
     };
 
     const res = simulateBattle({
@@ -56,7 +56,7 @@ describe('combat engine slice 3 skills', () => {
     expect(cast).toBeUndefined();
   });
 
-  it('respects cooldown that decays by tick', () => {
+  it('respects cooldown measured in fight seconds', () => {
     const cdSkill: MoveTemplate = {
       id: 'cd_skill',
       name: 'CD Skill',
@@ -67,12 +67,12 @@ describe('combat engine slice 3 skills', () => {
       cost: 0,
       power: { mode: 'flat', basePower: 1 },
       tags: ['single', 'ranged'],
-      cooldownTurns: 3,
+      cooldownSeconds: 3,
     };
 
     const res = simulateBattle({
       battleId: 'cd-1',
-      maxTicks: 10,
+      maxTicks: 40,
       randomSource: () => 0.9,
       getSkillTemplate: (id) => (id === cdSkill.id ? cdSkill : undefined),
       units: [
@@ -82,7 +82,7 @@ describe('combat engine slice 3 skills', () => {
           role: 'frontline',
           tileId: '0,0',
           attributes: { ...DEFAULT_CORE_ATTRIBUTES, intelligence: 10 },
-          maxHp: 20,
+          maxHp: 500,
           maxMana: 0,
           mana: 0,
           skillIds: [cdSkill.id],
@@ -94,9 +94,9 @@ describe('combat engine slice 3 skills', () => {
           role: 'frontline',
           tileId: '0,1',
           attributes: DEFAULT_CORE_ATTRIBUTES,
-          maxHp: 200,
+          maxHp: 500,
           maxMana: 0,
-          speed: 1,
+          speed: 0.1,
         },
       ],
     });
@@ -105,10 +105,11 @@ describe('combat engine slice 3 skills', () => {
       .filter((e) => e.type === 'unit_acted' && e.unitId === 'A1' && e.action === 'cast')
       .map((e) => e.t);
 
-    // First cast at t0, then next cast no earlier than t3 (cooldownTurns=3).
+    // 3s cooldown = 30 ticks (1 tick = 0.1s). First cast at t0.
     expect(castTicks[0]).toBe(0);
+    expect(castTicks.length).toBeGreaterThan(1);
     for (let i = 1; i < castTicks.length; i++) {
-      expect(castTicks[i]! - castTicks[i - 1]!).toBeGreaterThanOrEqual(3);
+      expect(castTicks[i]! - castTicks[i - 1]!).toBeGreaterThanOrEqual(30);
     }
   });
 });

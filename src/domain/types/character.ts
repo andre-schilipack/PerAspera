@@ -1,3 +1,4 @@
+import type { AlgoRule } from '../combat/ai/policy.ts';
 import type { Item } from './items.ts';
 import type { CoreAttributes } from './attributes.ts';
 import type { MoveTemplateId } from './combat.ts';
@@ -23,12 +24,21 @@ export interface CharacterHealth {
  * Deck-style combat configuration. `skillIds` reference {@link MoveTemplateId} catalog keys.
  * `equippedItemInstanceIds` reserved for weapon/gear hooks (inventory item ids).
  */
+export type CombatPolicyMode = 'autoplay' | 'algo';
+
 export interface CombatLoadout {
   skillIds: MoveTemplateId[];
   /** Future: gear that modifies autoplay / damage (item instance ids). */
   equippedItemInstanceIds: string[];
   /** Slice 7: simple role selector for auto-placement in combat. */
   combatRole?: 'frontline' | 'ranged' | 'support';
+  /**
+   * Which policy this character uses when fielded.
+   * Omitted on older saves; normalize treats that as autoplay.
+   */
+  policyMode?: CombatPolicyMode;
+  /** Ordered AlgoCombat rules. Used only when `policyMode` is `algo`. */
+  algoRules?: AlgoRule[];
 }
 
 export interface Character {

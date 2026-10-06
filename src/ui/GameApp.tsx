@@ -110,6 +110,7 @@ import { useCityStore } from '../stores/useCityStore.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useSkirmishStore } from '../stores/useSkirmishStore.ts';
+import { algoProgramFromLoadout } from '../domain/combat/ai/algoProgram.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 
 import { CombatLogTurnTabPanel } from './CombatLogTurnTabPanel.tsx';
@@ -527,6 +528,7 @@ export default function GameApp() {
         coreAttributes: character.coreAttributes,
         skillIds: character.combatLoadout.skillIds,
         combatRole: character.combatLoadout.combatRole,
+        algoProgram: algoProgramFromLoadout(character.combatLoadout),
       });
     }
   }
@@ -1139,6 +1141,8 @@ export default function GameApp() {
           <CombatLoadoutEditor
             skillIds={character.combatLoadout.skillIds}
             combatRole={character.combatLoadout.combatRole ?? 'frontline'}
+            policyMode={character.combatLoadout.policyMode ?? 'autoplay'}
+            algoRules={character.combatLoadout.algoRules ?? []}
             onChangeSkillIds={(skillIds) =>
               updateCharacter(character.id, {
                 combatLoadout: {
@@ -1152,6 +1156,22 @@ export default function GameApp() {
                 combatLoadout: {
                   ...character.combatLoadout,
                   combatRole,
+                },
+              })
+            }
+            onChangePolicyMode={(policyMode) =>
+              updateCharacter(character.id, {
+                combatLoadout: {
+                  ...character.combatLoadout,
+                  policyMode,
+                },
+              })
+            }
+            onChangeAlgoRules={(algoRules) =>
+              updateCharacter(character.id, {
+                combatLoadout: {
+                  ...character.combatLoadout,
+                  algoRules,
                 },
               })
             }

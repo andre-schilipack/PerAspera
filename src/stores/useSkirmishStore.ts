@@ -5,6 +5,7 @@ import {
   STREET_SKIRMISH_WIN_SCORE,
 } from '../domain/constants.ts';
 import { itemGrantTemplate } from '../domain/businessPayout.ts';
+import { algoProgramFromLoadout } from '../domain/combat/ai/algoProgram.ts';
 import {
   runStreetSkirmish,
   type RunStreetSkirmishParams,
@@ -67,6 +68,8 @@ export const useSkirmishStore = create<SkirmishStore>()((set, get) => ({
       coreAttributes: params.coreAttributes ?? ch?.coreAttributes,
       skillIds: params.skillIds ?? ch?.combatLoadout?.skillIds,
       combatRole: params.combatRole ?? ch?.combatLoadout?.combatRole,
+      algoProgram:
+        params.algoProgram ?? algoProgramFromLoadout(ch?.combatLoadout),
     });
 
     const lastId =

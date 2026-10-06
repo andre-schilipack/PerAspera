@@ -60,6 +60,8 @@ export function createCharacter(params: CreateCharacterParams): Character {
         ...DEFAULT_COMBAT_LOADOUT.equippedItemInstanceIds,
       ],
       combatRole: DEFAULT_COMBAT_LOADOUT.combatRole,
+      policyMode: DEFAULT_COMBAT_LOADOUT.policyMode,
+      algoRules: [],
     },
     currentDefenseContribution: 0,
     autoEnlistNightlyDefense: true,
