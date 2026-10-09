@@ -32,10 +32,8 @@ function hexMapHomeToCenterWithBusiness(params: {
 }): HexMap {
   const biz = createNewBusiness({
     id: 'biz_1',
-    name: 'Test Shop',
-    type: 'loja',
+    buildingId: 'fazenda',
     nowMs: 0,
-    productionRate: 1,
   });
   const businessSlot = {
     id: 'slot_biz',
@@ -148,10 +146,8 @@ describe('applyRaidMarch', () => {
   it('skips Centro — does not damage slots downtown during P2 march', () => {
     const biz = createNewBusiness({
       id: 'biz_c',
-      name: 'Downtown',
-      type: 'loja',
+      buildingId: 'fazenda',
       nowMs: 0,
-      productionRate: 1,
     });
     const hm: HexMap = {
       size: 5,

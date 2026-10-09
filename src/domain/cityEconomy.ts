@@ -1,3 +1,4 @@
+import { CITY_POWER_MAX, CITY_POWER_START } from './constants.ts';
 import type { CityCoreState } from './types/city.ts';
 
 export interface EconomicTickSummary {
@@ -9,10 +10,10 @@ export interface EconomicTickSummary {
 
 export function createInitialCityCore(): CityCoreState {
   return {
-    energyCurrent: 1000,
-    energyMax: 1000,
-    energyGenerationPerTick: 18.5,
-    energyConsumptionPerTick: 20,
+    energyCurrent: CITY_POWER_START,
+    energyMax: CITY_POWER_MAX,
+    energyGenerationPerTick: 0,
+    energyConsumptionPerTick: 0,
     stabilityIndex: 72.25,
   };
 }

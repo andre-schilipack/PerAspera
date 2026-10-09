@@ -26,9 +26,6 @@ export type {
 export type {
   Business,
   BusinessInventorySlot,
-  BusinessKind,
-  FabricaRecipeId,
-  IndustrialRecipeId,
   PassiveItemBuffer,
 } from './economy.ts';
 export type {

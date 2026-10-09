@@ -1,16 +1,11 @@
+import { NPC_OWNER_PREFEITURA, WORK_ACTION_BATCHES } from './constants.ts';
+import { getBuildingDef, recipeOf } from './catalog/buildings.ts';
 import { normalizeBusiness } from './businessEconomyTick.ts';
+import { depositIntoBusinessSlots } from './businessInventorySlots.ts';
 import type { Business } from './types/economy.ts';
 import type { ItemRarity, ItemType } from './types/items.ts';
 import type { HexTile } from './types/map.ts';
-
 import { getMarketCatalogEntry } from './marketCatalog.ts';
-
-/** Output of one Work action on a single owned business on the current hex. */
-export interface BusinessWorkYield {
-  creds: number;
-  /** Items to add (caller assigns instance ids). */
-  itemGrants: readonly ItemGrant[];
-}
 
 export interface ItemGrant {
   templateId: string;
@@ -22,7 +17,14 @@ export interface ItemGrant {
   quantity: number;
 }
 
-/** Template metadata for items (quantity added by caller). Production types: no creds from active Work. */
+export interface ManualWorkResult {
+  business: Business;
+  /** Items the acting character keeps. */
+  grants: ItemGrant[];
+  /** Tax slice. Prefeitura owners should add this to the pantry. */
+  ownerShare: { templateId: string; quantity: number }[];
+}
+
 export function itemGrantTemplate(
   templateId: string,
 ): Omit<ItemGrant, 'quantity'> | null {
@@ -39,108 +41,76 @@ export function itemGrantTemplate(
 }
 
 /**
- * Active Work: instant STA tick. Production businesses yield items only (no creds).
- * Loja: no creds/items until passive sales + claim (MVP).
+ * One stamina work action.
+ * The owner's own action keeps the full item yield.
+ * A public action pays the other character in items, minus `publicWorkTax`,
+ * which stays with the site owner. No creds are paid.
+ * Skill multiplier is 1 until the skill sheet exists.
  */
-export function computeWorkPayout(business: Business): BusinessWorkYield {
-  const rate = Math.max(1, business.productionRate);
+export function resolveManualWork(
+  business: Business,
+  actorId: string,
+  ownerId: string,
+  skill = 1,
+): ManualWorkResult {
   const b = normalizeBusiness(business);
+  const def = getBuildingDef(b.buildingId);
+  const recipe = def ? recipeOf(def, b.recipeId) : undefined;
+  if (!def || !recipe || recipe.outputs.length === 0) {
+    return { business: b, grants: [], ownerShare: [] };
+  }
+  const isOwner = actorId === ownerId;
+  if (!isOwner && !b.public) {
+    return { business: b, grants: [], ownerShare: [] };
+  }
 
-  switch (b.type) {
-    case 'fazenda':
-      return {
-        creds: 0,
-        itemGrants: [
-          {
-            templateId: 'food_ration',
-            name: 'Food',
-            type: 'consumable',
-            rarity: 'common',
-            value: 6,
-            effects: { staminaBoost: 10 },
-            quantity: Math.max(1, Math.floor(rate / 8)),
-          },
-        ],
-      };
-    case 'loja':
-      return {
-        creds: 0,
-        itemGrants: [],
-      };
-    case 'industria': {
-      const rid = b.industrialRecipe ?? 'scrap_to_metal';
-      const rawTid = rid === 'wood_log_to_lumber' ? 'wood_log' : 'scrap_metal';
-      const stub = itemGrantTemplate(rawTid);
-      if (!stub) return { creds: 0, itemGrants: [] };
-      return {
-        creds: 0,
-        itemGrants: [
-          {
-            ...stub,
-            quantity: Math.min(3, Math.max(1, Math.floor(rate / 12))),
-          },
-        ],
-      };
-    }
-    case 'fabrica': {
-      const stub = itemGrantTemplate('construction_supplies');
-      if (!stub) return { creds: 0, itemGrants: [] };
-      return {
-        creds: 0,
-        itemGrants: [
-          {
-            ...stub,
-            quantity: Math.min(2, Math.max(1, Math.floor(rate / 14))),
-          },
-        ],
-      };
-    }
-    case 'outro':
-    default: {
-      const stub = itemGrantTemplate('scrap_metal');
-      if (!stub) return { creds: 0, itemGrants: [] };
-      return {
-        creds: 0,
-        itemGrants: [
-          {
-            ...stub,
-            quantity: Math.max(1, Math.floor(rate / 10)),
-          },
-        ],
-      };
+  const batches = Math.max(1, Math.round(WORK_ACTION_BATCHES * Math.max(0, skill)));
+  const grants: ItemGrant[] = [];
+  const ownerShare: { templateId: string; quantity: number }[] = [];
+  let slots = b.inventorySlots;
+
+  for (const output of recipe.outputs) {
+    const total = output.quantity * batches;
+    const tax = !isOwner ? Math.round(total * b.publicWorkTax) : 0;
+    const keep = Math.max(0, total - tax);
+    const stub = itemGrantTemplate(output.templateId);
+    if (stub && keep > 0) grants.push({ ...stub, quantity: keep });
+    if (tax > 0) {
+      ownerShare.push({ templateId: output.templateId, quantity: tax });
+      if (ownerId !== NPC_OWNER_PREFEITURA) {
+        slots = depositIntoBusinessSlots(slots, output.templateId, tax).slots;
+      }
     }
   }
+
+  return { business: { ...b, inventorySlots: slots }, grants, ownerShare };
 }
 
-/** Merge duplicate template lines (e.g. two farms → one Food ×2). */
-export function mergeItemGrants(
-  grants: readonly ItemGrant[],
-): ItemGrant[] {
+export function mergeItemGrants(grants: readonly ItemGrant[]): ItemGrant[] {
   const byTemplate = new Map<string, ItemGrant>();
   for (const g of grants) {
     const prev = byTemplate.get(g.templateId);
-    if (!prev) {
-      byTemplate.set(g.templateId, { ...g });
-    } else {
-      byTemplate.set(g.templateId, {
-        ...prev,
-        quantity: prev.quantity + g.quantity,
-      });
-    }
+    if (!prev) byTemplate.set(g.templateId, { ...g });
+    else byTemplate.set(g.templateId, { ...prev, quantity: prev.quantity + g.quantity });
   }
   return [...byTemplate.values()];
 }
 
-/** True if the hex has at least one business slot owned by the character. */
 export function hasCharacterBusinessOnHex(
   hex: HexTile | undefined,
   characterId: string,
 ): boolean {
   if (!hex) return false;
   return hex.placeSlots.some(
-    (p) =>
-      p.type === 'business' &&
-      p.business != null &&
-      p.ownedBy === characterId,
+    (p) => p.type === 'business' && p.business != null && p.ownedBy === characterId,
   );
+}
+
+export function hexHasWorkTarget(hex: HexTile | undefined, characterId: string): boolean {
+  if (!hex) return false;
+  return hex.placeSlots.some((p) => {
+    if (p.type !== 'business' || !p.business) return false;
+    if (p.ownedBy === characterId) return true;
+    return normalizeBusiness(p.business).public;
+  });
 }

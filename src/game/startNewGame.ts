@@ -7,6 +7,7 @@ import { useContractsStore } from '../stores/useContractsStore.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useCityStore } from '../stores/useCityStore.ts';
+import { useMarketStore } from '../stores/useMarketStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 import { addEmptyPlaceSlotsToHexMap } from './seedEmptyLots.ts';
 
@@ -55,5 +56,6 @@ export function startNewGame(characterName: string): void {
 
   useDefenseStore.getState().reset();
   useCityStore.getState().reset();
+  useMarketStore.getState().reset();
   useContractsStore.getState().reset();
 }

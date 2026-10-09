@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  BUILDING_CONSTRUCTION_SUPPLIES_COST,
   CENTER_HEX_ID,
   COMBAT_UI_LOG_LINE_MS,
   DEFAULT_BUSINESS_STRUCTURE_MAX_HP,
@@ -8,8 +9,11 @@ import {
   DEFENSE_START_HOUR,
   ECONOMIC_TICK_INTERVAL_MS,
   EMPTY_LOT_PRICE,
+  HOSPITAL_CURE_CREDS,
+  HOSPITAL_CURE_HP,
   INITIAL_CIVILIAN_POPULATION,
   NPC_OWNER_CITY,
+  NPC_OWNER_PREFEITURA,
   PATROL_STA_COST,
   STREET_SKIRMISH_SCRAP_REWARD_QTY,
   STREET_SKIRMISH_WIN_SCORE,
@@ -24,7 +28,12 @@ import {
   workerPoolAvailable,
 } from '../domain/businessEconomyTick.ts';
 import { claimFromBusinessBuffers } from '../domain/businessClaim.ts';
+import { playerBuildableCatalog, getBuildingDef } from '../domain/catalog/buildings.ts';
 import { createNewBusiness } from '../domain/factories/createBusiness.ts';
+import { applyHospitalCure } from '../domain/hospitalCure.ts';
+import { mergePantry } from '../domain/orderBook.ts';
+import { cancelOrder, placeOrder, type MarketOrder } from '../domain/orderBook.ts';
+import { useMarketStore } from '../stores/useMarketStore.ts';
 import {
   displayEconomicDecreasing,
   displayEconomicIncreasing,
@@ -35,10 +44,10 @@ import {
   repairWallOnHexTile,
 } from '../domain/encounterCombatWall.ts';
 import {
-  computeWorkPayout,
-  hasCharacterBusinessOnHex,
+  hexHasWorkTarget,
   itemGrantTemplate,
   mergeItemGrants,
+  resolveManualWork,
   type ItemGrant,
 } from '../domain/businessPayout.ts';
 import {
@@ -49,11 +58,7 @@ import {
 import { healthVisualCurrentAt } from '../domain/healthRegen.ts';
 import { staminaVisualCurrentAt } from '../domain/stamina.ts';
 import { makeBusinessId } from '../domain/ids.ts';
-import type {
-  BusinessKind,
-  IndustrialRecipeId,
-  NightlyDefenseOutcome,
-} from '../domain/types/index.ts';
+import type { NightlyDefenseOutcome } from '../domain/types/index.ts';
 import type { Item } from '../domain/types/index.ts';
 import {
   scoreEntriesFromCharacters,
@@ -208,6 +213,12 @@ export default function GameApp() {
   const [inventoryUseFeedback, setInventoryUseFeedback] = useState<
     string | null
   >(null);
+  const [marketDraft, setMarketDraft] = useState({
+    side: 'sell' as 'buy' | 'sell',
+    templateId: '',
+    price: '1',
+    qty: '1',
+  });
 
   const hexMap = useWorldStore((s) => s.hexMap);
   const characters = useCharactersStore((s) => s.characters);
@@ -217,7 +228,6 @@ export default function GameApp() {
   );
   const updateCharacter = useCharactersStore((s) => s.updateCharacter);
   const addItem = useCharactersStore((s) => s.addItemToInventory);
-  const removeItem = useCharactersStore((s) => s.removeItemFromInventory);
   const consumeOneUnitFromInventory = useCharactersStore(
     (s) => s.consumeOneUnitFromInventory,
   );
@@ -245,6 +255,10 @@ export default function GameApp() {
   const startSkirmishFromPatrol = useSkirmishStore((s) => s.startFromPatrol);
   const dismissSkirmish = useSkirmishStore((s) => s.dismiss);
   const cityCore = useCityStore((s) => s.cityCore);
+  const treasury = useCityStore((s) => s.treasury);
+  const pantry = useCityStore((s) => s.pantry);
+  const brownoutThisWageDay = useCityStore((s) => s.brownoutThisWageDay);
+  const marketOrders = useMarketStore((s) => s.orders);
   const civilianPopulation = useCityStore(
     (s) => s.civilianPopulation ?? INITIAL_CIVILIAN_POPULATION,
   );
@@ -618,10 +632,8 @@ export default function GameApp() {
     ) {
       return;
     }
-    const { business, credsAdded, items } = claimFromBusinessBuffers(
-      slot.business,
-    );
-    if (credsAdded <= 0 && items.length === 0) return;
+    const { business, items } = claimFromBusinessBuffers(slot.business);
+    if (items.length === 0) return;
 
     updateHex(hexId, (h) => ({
       ...h,
@@ -630,8 +642,6 @@ export default function GameApp() {
       ),
     }));
 
-    const live = useCharactersStore.getState().characters[character.id];
-    if (!live) return;
     const t = now;
     let seq = purchaseSeq.current;
     for (const chunk of items) {
@@ -650,31 +660,133 @@ export default function GameApp() {
       addItem(character.id, item);
     }
     purchaseSeq.current = seq;
-    updateCharacter(character.id, { creds: live.creds + credsAdded });
   }
 
-  function buyCatalog(entry: (typeof MARKET_CATALOG)[number]) {
-    if (!character) return;
-    if (character.creds < entry.value) return;
-    const item: Item = {
-      id: `${entry.templateId}_${now}_${purchaseSeq.current++}`,
-      templateId: entry.templateId,
-      name: entry.name,
-      type: entry.type,
-      rarity: entry.rarity,
-      value: entry.value,
-      effects: { ...entry.effects },
-      quantity: 1,
+  function inventoryTemplateQty(templateId: string): number {
+    if (!character) return 0;
+    return character.inventory.reduce(
+      (n, item) => n + (item.templateId === templateId ? item.quantity : 0),
+      0,
+    );
+  }
+
+  function consumeTemplate(templateId: string, qty: number): boolean {
+    if (!character) return false;
+    if (inventoryTemplateQty(templateId) < qty) return false;
+    let left = qty;
+    const live = useCharactersStore.getState().characters[character.id];
+    if (!live) return false;
+    for (const item of live.inventory) {
+      if (left <= 0) break;
+      if (item.templateId !== templateId) continue;
+      const take = Math.min(left, item.quantity);
+      consumeQuantityFromInventory(character.id, item.id, take);
+      left -= take;
+    }
+    return left <= 0;
+  }
+
+  function applyOrderFills(
+    placed: ReturnType<typeof placeOrder>,
+    actorId: string,
+  ) {
+    const live = useCharactersStore.getState().characters[actorId];
+    if (!live) return;
+    let creds = live.creds + (placed.credsRefund ?? 0);
+    const sellerCreds = placed.credsToSeller[actorId] ?? 0;
+    creds += sellerCreds;
+    updateCharacter(actorId, { creds });
+    for (const [sellerId, amount] of Object.entries(placed.credsToSeller)) {
+      if (sellerId === actorId || sellerId === NPC_OWNER_PREFEITURA) continue;
+      const other = useCharactersStore.getState().characters[sellerId];
+      if (other) updateCharacter(sellerId, { creds: other.creds + amount });
+    }
+    let seq = purchaseSeq.current;
+    const pantryAdd: Record<string, number> = {};
+    for (const item of placed.itemsToBuyer) {
+      if (item.ownerId === NPC_OWNER_PREFEITURA) {
+        pantryAdd[item.templateId] = (pantryAdd[item.templateId] ?? 0) + item.quantity;
+        continue;
+      }
+      const stub = itemGrantTemplate(item.templateId);
+      if (!stub) continue;
+      if (!useCharactersStore.getState().characters[item.ownerId]) continue;
+      addItem(item.ownerId, {
+        id: `${item.templateId}_${now}_${seq++}`,
+        templateId: stub.templateId,
+        name: stub.name,
+        type: stub.type,
+        rarity: stub.rarity,
+        value: stub.value,
+        effects: { ...stub.effects },
+        quantity: item.quantity,
+      });
+    }
+    purchaseSeq.current = seq;
+    if (Object.keys(pantryAdd).length > 0) {
+      useCityStore.getState().setPantry(mergePantry(useCityStore.getState().pantry ?? {}, pantryAdd));
+    }
+    if (placed.credsToSeller[NPC_OWNER_PREFEITURA]) {
+      useCityStore.getState().setTreasury(
+        (useCityStore.getState().treasury ?? 0) + placed.credsToSeller[NPC_OWNER_PREFEITURA],
+      );
+    }
+  }
+
+  function submitMarketOrder(
+    side: 'buy' | 'sell',
+    templateId: string,
+    unitPrice: number,
+    quantity: number,
+  ): boolean {
+    if (!character) return false;
+    if (quantity <= 0 || unitPrice <= 0) return false;
+    const live = useCharactersStore.getState().characters[character.id];
+    if (!live) return false;
+    if (side === 'sell' && !consumeTemplate(templateId, quantity)) return false;
+    if (side === 'buy') {
+      const cost = unitPrice * quantity;
+      if (live.creds < cost) return false;
+      updateCharacter(character.id, { creds: live.creds - cost });
+    }
+    const order: MarketOrder = {
+      id: `ord_${now}_${purchaseSeq.current++}`,
+      side,
+      templateId,
+      unitPrice,
+      quantity,
+      ownerId: character.id,
+      createdAt: now,
     };
-    updateCharacter(character.id, { creds: character.creds - entry.value });
-    addItem(character.id, item);
+    const book = useMarketStore.getState().orders ?? [];
+    const placed = placeOrder(book, order);
+    useMarketStore.getState().setOrders(placed.orders);
+    applyOrderFills(placed, character.id);
+    return true;
   }
 
-  function sellItem(item: Item) {
-    if (!character || item.quantity < 1) return;
-    const gain = item.value * item.quantity;
-    removeItem(character.id, item.id);
-    updateCharacter(character.id, { creds: character.creds + gain });
+  function cancelMarketOrder(orderId: string) {
+    if (!character) return;
+    const book = useMarketStore.getState().orders ?? [];
+    const result = cancelOrder(book, orderId, character.id);
+    if (!result.released) return;
+    useMarketStore.getState().setOrders(result.orders);
+    if (result.released.side === 'buy') {
+      const live = useCharactersStore.getState().characters[character.id];
+      if (live) {
+        updateCharacter(character.id, {
+          creds: live.creds + result.released.quantity * result.released.unitPrice,
+        });
+      }
+      return;
+    }
+    const stub = itemGrantTemplate(result.released.templateId);
+    if (!stub) return;
+    addItem(character.id, {
+      id: `${result.released.templateId}_${now}_${purchaseSeq.current++}`,
+      ...stub,
+      quantity: result.released.quantity,
+    });
   }
 
   function handleInventoryConsumable(item: Item) {
@@ -700,21 +812,28 @@ export default function GameApp() {
     window.setTimeout(() => setInventoryUseFeedback(null), 3500);
   }
 
-  function setBusinessIndustrialRecipe(
-    hexId: string,
-    slotId: string,
-    recipe: IndustrialRecipeId,
-  ) {
+  function setBusinessRecipe(hexId: string, slotId: string, recipeId: string) {
     updateHex(hexId, (h) => ({
       ...h,
       placeSlots: h.placeSlots.map((p) => {
         if (p.id !== slotId || p.type !== 'business' || !p.business) return p;
         const b = normalizeBusiness(p.business);
-        if (b.type !== 'industria') return p;
-        return {
-          ...p,
-          business: { ...b, industrialRecipe: recipe },
-        };
+        const def = getBuildingDef(b.buildingId);
+        if (!def || !def.recipes.some((r) => r.id === recipeId)) return p;
+        return { ...p, business: { ...b, recipeId } };
+      }),
+    }));
+  }
+
+  function setBusinessPublic(hexId: string, slotId: string, isPublic: boolean, taxPct: number) {
+    updateHex(hexId, (h) => ({
+      ...h,
+      placeSlots: h.placeSlots.map((p) => {
+        if (p.id !== slotId || p.type !== 'business' || !p.business) return p;
+        if (!character || p.ownedBy !== character.id) return p;
+        const b = normalizeBusiness(p.business);
+        const tax = Math.min(1, Math.max(0, taxPct / 100));
+        return { ...p, business: { ...b, public: isPublic, publicWorkTax: tax } };
       }),
     }));
   }
@@ -819,33 +938,37 @@ export default function GameApp() {
     }));
   }
 
-  function establishBusiness(
-    hexId: string,
-    slotId: string,
-    kind: BusinessKind,
-  ) {
+  function establishBusiness(hexId: string, slotId: string, buildingId: string) {
     if (!character) return;
+    const def = getBuildingDef(buildingId);
+    if (!def) return;
+    const live = useCharactersStore.getState().characters[character.id];
+    if (!live) return;
+    let need = BUILDING_CONSTRUCTION_SUPPLIES_COST;
+    for (const item of live.inventory) {
+      if (item.templateId === 'construction_supplies') need -= item.quantity;
+    }
+    if (need > 0) return;
+    let remaining = BUILDING_CONSTRUCTION_SUPPLIES_COST;
+    for (const item of live.inventory) {
+      if (remaining <= 0) break;
+      if (item.templateId !== 'construction_supplies') continue;
+      const take = Math.min(remaining, item.quantity);
+      consumeQuantityFromInventory(character.id, item.id, take);
+      remaining -= take;
+    }
     const meta = useMetaStore.getState();
     const bizNum = meta.nextIds.business + 1;
     const bizId = makeBusinessId(bizNum);
     patchNextIds({ business: bizNum });
-    const labels: Record<BusinessKind, string> = {
-      loja: 'Corner Shop',
-      industria: 'Indústria',
-      fabrica: 'Fábrica',
-      fazenda: 'Neon Farm',
-      outro: 'Venue',
-    };
     updateHex(hexId, (h) => ({
       ...h,
       placeSlots: h.placeSlots.map((p) => {
         if (p.id !== slotId || p.ownedBy !== character.id) return p;
         const business = createNewBusiness({
           id: bizId,
-          name: labels[kind],
-          type: kind,
+          buildingId,
           nowMs: now,
-          productionRate: 12,
         });
         return {
           ...p,
@@ -866,33 +989,37 @@ export default function GameApp() {
     const map = useWorldStore.getState().hexMap;
     if (!map) return;
     const hex = map.hexes[character.currentHexId];
-    if (!hasCharacterBusinessOnHex(hex, character.id)) {
-      setWorkFeedback('Stand on a hex with your business to work.');
+    if (!hexHasWorkTarget(hex, character.id)) {
+      setWorkFeedback('Fique num hex com um negócio seu ou público para trabalhar.');
       return;
     }
     const t = now;
-
-    let totalCreds = 0;
     const rawGrants: ItemGrant[] = [];
+    let pantryAdd: Record<string, number> = {};
 
     const newSlots = hex.placeSlots.map((p) => {
-      if (
-        p.type !== 'business' ||
-        !p.business ||
-        p.ownedBy !== character.id
-      ) {
-        return p;
+      if (p.type !== 'business' || !p.business) return p;
+      const normalized = normalizeBusiness(p.business);
+      const isOwner = p.ownedBy === character.id;
+      if (!isOwner && !normalized.public) return p;
+      const y = resolveManualWork(p.business, character.id, p.ownedBy);
+      rawGrants.push(...y.grants);
+      if (p.ownedBy === NPC_OWNER_PREFEITURA) {
+        for (const share of y.ownerShare) {
+          pantryAdd = {
+            ...pantryAdd,
+            [share.templateId]: (pantryAdd[share.templateId] ?? 0) + share.quantity,
+          };
+        }
       }
-      const y = computeWorkPayout(p.business);
-      totalCreds += y.creds;
-      rawGrants.push(...y.itemGrants);
-      return {
-        ...p,
-        business: { ...p.business, lastProduction: t },
-      };
+      return { ...p, business: { ...y.business, lastProduction: t } };
     });
 
     updateHex(character.currentHexId, (h) => ({ ...h, placeSlots: newSlots }));
+    if (Object.keys(pantryAdd).length > 0) {
+      const current = useCityStore.getState().pantry ?? {};
+      useCityStore.getState().setPantry(mergePantry(current, pantryAdd));
+    }
 
     const merged = mergeItemGrants(rawGrants);
     let seq = purchaseSeq.current;
@@ -915,7 +1042,6 @@ export default function GameApp() {
     if (!live) return;
 
     updateCharacter(character.id, {
-      creds: live.creds + totalCreds,
       stamina: {
         ...live.stamina,
         current: live.stamina.current - WORK_STA_COST,
@@ -923,16 +1049,43 @@ export default function GameApp() {
       },
     });
 
-    const parts: string[] = [];
-    if (totalCreds > 0) parts.push(`+${totalCreds} creds`);
-    if (merged.length > 0) {
-      parts.push(
-        merged.map((g) => `+${g.quantity}× ${g.name}`).join(', '),
-      );
-    }
     setWorkFeedback(
-      parts.length > 0 ? parts.join(' · ') : `Paid ${WORK_STA_COST} STA (no payout).`,
+      merged.length > 0
+        ? merged.map((g) => `+${g.quantity}× ${g.name}`).join(', ')
+        : `Gastou ${WORK_STA_COST} STA.`,
     );
+  }
+
+  function cureAtHospital() {
+    if (!character || !hexMap) return;
+    const hex = hexMap.hexes[character.currentHexId];
+    const slot = hex?.placeSlots.find(
+      (p) =>
+        p.type === 'business' &&
+        p.business &&
+        normalizeBusiness(p.business).buildingId === 'hospital',
+    );
+    if (!slot) return;
+    const live = useCharactersStore.getState().characters[character.id];
+    if (!live) return;
+    const power = useCityStore.getState().cityCore.energyCurrent;
+    const result = applyHospitalCure({
+      hp: live.health.current,
+      maxHp: live.health.max,
+      creds: live.creds,
+      credsCost: HOSPITAL_CURE_CREDS,
+      power,
+    });
+    if (!result.ok) {
+      setWorkFeedback(result.reason === 'no_power' ? 'Sem energia para a cura.' : 'Creds insuficientes.');
+      return;
+    }
+    updateCharacter(character.id, {
+      creds: live.creds - HOSPITAL_CURE_CREDS,
+      health: { ...live.health, current: result.hp },
+    });
+    useCityStore.getState().patchCityCore({ energyCurrent: result.power });
+    setWorkFeedback(`Cura: +${HOSPITAL_CURE_HP} HP.`);
   }
 
   if (needsFirstRun) {
@@ -1042,12 +1195,25 @@ export default function GameApp() {
 
   const currentHex = hexMap.hexes[character.currentHexId];
   const slotsHere = currentHex?.placeSlots ?? [];
-  const canWorkOnCurrentHex = hasCharacterBusinessOnHex(
-    currentHex,
-    character.id,
-  );
+  const canWorkOnCurrentHex = hexHasWorkTarget(currentHex, character.id);
   const atCenter = character.currentHexId === CENTER_HEX_ID;
   const atHome = character.currentHexId === character.homeHexId;
+  const inventoryByTemplate = new Map<string, { name: string; quantity: number }>();
+  for (const item of character.inventory) {
+    if (!item.templateId) continue;
+    const prev = inventoryByTemplate.get(item.templateId);
+    if (prev) prev.quantity += item.quantity;
+    else inventoryByTemplate.set(item.templateId, { name: item.name, quantity: item.quantity });
+  }
+  const sellItemChoices = [...inventoryByTemplate.entries()];
+  if (
+    marketDraft.side === 'sell' &&
+    marketDraft.templateId &&
+    !inventoryByTemplate.has(marketDraft.templateId)
+  ) {
+    const entry = getMarketCatalogEntry(marketDraft.templateId);
+    if (entry) sellItemChoices.push([entry.templateId, { name: entry.name, quantity: 0 }]);
+  }
 
   return (
     <div className="game-shell game-shell--with-fab">
@@ -1060,11 +1226,13 @@ export default function GameApp() {
           <p className="game-muted">
             City power{' '}
             {displayEconomicDecreasing(cityCore.energyCurrent)}/
-            {displayEconomicIncreasing(cityCore.energyMax)} · stability{' '}
-            {displayEconomicDecreasing(cityCore.stabilityIndex)}
+            {displayEconomicIncreasing(cityCore.energyMax)}
+            {brownoutThisWageDay ? ' · apagão' : ''} · tesouro {Math.floor(treasury ?? 0)}c
           </p>
           <p className="game-muted">
-            Pop {Math.floor(civilianPopulation)} · workers pool{' '}
+            Pop {Math.floor(civilianPopulation)} · despensa comida{' '}
+            {Math.floor(pantry?.food_ration ?? 0)} · bens{' '}
+            {Math.floor(pantry?.consumer_goods ?? 0)} · workers pool{' '}
             {workerPoolFree} free / {workerAssignedTotal} assigned
           </p>
         </div>
@@ -1247,60 +1415,140 @@ export default function GameApp() {
 
       {resolvedScreen === 'market' && (
         <section className="game-panel">
-          <h2>Municipal market</h2>
+          <h2>Livro de ordens</h2>
           {!atCenter ? (
             <p className="game-muted">
-              The market is at <strong>Centro</strong> ({CENTER_HEX_ID}). You
-              are at <strong>{character.currentHexId}</strong> — patrol there to
-              buy or sell.
+              O mercado fica no <strong>Centro</strong> ({CENTER_HEX_ID}). Você está em{' '}
+              <strong>{character.currentHexId}</strong>.
             </p>
           ) : (
             <>
-          <p className="game-muted">
-            You are at the <strong>Mercado Municipal</strong> stall — same
-            Centro hex as Prefeitura and Quartel General.
-          </p>
-          <table className="game-table">
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th>Price</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {MARKET_CATALOG.map((row) => (
-                <tr key={row.templateId}>
-                  <td>{row.name}</td>
-                  <td>{row.value}</td>
-                  <td>
-                    <button
-                      type="button"
-                      onClick={() => buyCatalog(row)}
-                      disabled={character.creds < row.value}
-                    >
-                      Buy
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <h3>Sell from inventory</h3>
-          {character.inventory.length === 0 ? (
-            <p className="game-muted">Nothing to sell</p>
-          ) : (
-            <ul>
-              {character.inventory.map((it) => (
-                <li key={it.id}>
-                  {it.name}{' '}
-                  <button type="button" onClick={() => sellItem(it)}>
-                    Sell (+{it.value * it.quantity})
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+              <p className="game-muted">
+                Ordem de venda tira o item do inventário. Ordem de compra reserva os creds.
+                Clique numa venda para preencher a compra exata.
+              </p>
+              <form
+                className="game-business-deposit"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const unitPrice = Number(marketDraft.price);
+                  const quantity = Math.floor(Number(marketDraft.qty));
+                  if (!marketDraft.templateId || unitPrice <= 0 || quantity <= 0) return;
+                  const placed = submitMarketOrder(
+                    marketDraft.side,
+                    marketDraft.templateId,
+                    unitPrice,
+                    quantity,
+                  );
+                  if (!placed) return;
+                  setMarketDraft({
+                    side: 'sell',
+                    templateId: '',
+                    price: '1',
+                    qty: '1',
+                  });
+                }}
+              >
+                <select
+                  name="side"
+                  aria-label="Lado"
+                  value={marketDraft.side}
+                  onChange={(e) => {
+                    const side = e.target.value as 'buy' | 'sell';
+                    setMarketDraft((draft) => {
+                      if (side === 'sell' && inventoryTemplateQty(draft.templateId) <= 0) {
+                        return { ...draft, side, templateId: '' };
+                      }
+                      return { ...draft, side };
+                    });
+                  }}
+                >
+                  <option value="sell">Vender</option>
+                  <option value="buy">Comprar</option>
+                </select>
+                <select
+                  name="templateId"
+                  required
+                  aria-label="Item"
+                  value={marketDraft.templateId}
+                  onChange={(e) =>
+                    setMarketDraft((draft) => ({ ...draft, templateId: e.target.value }))
+                  }
+                >
+                  <option value="">
+                    {marketDraft.side === 'sell' ? 'Item do inventário' : 'Item'}
+                  </option>
+                  {(marketDraft.side === 'sell'
+                    ? sellItemChoices
+                    : MARKET_CATALOG.map(
+                        (row) =>
+                          [row.templateId, { name: row.name, quantity: 0 }] as [
+                            string,
+                            { name: string; quantity: number },
+                          ],
+                      )
+                  ).map(([templateId, row]) => (
+                    <option key={templateId} value={templateId}>
+                      {marketDraft.side === 'sell'
+                        ? `${row.name} ×${row.quantity}`
+                        : row.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  name="price"
+                  type="number"
+                  min={1}
+                  aria-label="Preço"
+                  value={marketDraft.price}
+                  onChange={(e) =>
+                    setMarketDraft((draft) => ({ ...draft, price: e.target.value }))
+                  }
+                />
+                <input
+                  name="qty"
+                  type="number"
+                  min={1}
+                  aria-label="Quantidade"
+                  value={marketDraft.qty}
+                  onChange={(e) =>
+                    setMarketDraft((draft) => ({ ...draft, qty: e.target.value }))
+                  }
+                />
+                <button type="submit">Publicar</button>
+              </form>
+              <ul>
+                {(marketOrders ?? [])
+                  .filter((o) => o.quantity > 0)
+                  .map((o) => (
+                    <li key={o.id}>
+                      <button
+                        type="button"
+                        className="game-inline-nav"
+                        onClick={() =>
+                          setMarketDraft({
+                            side: o.side === 'sell' ? 'buy' : 'sell',
+                            templateId: o.templateId,
+                            price: String(o.unitPrice),
+                            qty: String(o.quantity),
+                          })
+                        }
+                      >
+                        {o.side === 'buy' ? 'Compra' : 'Venda'}{' '}
+                        {getMarketCatalogEntry(o.templateId)?.name ?? o.templateId} ×{o.quantity} @{' '}
+                        {o.unitPrice}c
+                      </button>
+                      {o.ownerId === character.id ? (
+                        <>
+                          {' '}
+                          <button type="button" onClick={() => cancelMarketOrder(o.id)}>
+                            Cancelar
+                          </button>
+                        </>
+                      ) : null}
+                    </li>
+                  ))}
+              </ul>
             </>
           )}
         </section>
@@ -1647,9 +1895,8 @@ export default function GameApp() {
             </div>
           ) : (
             <p className="game-muted">
-              <strong>Work</strong> is available when you stand on a hex that
-              has a business you own — open Lots there after building on an
-              empty lot.
+              <strong>Work</strong> is available on a hex with a business you own
+              or a public site, such as the city farm.
             </p>
           )}
           {slotsHere.length === 0 ? (
@@ -1698,27 +1945,24 @@ export default function GameApp() {
                     !slot.business && (
                       <span>
                         {' '}
-                        Owned — build:{' '}
-                        {(
-                          [
-                            'loja',
-                            'industria',
-                            'fabrica',
-                            'fazenda',
-                          ] as const
-                        ).map((k) => (
+                        Owned — construir ({BUILDING_CONSTRUCTION_SUPPLIES_COST} materiais):{' '}
+                        {playerBuildableCatalog().map((def) => (
                           <button
-                            key={k}
+                            key={def.id}
                             type="button"
+                            disabled={
+                              inventoryTemplateQty('construction_supplies') <
+                              BUILDING_CONSTRUCTION_SUPPLIES_COST
+                            }
                             onClick={() =>
                               establishBusiness(
                                 character.currentHexId,
                                 slot.id,
-                                k,
+                                def.id,
                               )
                             }
                           >
-                            {k}
+                            {def.name}
                           </button>
                         ))}
                       </span>
@@ -1739,25 +1983,19 @@ export default function GameApp() {
                         );
                       }
                     }
-                    if (b.type === 'loja' && b.credsPending > 0) {
-                      bufLines.push(
-                        `creds ×${displayEconomicIncreasing(b.credsPending)} (claim)`,
-                      );
-                    }
-                    const canHire =
-                      workerPoolFree > 0 && b.workersAssigned < b.workerSlots;
-                    const hasClaim =
-                      (b.type === 'loja' && b.credsPending > 0.000_001) ||
-                      Object.values(b.passiveItemBuffer).some(
-                        (q) => q > 0.000_001,
-                      );
+                    const def = getBuildingDef(b.buildingId);
+                    const hasClaim = Object.values(b.passiveItemBuffer).some(
+                      (q) => q > 0.000_001,
+                    );
+                    const owns = slot.ownedBy === character.id;
                     return (
                       <div className="game-business-panel">
                         <span className="game-muted">
                           {' '}
                           — {b.name} (Lv {b.level}) · workers {b.workersAssigned}/
-                          {b.workerSlots} · wage {b.wagePerDay}c/day each · passive{' '}
-                          +{b.productionRate}/day
+                          {b.workerSlots} · wage {b.wagePerDay}c/day
+                          {b.public ? ` · público ${Math.round(b.publicWorkTax * 100)}%` : ''}
+                          {def?.role === 'housing' ? ` · ${def.housingSlots} moradias` : ''}
                         </span>
                         {bufLines.length > 0 ? (
                           <p className="game-muted game-business-buffer">
@@ -1844,40 +2082,70 @@ export default function GameApp() {
                           </form>
                         </div>
                         <div className="game-business-actions">
-                          {b.type === 'industria' ? (
+                          {def && def.recipes.length > 1 && owns ? (
                             <label className="game-business-recipe">
-                              Recipe:{' '}
+                              Receita:{' '}
                               <select
-                                value={b.industrialRecipe ?? 'scrap_to_metal'}
+                                value={b.recipeId}
                                 onChange={(e) =>
-                                  setBusinessIndustrialRecipe(
+                                  setBusinessRecipe(
                                     character.currentHexId,
                                     slot.id,
-                                    e.target.value as IndustrialRecipeId,
+                                    e.target.value,
                                   )
                                 }
                               >
-                                <option value="scrap_to_metal">
-                                  Sucata metálica → metal
-                                </option>
-                                <option value="wood_log_to_lumber">
-                                  Tronco → madeira
-                                </option>
+                                {def.recipes.map((recipe) => (
+                                  <option key={recipe.id} value={recipe.id}>
+                                    {recipe.outputs.map((o) => o.templateId).join(', ') || recipe.id}
+                                  </option>
+                                ))}
                               </select>
                             </label>
                           ) : null}
-                          {b.type === 'fabrica' ? (
-                            <span className="game-muted game-business-recipe">
-                              Recipe: metal + madeira + cimento → materiais de
-                              construção
-                            </span>
+                          {def?.id === 'hospital' ? (
+                            <button type="button" onClick={cureAtHospital}>
+                              Cura ({HOSPITAL_CURE_HP} HP, {HOSPITAL_CURE_CREDS}c)
+                            </button>
+                          ) : null}
+                          {owns ? (
+                            <label className="game-business-recipe">
+                              Público{' '}
+                              <input
+                                type="checkbox"
+                                checked={b.public}
+                                onChange={(e) =>
+                                  setBusinessPublic(
+                                    character.currentHexId,
+                                    slot.id,
+                                    e.target.checked,
+                                    Math.round(b.publicWorkTax * 100),
+                                  )
+                                }
+                              />
+                              taxa %
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                defaultValue={Math.round(b.publicWorkTax * 100)}
+                                onBlur={(e) =>
+                                  setBusinessPublic(
+                                    character.currentHexId,
+                                    slot.id,
+                                    b.public,
+                                    Number(e.target.value),
+                                  )
+                                }
+                              />
+                            </label>
                           ) : null}
                           <button
                             type="button"
                             onClick={() =>
                               hireWorker(character.currentHexId, slot.id)
                             }
-                            disabled={!canHire}
+                            disabled={!owns || !(workerPoolFree > 0 && b.workersAssigned < b.workerSlots)}
                           >
                             Hire worker
                           </button>

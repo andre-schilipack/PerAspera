@@ -1,8 +1,4 @@
-import { defaultBusinessInventorySlotCount } from './constants.ts';
-import type {
-  BusinessInventorySlot,
-  BusinessKind,
-} from './types/economy.ts';
+import type { BusinessInventorySlot } from './types/economy.ts';
 
 /** Max units per slot stack (single-template stacks). */
 export const MAX_BUSINESS_SLOT_STACK = 999;
@@ -13,12 +9,12 @@ export function createEmptyBusinessInventorySlots(
   return Array.from({ length: count }, (): null => null);
 }
 
-/** Pad / trim persisted slot arrays after kind changes or migrations. */
+/** Pad / trim persisted slot arrays to the catalog storage size. */
 export function normalizeBusinessInventorySlots(
-  kind: BusinessKind,
+  slotCount: number,
   raw: BusinessInventorySlot[] | undefined | null,
 ): BusinessInventorySlot[] {
-  const target = defaultBusinessInventorySlotCount(kind);
+  const target = Math.max(0, slotCount);
   if (!raw || raw.length === 0) {
     return createEmptyBusinessInventorySlots(target);
   }

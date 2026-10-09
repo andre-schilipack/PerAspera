@@ -1,6 +1,7 @@
 import {
   CENTER_HEX_ID,
   DEFAULT_MAP_RADIUS,
+  FOUNDERS_COAL_STOCK,
   HOME_HEX_ID,
   NPC_OWNER_HISTORIAN,
   NPC_OWNER_MERCADO,
@@ -8,6 +9,7 @@ import {
   NPC_OWNER_PREFEITURA,
   NPC_OWNER_QUARTEL,
   PREFECTURE_STRUCTURE_MAX_HP,
+  PUBLIC_WORK_TAX_DEFAULT,
 } from '../constants.ts';
 import {
   axialDistance,
@@ -17,8 +19,11 @@ import {
 } from '../hex.ts';
 import { dangerIntegrityForRingDistance } from '../hexDangerIntegrity.ts';
 import { makeSlotId } from '../ids.ts';
+import { depositIntoBusinessSlots } from '../businessInventorySlots.ts';
+import { createNewBusiness } from './createBusiness.ts';
 import type { HexMap, HexTile, PlaceSlot } from '../types/index.ts';
 
+const FOUNDERS_HEX_ID = '0,1';
 const ORIGIN: AxialCoord = { q: 0, r: 0 };
 
 export interface CreateInitialWorldParams {
@@ -104,9 +109,61 @@ function buildHomeSlots(params: {
   return { slots, nextSlotId: n };
 }
 
+/** Prefeitura farm (public, fully staffed) and thermoelectric plant (not public). */
+function buildFoundersIndustry(params: {
+  hexId: string;
+  slotIdCounter: number;
+}): { slots: PlaceSlot[]; nextSlotId: number } {
+  let n = params.slotIdCounter;
+  const nextId = () => makeSlotId(n++);
+  const farm = createNewBusiness({
+    id: 'biz_founders_farm',
+    buildingId: 'fazenda',
+    nowMs: 0,
+    workersAssigned: 2,
+    isPublic: true,
+    publicWorkTax: PUBLIC_WORK_TAX_DEFAULT,
+  });
+  let plant = createNewBusiness({
+    id: 'biz_founders_plant',
+    buildingId: 'termoeletrica',
+    nowMs: 0,
+    workersAssigned: 2,
+    isPublic: false,
+  });
+  plant = {
+    ...plant,
+    inventorySlots: depositIntoBusinessSlots(
+      plant.inventorySlots,
+      'coal',
+      FOUNDERS_COAL_STOCK,
+    ).slots,
+  };
+  const slots: PlaceSlot[] = [
+    {
+      id: nextId(),
+      hexId: params.hexId,
+      ownedBy: NPC_OWNER_PREFEITURA,
+      type: 'business',
+      business: farm,
+      priceToBuy: 0,
+    },
+    {
+      id: nextId(),
+      hexId: params.hexId,
+      ownedBy: NPC_OWNER_PREFEITURA,
+      type: 'business',
+      business: plant,
+      priceToBuy: 0,
+    },
+  ];
+  return { slots, nextSlotId: n };
+}
+
 /**
  * Seeds a disk-shaped hex map: **Centro** holds municipal NPCs; **home hex** holds
  * the player's house and Velho Rabiscão. Ring 1 is explorable; outer rings start locked.
+ * Hex 0,1 holds the founders' farm and thermoelectric plant.
  */
 export function createInitialWorld(
   params: CreateInitialWorldParams,
@@ -129,6 +186,12 @@ export function createInitialWorld(
   });
   slotCounter = homeSlots.nextSlotId;
 
+  const founders = buildFoundersIndustry({
+    hexId: FOUNDERS_HEX_ID,
+    slotIdCounter: slotCounter,
+  });
+  slotCounter = founders.nextSlotId;
+
   for (const c of coords) {
     const id = hexKeyFromAxial(c.q, c.r);
     const dist = axialDistance(c, ORIGIN);
@@ -136,11 +199,13 @@ export function createInitialWorld(
 
     const isCenter = id === CENTER_HEX_ID;
     const isHome = id === HOME_HEX_ID;
+    const isFounders = id === FOUNDERS_HEX_ID;
     const isUnlocked = dist <= 1;
 
     let placeSlots: PlaceSlot[] = [];
     if (isCenter) placeSlots = centerSlots.slots;
     else if (isHome) placeSlots = homeSlots.slots;
+    else if (isFounders) placeSlots = founders.slots;
 
     const baseTile: HexTile = {
       id,

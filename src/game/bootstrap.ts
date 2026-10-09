@@ -14,6 +14,7 @@ import { runNightlyDefenseCatchUp } from './nightlyDefenseCatchUp.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useCityStore } from '../stores/useCityStore.ts';
+import { useMarketStore } from '../stores/useMarketStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 import {
   CENTER_HEX_ID,
@@ -34,6 +35,7 @@ import {
   defenderBucketForLineIndex,
   enemyBucketForSpawnIndex,
 } from '../domain/defenseTactics.ts';
+import { migrateLegacyBusinessSlots } from '../domain/migrateBusinesses.ts';
 import { runEconomicCatchUp } from './economicCatchUp.ts';
 import type { DailyDefenseState, GameMetaState } from '../domain/types/index.ts';
 
@@ -59,6 +61,7 @@ async function rehydrateAllStores(): Promise<void> {
     useDefenseStore.persist.rehydrate(),
     useContractsStore.persist.rehydrate(),
     useCityStore.persist.rehydrate(),
+    useMarketStore.persist.rehydrate(),
   ]);
 }
 
@@ -348,6 +351,22 @@ function ensureCharacterHealth(): void {
   }
 }
 
+function migrateLoadedBusinesses(): void {
+  const hexMap = useWorldStore.getState().hexMap;
+  if (!hexMap) return;
+  const characters = useCharactersStore.getState().characters;
+  const migrated = migrateLegacyBusinessSlots(hexMap, characters);
+  useWorldStore.setState({ hexMap: migrated.hexMap });
+  const updateCharacter = useCharactersStore.getState().updateCharacter;
+  for (const id of Object.keys(migrated.characters)) {
+    const next = migrated.characters[id];
+    const prev = characters[id];
+    if (next && prev && next.creds !== prev.creds) {
+      updateCharacter(id, { creds: next.creds });
+    }
+  }
+}
+
 /**
  * Rehydrate persisted slices, migrate meta, multi-day defense catch-up (before economy),
  * tail regen to `now`, then economic catch-up.
@@ -400,5 +419,6 @@ export async function bootstrapGame(): Promise<void> {
   ensureCharacterCurrentHex();
   ensureCharacterAutoEnlist();
   ensureCharacterHealth();
+  migrateLoadedBusinesses();
   runEconomicCatchUp(now);
 }

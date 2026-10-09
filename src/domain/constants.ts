@@ -3,13 +3,11 @@
  * Tune here before scattering magic numbers across stores.
  */
 
-import type { BusinessKind } from './types/economy.ts';
-
 /** App semver string mirrored in save metadata (human-readable). */
 export const GAME_VERSION = '0.1.0' as const;
 
 /** Monotonic integer for persisted data migrations only. */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 /** Real-time day length for consumable daily cooldowns (matches design: now + 1 day). */
 export const ONE_DAY_MS = 86_400_000;
@@ -78,25 +76,39 @@ export const SHOP_SIMULATED_CREDS_PER_DAY_PER_WORKER = 24;
 /** Default max workers per business slot. */
 export const DEFAULT_WORKER_SLOTS = 2;
 
-/** Warehouse slots per business kind (production buildings hold inputs). */
-export function defaultBusinessInventorySlotCount(kind: BusinessKind): number {
-  switch (kind) {
-    case 'fabrica':
-      return 12;
-    case 'industria':
-      return 12;
-    case 'fazenda':
-      return 8;
-    case 'loja':
-      return 6;
-    case 'outro':
-      return 8;
-    default:
-      return 8;
-  }
-}
-
 export const DEFAULT_WAGE_PER_DAY = 8;
+
+/** Untuned. One public-work action yields this many recipe batches before tax. */
+export const WORK_ACTION_BATCHES = 5;
+
+/** Untuned. Raising a player building consumes this many construction supplies. */
+export const BUILDING_CONSTRUCTION_SUPPLIES_COST = 1;
+
+/** Default public-work item cut kept by the site owner. */
+export const PUBLIC_WORK_TAX_DEFAULT = 0.2;
+
+/** Coal loaded into the seed thermoelectric plant (one unit per tick). */
+export const FOUNDERS_COAL_STOCK = 48 * 14;
+
+/** Creds the Prefeitura starts with. Untuned. No income is added this wave. */
+export const PREFEITURA_TREASURY_INITIAL = 5_000;
+
+/** Untuned civil draw per person per wage day. */
+export const CIVIL_FOOD_PER_PERSON_PER_DAY = 0.004;
+export const CIVIL_GOODS_PER_PERSON_PER_DAY = 0.001;
+export const CIVIL_POWER_PER_PERSON_PER_DAY = 0.02;
+
+/** People added when a civil day passes every gate. Untuned. */
+export const CIVIL_POPULATION_GROWTH = 24;
+
+/** Hospital service. Price is untuned. */
+export const HOSPITAL_CURE_HP = 30;
+export const HOSPITAL_CURE_CREDS = 20;
+export const HOSPITAL_CURE_POWER = 5;
+
+/** City power pool cap after the building-driven grid. */
+export const CITY_POWER_MAX = 10_000;
+export const CITY_POWER_START = 2_000;
 
 /** Stamina at character creation (before level-based max upgrades). */
 export const STAMINA_INITIAL = 200;
