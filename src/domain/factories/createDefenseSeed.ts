@@ -6,11 +6,12 @@ import {
 import {
   composeWaveFromBudget,
   sumLivingThreatPoints,
-  targetThreatBudget,
+  waveBudgetFromCityThreat,
 } from '../enemyThreat.ts';
 import { rollVictoryLootPoolForWave } from '../nightlyDefenseLoot.ts';
 import { formatLocalDateString } from '../defenseSchedule.ts';
 import type { DailyDefenseState, HexMap } from '../types/index.ts';
+import { INITIAL_CITY_THREAT_LEVEL } from '../constants.ts';
 
 /** Random civilian hex used as nightly breach march entry (never Centro). */
 export function pickRandomRaidTargetHex(
@@ -64,8 +65,15 @@ export function rollDailyDefenseStateForNewDay(params: {
   /** When set, used as march entry; otherwise derived from optional `hexMap`. */
   targetHexId?: string;
   hexMap?: HexMap | null;
+  /**
+   * Nest-driven campaign threat. Wave size floors this value.
+   * Defaults to {@link INITIAL_CITY_THREAT_LEVEL} when omitted (tests).
+   */
+  cityThreatLevel?: number;
 }): DailyDefenseState {
-  const budget = targetThreatBudget(params.gameDayIndex);
+  const budget = waveBudgetFromCityThreat(
+    params.cityThreatLevel ?? INITIAL_CITY_THREAT_LEVEL,
+  );
   const enemies = composeWaveFromBudget(budget, params.rng);
   const totalEnemyPoints = sumLivingThreatPoints(enemies);
   const victoryLootPool = rollVictoryLootPoolForWave(

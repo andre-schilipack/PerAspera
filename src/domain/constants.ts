@@ -7,7 +7,7 @@
 export const GAME_VERSION = '0.1.0' as const;
 
 /** Monotonic integer for persisted data migrations only. */
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 /** Real-time day length for consumable daily cooldowns (matches design: now + 1 day). */
 export const ONE_DAY_MS = 86_400_000;
@@ -196,13 +196,38 @@ export const EXPANSION_CONTRACT_STA_COST = 20;
 /** Axial ring distance from Centro for the Act 1 robot nest. */
 export const NEST_RING_DISTANCE = 3;
 
-/**
- * Quartel offensive contract: minimum roster to start (display / future enlist).
- * Battle resolution is out of scope for the nest-intel slice.
- */
+/** Quartel offensive contract: minimum roster to start the sortie. */
 export const OFFENSIVE_CONTRACT_CHAR_SLOTS = 5;
-/** Placeholder STA cost per enlistment when sortie muster is wired. */
+/** STA cost per character to enlist on the offensive. */
 export const OFFENSIVE_CONTRACT_STA_COST = 20;
+
+/** Nest structure HP (vital immobile unit in the offensive theater). */
+export const NEST_STRUCTURE_MAX_HP = 200;
+
+/** Extra max HP for nest robots while the nest structure still stands. */
+export const NEST_COVER_HP_BONUS = 0.3;
+
+/** Tick budget for one offensive nest sortie. */
+export const OFFENSIVE_FIELD_MAX_TICKS = 240;
+
+/** Same retreat HP fraction as nightly defense. */
+export const OFFENSIVE_RETREAT_HP_FRACTION = 0.25;
+
+/** Attackers may break off; nest side does not retreat. */
+export const OFFENSIVE_ATTACKER_RETREAT_CHANCE = 0.35;
+
+export const OFFENSIVE_TEAM_ATTACKERS = 'attackers' as const;
+export const OFFENSIVE_TEAM_NEST = 'nest' as const;
+export const OFFENSIVE_NEST_STRUCTURE_UNIT_ID = 'structure_robot_nest' as const;
+
+/**
+ * Campaign pressure that drives nightly wave size. Damaging the nest lowers it;
+ * each new defense day grows it slightly.
+ */
+export const INITIAL_CITY_THREAT_LEVEL = 2;
+export const CITY_THREAT_GROWTH_PER_DAY = 0.5;
+/** Full nest destroy removes this much city threat (scales linearly with HP lost). */
+export const CITY_THREAT_REDUCTION_ON_FULL_NEST = 4;
 
 /** Passive stamina regenerated over a full 24h window (offline-friendly). */
 export const STAMINA_REGEN_PER_24H = 120;

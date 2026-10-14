@@ -1,5 +1,6 @@
 import { DEFENSE_START_HOUR } from '../domain/constants.ts';
 import { rollDailyDefenseStateForNewDay } from '../domain/factories/createDefenseSeed.ts';
+import { growCityThreatForNewDefenseDay } from './cityThreat.ts';
 import {
   addLocalCalendarDays,
   compareIsoDateString,
@@ -148,6 +149,7 @@ export function runNightlyDefenseCatchUp(nowMs: number): NightlyDefenseCatchUpRe
       const nextDate = addLocalCalendarDays(dd.date, 1);
       const nextInstant = localDateTimeMs(nextDate, DEFENSE_START_HOUR);
       applyCharacterRegenUpTo(nextInstant);
+      const cityThreatLevel = growCityThreatForNewDefenseDay();
       useDefenseStore.getState().setDailyDefense(
         rollDailyDefenseStateForNewDay({
           date: nextDate,
@@ -155,6 +157,7 @@ export function runNightlyDefenseCatchUp(nowMs: number): NightlyDefenseCatchUpRe
           startHour: dd.startHour,
           rng,
           hexMap: useWorldStore.getState().hexMap ?? undefined,
+          cityThreatLevel,
         }),
       );
       continue;

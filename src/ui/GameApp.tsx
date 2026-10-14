@@ -15,6 +15,7 @@ import {
   NPC_OWNER_CITY,
   NPC_OWNER_PREFEITURA,
   OFFENSIVE_CONTRACT_CHAR_SLOTS,
+  OFFENSIVE_CONTRACT_STA_COST,
   PATROL_STA_COST,
   STREET_SKIRMISH_SCRAP_REWARD_QTY,
   STREET_SKIRMISH_WIN_SCORE,
@@ -99,6 +100,7 @@ import {
   enlistInExpansionContract,
   ensureExpansionContract,
 } from '../game/expansionContracts.ts';
+import { enlistInOffensiveContract } from '../game/offensiveContracts.ts';
 import { playCombatStartSound } from '../audio/playCombatStartSound.ts';
 import { applyAutoEnlistLocksForDefense } from '../game/applyAutoEnlistLocksForDefense.ts';
 import { countLivingInBucket } from '../domain/defenseTactics.ts';
@@ -116,6 +118,7 @@ import { useCityStore } from '../stores/useCityStore.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useSkirmishStore } from '../stores/useSkirmishStore.ts';
+import { useOffensiveStore } from '../stores/useOffensiveStore.ts';
 import { algoProgramFromLoadout } from '../domain/combat/ai/algoProgram.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 
@@ -211,6 +214,9 @@ export default function GameApp() {
   const [expansionEnlistFeedback, setExpansionEnlistFeedback] = useState<
     string | null
   >(null);
+  const [offensiveFeedback, setOffensiveFeedback] = useState<string | null>(
+    null,
+  );
   const [inventoryUseFeedback, setInventoryUseFeedback] = useState<
     string | null
   >(null);
@@ -260,6 +266,10 @@ export default function GameApp() {
   const pantry = useCityStore((s) => s.pantry);
   const brownoutThisWageDay = useCityStore((s) => s.brownoutThisWageDay);
   const chronicle = useCityStore((s) => s.chronicle ?? []);
+  const cityThreatLevel = useCityStore((s) => s.cityThreatLevel ?? 0);
+  const offensiveSession = useOffensiveStore((s) => s.session);
+  const startOffensiveSortieUi = useOffensiveStore((s) => s.startSortie);
+  const dismissOffensiveSession = useOffensiveStore((s) => s.dismiss);
   const marketOrders = useMarketStore((s) => s.orders);
   const civilianPopulation = useCityStore(
     (s) => s.civilianPopulation ?? INITIAL_CIVILIAN_POPULATION,
@@ -484,9 +494,21 @@ export default function GameApp() {
 
   useEffect(() => {
     if (resolvedScreen !== 'defense') {
-      queueMicrotask(() => setExpansionEnlistFeedback(null));
+      queueMicrotask(() => {
+        setExpansionEnlistFeedback(null);
+        setOffensiveFeedback(null);
+      });
     }
   }, [resolvedScreen]);
+
+  const offensiveRevealKey = offensiveSession
+    ? `${offensiveSession.contractId}-${offensiveSession.outcome}-${String(offensiveSession.combatLog.length)}`
+    : 'idle';
+  const offensiveReveal = useCombatLogReveal(
+    offensiveSession ? offensiveSession.combatLog : [],
+    COMBAT_UI_LOG_LINE_MS,
+    offensiveRevealKey,
+  );
 
   useEffect(() => {
     if (!character || resolvedScreen !== 'defense') {
@@ -1676,13 +1698,65 @@ export default function GameApp() {
                 <p className="game-muted">
                   Volunteers{' '}
                   {openOffensiveContract.enlistedCharacterIds.length}/
-                  {openOffensiveContract.charSlots} · start needs{' '}
-                  {OFFENSIVE_CONTRACT_CHAR_SLOTS} characters
+                  {openOffensiveContract.charSlots} · {OFFENSIVE_CONTRACT_STA_COST}{' '}
+                  STA per enlist · city threat {cityThreatLevel.toFixed(1)}
                 </p>
-                <p className="game-muted" role="status">
-                  Sortie resolution is not available yet. The contract stays
-                  posted on the mural until the offensive theater ships.
+                <p className="game-muted">
+                  Nest cover buffs robots while the structure stands. Damage to
+                  the nest cuts nightly wave threat.
                 </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!openOffensiveContract) return;
+                    const r = enlistInOffensiveContract(
+                      openOffensiveContract.id,
+                      character.id,
+                      Date.now(),
+                    );
+                    setOffensiveFeedback(
+                      r.ok ? 'Enlisted on the offensive.' : r.error,
+                    );
+                  }}
+                  disabled={
+                    openOffensiveContract.enlistedCharacterIds.includes(
+                      character.id,
+                    ) ||
+                    openOffensiveContract.enlistedCharacterIds.length >=
+                      openOffensiveContract.charSlots ||
+                    character.stamina.current <
+                      openOffensiveContract.staminaCost ||
+                    character.health.current <= 0
+                  }
+                >
+                  Enlist ({OFFENSIVE_CONTRACT_STA_COST} STA)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!openOffensiveContract) return;
+                    const r = startOffensiveSortieUi(openOffensiveContract.id);
+                    setOffensiveFeedback(
+                      r.ok ? null : r.error,
+                    );
+                  }}
+                  disabled={
+                    openOffensiveContract.enlistedCharacterIds.length <
+                    OFFENSIVE_CONTRACT_CHAR_SLOTS
+                  }
+                >
+                  Start sortie ({OFFENSIVE_CONTRACT_CHAR_SLOTS} required)
+                </button>
+                {openOffensiveContract.enlistedCharacterIds.includes(
+                  character.id,
+                ) ? (
+                  <p className="game-muted">You are already on this offensive.</p>
+                ) : null}
+                {offensiveFeedback ? (
+                  <p className="game-contract-feedback" role="status">
+                    {offensiveFeedback}
+                  </p>
+                ) : null}
               </>
             ) : (
               <p className="game-muted">
@@ -1698,7 +1772,8 @@ export default function GameApp() {
           </p>
           <p className="game-muted">
             Day {dailyDefense.date} · game day index {dailyDefense.gameDayIndex}{' '}
-            · threat {dailyDefense.totalEnemyPoints} · phase{' '}
+            · wave threat {dailyDefense.totalEnemyPoints} · city threat{' '}
+            {cityThreatLevel.toFixed(1)} · phase{' '}
             <strong>{dailyDefense.phase}</strong>
             {dailyDefense.outcome !== 'active' ? (
               <>
@@ -2322,6 +2397,70 @@ export default function GameApp() {
             fullLog={skirmishSession.combatLog}
             visibleEntries={skirmishReveal.visibleEntries}
             resetKey={skirmishRevealKey}
+            listClassName="game-combat-log--theater"
+            autoScroll
+          />
+        </CombatModal>
+      ) : null}
+
+      {offensiveSession ? (
+        <CombatModal
+          open
+          title="Ofensiva ao ninho"
+          subtitle={
+            <>
+              Nest {offensiveSession.nestHexId} · outcome{' '}
+              <strong>{offensiveSession.outcome}</strong>
+              {offensiveSession.threatReduced > 0.05 ? (
+                <>
+                  {' '}
+                  · threat −{offensiveSession.threatReduced.toFixed(1)} (now{' '}
+                  {offensiveSession.cityThreatAfter.toFixed(1)})
+                </>
+              ) : null}
+            </>
+          }
+          hud={
+            <div className="game-combat-hud">
+              <p className="game-muted">
+                Force returns to Centro after the sortie. Nest cover buffed
+                robots while the structure stood.
+              </p>
+            </div>
+          }
+          footer={
+            <>
+              {offensiveReveal.pendingApprox > 0 ? (
+                <button
+                  type="button"
+                  className="game-combat-modal__secondary"
+                  onClick={() => offensiveReveal.flushPending()}
+                >
+                  Show all lines now
+                </button>
+              ) : null}
+              {offensiveReveal.pendingApprox === 0 ? (
+                <>
+                  <p className="game-skirmish-result">
+                    {offensiveSession.outcome === 'victory'
+                      ? 'Nest core offline. City threat eased — nights should hit softer.'
+                      : offensiveSession.outcome === 'interrupted'
+                        ? 'All attackers retreated. Attack interrupted; force is back in the city.'
+                        : 'Attack force broken. Nest still presses the city.'}
+                  </p>
+                  <button type="button" onClick={() => dismissOffensiveSession()}>
+                    Close
+                  </button>
+                </>
+              ) : null}
+            </>
+          }
+        >
+          <h3>Battle feed</h3>
+          <CombatLogTurnTabPanel
+            fullLog={offensiveSession.combatLog}
+            visibleEntries={offensiveReveal.visibleEntries}
+            resetKey={offensiveRevealKey}
             listClassName="game-combat-log--theater"
             autoScroll
           />

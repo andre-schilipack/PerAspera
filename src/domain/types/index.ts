@@ -67,6 +67,10 @@ export type { ScoreEntry } from './score.ts';
 export type { CityCoreState } from './city.ts';
 export type { ChronicleEntry } from './chronicle.ts';
 export type {
+  OffensiveBattleOutcome,
+  OffensiveSortieSession,
+} from './offensive.ts';
+export type {
   CombatStrikeTargetKind,
   MassCombatModeFlags,
   MassCombatRoundConfig,

@@ -75,7 +75,7 @@ describe('normalizeHexMapNestIntel', () => {
 });
 
 describe('applyNestDiscoveryToMap', () => {
-  it('marks discovered, attaches robot_nest, and is idempotent', () => {
+  it('marks discovered, attaches robot_nest with HP, and is idempotent', () => {
     const nestId = '3,0';
     const base = mapWith(
       { [nestId]: tileAt(3, 0, true) },
@@ -85,6 +85,8 @@ describe('applyNestDiscoveryToMap', () => {
     expect(once).not.toBeNull();
     expect(once!.enemyNestDiscovered).toBe(true);
     expect(tileHasRobotNest(once!.hexes[nestId]!)).toBe(true);
+    const nest = once!.hexes[nestId]!.features?.find((f) => f.type === 'robot_nest');
+    expect(nest && nest.type === 'robot_nest' ? nest.currentHp : 0).toBeGreaterThan(0);
     expect(applyNestDiscoveryToMap(once!)).toBeNull();
   });
 

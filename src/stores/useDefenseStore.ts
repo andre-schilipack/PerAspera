@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { DEFENSE_START_HOUR } from '../domain/constants.ts';
 import { formatLocalDateString } from '../domain/defenseSchedule.ts';
 import { rollDailyDefenseStateForNewDay } from '../domain/factories/createDefenseSeed.ts';
+import { readCityThreatLevel } from '../game/cityThreat.ts';
 import { defenseEndScreenFromCommit } from '../game/defenseEndScreenFromCommit.ts';
 import {
   applyNightlyDefenseAdvanceCommit,
@@ -59,6 +60,7 @@ function initialDefenseState(): DefenseSlice {
       startHour: DEFENSE_START_HOUR,
       rng: Math.random,
       hexMap: hexMap ?? undefined,
+      cityThreatLevel: readCityThreatLevel(),
     }),
     defenseEndScreen: null,
     defenseCatchUpSummary: null,

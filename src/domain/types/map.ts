@@ -38,6 +38,8 @@ export interface HexTileCityHallFeature {
 /** Revealed robot nest (main-quest intel). Present only after discovery. */
 export interface HexTileRobotNestFeature {
   type: 'robot_nest';
+  currentHp: number;
+  maxHp: number;
 }
 
 export type HexTileFeature =

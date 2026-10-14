@@ -36,12 +36,42 @@ export function sumLivingThreatPoints(enemies: readonly EnemyInstance[]): number
 }
 
 /**
- * Total threat budget for the nightly wave (scales with game day).
- * Tune with balance passes — no special-cased "first N days" rule.
+ * Legacy day-scaled budget (tests / fallback). Prefer
+ * {@link waveBudgetFromCityThreat} — the nest drives campaign pressure.
  */
 export function targetThreatBudget(gameDayIndex: number): number {
   const d = Math.max(0, gameDayIndex);
   return 2 + Math.floor(d / 2);
+}
+
+/** Nightly wave size from the city threat meter (nest pressure). */
+export function waveBudgetFromCityThreat(cityThreatLevel: number): number {
+  return Math.max(0, Math.floor(cityThreatLevel));
+}
+
+export function growCityThreatLevel(
+  current: number,
+  growthPerDay: number,
+): number {
+  return Math.max(0, current + Math.max(0, growthPerDay));
+}
+
+/**
+ * Reduce campaign threat from nest structure HP lost in an offensive.
+ * Full nest destroy removes `fullNestThreatReduction` points.
+ */
+export function reduceCityThreatFromNestDamage(params: {
+  cityThreatLevel: number;
+  nestHpLost: number;
+  nestMaxHp: number;
+  fullNestThreatReduction: number;
+}): { nextThreat: number; threatReduced: number } {
+  const maxHp = Math.max(1, params.nestMaxHp);
+  const lost = Math.max(0, params.nestHpLost);
+  const threatReduced =
+    (lost / maxHp) * Math.max(0, params.fullNestThreatReduction);
+  const nextThreat = Math.max(0, params.cityThreatLevel - threatReduced);
+  return { nextThreat, threatReduced };
 }
 
 const DEFAULT_DRONE_HP = 22;

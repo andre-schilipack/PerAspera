@@ -2,7 +2,7 @@ import { formatLocalDateString } from '../domain/defenseSchedule.ts';
 import {
   composeWaveFromBudget,
   sumLivingThreatPoints,
-  targetThreatBudget,
+  waveBudgetFromCityThreat,
 } from '../domain/enemyThreat.ts';
 import { rollVictoryLootPoolForWave } from '../domain/nightlyDefenseLoot.ts';
 import { migrateGameMetaState } from '../domain/migrations.ts';
@@ -37,6 +37,7 @@ import {
 } from '../domain/defenseTactics.ts';
 import { migrateLegacyBusinessSlots } from '../domain/migrateBusinesses.ts';
 import { runEconomicCatchUp } from './economicCatchUp.ts';
+import { readCityThreatLevel } from './cityThreat.ts';
 import { normalizeWorldNestIntel } from './nestDiscovery.ts';
 import type { DailyDefenseState, GameMetaState } from '../domain/types/index.ts';
 
@@ -282,7 +283,7 @@ function seedNightlyWaveIfEmpty(now: number): void {
   if (dailyDefense.enemies.length > 0) return;
   if (dailyDefense.isCompleted) return;
   const rng = Math.random;
-  const budget = targetThreatBudget(dailyDefense.gameDayIndex);
+  const budget = waveBudgetFromCityThreat(readCityThreatLevel());
   const enemies = composeWaveFromBudget(budget, rng);
   const victoryLootPool = rollVictoryLootPoolForWave(
     enemies,

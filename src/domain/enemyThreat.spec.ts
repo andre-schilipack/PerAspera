@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   composeWaveFromBudget,
   pickRandomWallCardinal,
+  reduceCityThreatFromNestDamage,
   sumLivingThreatPoints,
   targetThreatBudget,
   threatPointsForEnemyId,
+  waveBudgetFromCityThreat,
 } from './enemyThreat.ts';
 
 describe('enemyThreat', () => {
@@ -39,5 +41,30 @@ describe('enemyThreat', () => {
   it('pickRandomWallCardinal is stable with fixed rng', () => {
     const rng = () => 0;
     expect(pickRandomWallCardinal(rng)).toBe('north');
+  });
+
+  it('waveBudgetFromCityThreat floors campaign threat', () => {
+    expect(waveBudgetFromCityThreat(2.9)).toBe(2);
+    expect(waveBudgetFromCityThreat(0.4)).toBe(0);
+  });
+
+  it('reduceCityThreatFromNestDamage scales with nest HP lost', () => {
+    const half = reduceCityThreatFromNestDamage({
+      cityThreatLevel: 4,
+      nestHpLost: 100,
+      nestMaxHp: 200,
+      fullNestThreatReduction: 4,
+    });
+    expect(half.threatReduced).toBeCloseTo(2);
+    expect(half.nextThreat).toBeCloseTo(2);
+
+    const full = reduceCityThreatFromNestDamage({
+      cityThreatLevel: 4,
+      nestHpLost: 200,
+      nestMaxHp: 200,
+      fullNestThreatReduction: 4,
+    });
+    expect(full.threatReduced).toBeCloseTo(4);
+    expect(full.nextThreat).toBe(0);
   });
 });

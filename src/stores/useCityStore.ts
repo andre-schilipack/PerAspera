@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { createInitialCityCore } from '../domain/cityEconomy.ts';
 import {
+  INITIAL_CITY_THREAT_LEVEL,
   INITIAL_CIVILIAN_POPULATION,
   PREFEITURA_TREASURY_INITIAL,
 } from '../domain/constants.ts';
@@ -20,6 +21,7 @@ interface CityActions {
   setTreasury: (n: number) => void;
   setPantry: (pantry: PassiveItemBuffer) => void;
   setBrownoutThisWageDay: (brownoutThisWageDay: boolean) => void;
+  setCityThreatLevel: (cityThreatLevel: number) => void;
   appendChronicle: (text: string, atMs?: number) => void;
   /** Full reset for new game. */
   reset: () => void;
@@ -40,6 +42,11 @@ type CityStore = {
   brownoutThisWageDay: boolean;
   /** Velho Rabiscão append-only intel log for this run. */
   chronicle: ChronicleEntry[];
+  /**
+   * Nest-driven campaign pressure. Nightly wave budget floors this value.
+   * Offensive nest damage lowers it; each new defense day grows it.
+   */
+  cityThreatLevel: number;
 } & CityActions;
 
 function initialCityState(): Pick<
@@ -52,6 +59,7 @@ function initialCityState(): Pick<
   | 'pantry'
   | 'brownoutThisWageDay'
   | 'chronicle'
+  | 'cityThreatLevel'
 > {
   const t = Date.now();
   return {
@@ -63,6 +71,7 @@ function initialCityState(): Pick<
     pantry: {},
     brownoutThisWageDay: false,
     chronicle: [],
+    cityThreatLevel: INITIAL_CITY_THREAT_LEVEL,
   };
 }
 
@@ -80,6 +89,8 @@ export const useCityStore = create<CityStore>()(
       setTreasury: (treasury) => set({ treasury }),
       setPantry: (pantry) => set({ pantry }),
       setBrownoutThisWageDay: (brownoutThisWageDay) => set({ brownoutThisWageDay }),
+      setCityThreatLevel: (cityThreatLevel) =>
+        set({ cityThreatLevel: Math.max(0, cityThreatLevel) }),
       appendChronicle: (text, atMs) =>
         set((s) => {
           const at = atMs ?? Date.now();
@@ -104,13 +115,19 @@ export const useCityStore = create<CityStore>()(
         pantry: state.pantry,
         brownoutThisWageDay: state.brownoutThisWageDay,
         chronicle: state.chronicle,
+        cityThreatLevel: state.cityThreatLevel,
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<CityStore>;
+        const threat =
+          typeof p.cityThreatLevel === 'number' && Number.isFinite(p.cityThreatLevel)
+            ? Math.max(0, p.cityThreatLevel)
+            : INITIAL_CITY_THREAT_LEVEL;
         return {
           ...current,
           ...p,
           chronicle: Array.isArray(p.chronicle) ? p.chronicle : [],
+          cityThreatLevel: threat,
         };
       },
     },
