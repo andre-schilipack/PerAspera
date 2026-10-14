@@ -113,6 +113,17 @@
   opacity: 0.48;
 }
 
+.hex-map-hex[data-nest='true'] {
+  fill: color-mix(in srgb, #8b1a1a 72%, var(--code-bg));
+  stroke: #c62828;
+  stroke-width: 2.25;
+}
+
+.hex-map-hex[data-nest='true'][data-current='true'] {
+  fill: color-mix(in srgb, #8b1a1a 55%, var(--accent-bg));
+  stroke: #e53935;
+}
+
 .hex-map-text {
   pointer-events: none;
   font-family: var(--sans, system-ui, sans-serif);

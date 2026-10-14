@@ -35,7 +35,15 @@ export interface HexTileCityHallFeature {
   maxHp: number;
 }
 
-export type HexTileFeature = HexTileWallFeature | HexTileCityHallFeature;
+/** Revealed robot nest (main-quest intel). Present only after discovery. */
+export interface HexTileRobotNestFeature {
+  type: 'robot_nest';
+}
+
+export type HexTileFeature =
+  | HexTileWallFeature
+  | HexTileCityHallFeature
+  | HexTileRobotNestFeature;
 
 export interface HexTile {
   id: string;
@@ -54,4 +62,11 @@ export interface HexMap {
   /** Grid radius or half-size label used by factories (e.g. 5 or 7). */
   size: number;
   hexes: Record<string, HexTile>;
+  /**
+   * Hidden nest hex id (axial key). Chosen at new game; tile may not exist until
+   * frontier expansion charts ring 3.
+   */
+  nestHexId?: string;
+  /** True after the nest hex was unlocked via expansion (Act 1 once). */
+  enemyNestDiscovered?: boolean;
 }

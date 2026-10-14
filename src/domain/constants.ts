@@ -7,7 +7,7 @@
 export const GAME_VERSION = '0.1.0' as const;
 
 /** Monotonic integer for persisted data migrations only. */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 /** Real-time day length for consumable daily cooldowns (matches design: now + 1 day). */
 export const ONE_DAY_MS = 86_400_000;
@@ -193,6 +193,17 @@ export const WORK_STA_COST = 5;
 export const EXPANSION_CONTRACT_CHAR_SLOTS = 2;
 export const EXPANSION_CONTRACT_STA_COST = 20;
 
+/** Axial ring distance from Centro for the Act 1 robot nest. */
+export const NEST_RING_DISTANCE = 3;
+
+/**
+ * Quartel offensive contract: minimum roster to start (display / future enlist).
+ * Battle resolution is out of scope for the nest-intel slice.
+ */
+export const OFFENSIVE_CONTRACT_CHAR_SLOTS = 5;
+/** Placeholder STA cost per enlistment when sortie muster is wired. */
+export const OFFENSIVE_CONTRACT_STA_COST = 20;
+
 /** Passive stamina regenerated over a full 24h window (offline-friendly). */
 export const STAMINA_REGEN_PER_24H = 120;
 
@@ -225,6 +236,9 @@ export const ID_PREFIX_SLOT = 'slot';
 
 /** Contract id prefix (e.g. contract_1). */
 export const ID_PREFIX_CONTRACT = 'contract';
+
+/** Chronicle entry id prefix (e.g. chronicle_1). */
+export const ID_PREFIX_CHRONICLE = 'chronicle';
 
 /** NPC owner keys for fixed city tiles (not character ids). */
 export const NPC_OWNER_MERCADO = 'npc:mercado_municipal' as const;

@@ -16,6 +16,7 @@ import { useCharactersStore } from '../stores/useCharactersStore.ts';
 import { useContractsStore } from '../stores/useContractsStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
+import { maybeDiscoverNestAfterUnlock } from './nestDiscovery.ts';
 
 const ORIGIN: AxialCoord = { q: 0, r: 0 };
 
@@ -100,7 +101,7 @@ export function ensureExpansionContract(): {
 }
 
 export type EnlistExpansionResult =
-  | { ok: true; completed: boolean }
+  | { ok: true; completed: boolean; nestDiscovered?: boolean }
   | { ok: false; error: string };
 
 export function enlistInExpansionContract(
@@ -141,19 +142,20 @@ export function enlistInExpansionContract(
   if (!updated) return { ok: false, error: 'Contract state lost.' };
 
   if (enlistedCharacterIds.length >= updated.charSlots) {
-    applyExpansionUnlock(updated);
-    return { ok: true, completed: true };
+    const nestDiscovered = applyExpansionUnlock(updated);
+    return { ok: true, completed: true, nestDiscovered };
   }
 
   return { ok: true, completed: false };
 }
 
-function applyExpansionUnlock(contract: Contract): void {
+/** @returns true when unlocking the target also discovered the robot nest. */
+function applyExpansionUnlock(contract: Contract): boolean {
   const map = useWorldStore.getState().hexMap;
-  if (!map) return;
+  if (!map) return false;
 
   const target = map.hexes[contract.targetHexId];
-  if (!target) return;
+  if (!target) return false;
 
   const hexes: Record<string, HexTile> = { ...map.hexes };
 
@@ -183,11 +185,18 @@ function applyExpansionUnlock(contract: Contract): void {
   }
 
   const size = computeHexMapSizeLabel(hexes);
-  useWorldStore.getState().setHexMap({
+  const nextMap: HexMap = {
     ...map,
     hexes,
     size,
-  });
+  };
+  useWorldStore.getState().setHexMap(nextMap);
 
   useContractsStore.getState().patchContract(contract.id, { status: 'completed' });
+
+  const discovery = maybeDiscoverNestAfterUnlock(
+    nextMap,
+    contract.targetHexId,
+  );
+  return discovery.discovered;
 }

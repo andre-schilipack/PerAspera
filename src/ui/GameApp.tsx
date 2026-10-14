@@ -14,6 +14,7 @@ import {
   INITIAL_CIVILIAN_POPULATION,
   NPC_OWNER_CITY,
   NPC_OWNER_PREFEITURA,
+  OFFENSIVE_CONTRACT_CHAR_SLOTS,
   PATROL_STA_COST,
   STREET_SKIRMISH_SCRAP_REWARD_QTY,
   STREET_SKIRMISH_WIN_SCORE,
@@ -258,6 +259,7 @@ export default function GameApp() {
   const treasury = useCityStore((s) => s.treasury);
   const pantry = useCityStore((s) => s.pantry);
   const brownoutThisWageDay = useCityStore((s) => s.brownoutThisWageDay);
+  const chronicle = useCityStore((s) => s.chronicle ?? []);
   const marketOrders = useMarketStore((s) => s.orders);
   const civilianPopulation = useCityStore(
     (s) => s.civilianPopulation ?? INITIAL_CIVILIAN_POPULATION,
@@ -469,6 +471,13 @@ export default function GameApp() {
   const openExpansionContract = useMemo(() => {
     for (const c of Object.values(contracts)) {
       if (c.type === 'expansion' && c.status === 'open') return c;
+    }
+    return null;
+  }, [contracts]);
+
+  const openOffensiveContract = useMemo(() => {
+    for (const c of Object.values(contracts)) {
+      if (c.type === 'offensive' && c.status === 'open') return c;
     }
     return null;
   }, [contracts]);
@@ -1618,7 +1627,9 @@ export default function GameApp() {
                     }
                     setExpansionEnlistFeedback(
                       r.completed
-                        ? 'Contract complete — target hex unlocked and frontier neighbors charted.'
+                        ? r.nestDiscovered
+                          ? 'Contract complete — nest discovered. Quartel posted an offensive on the mural.'
+                          : 'Contract complete — target hex unlocked and frontier neighbors charted.'
                         : 'Enlisted. One more distinct volunteer is needed to finish.',
                     );
                   }}
@@ -1648,6 +1659,37 @@ export default function GameApp() {
                 {expansionEnlistFeedback}
               </p>
             ) : null}
+          </div>
+          <h3>Ofensiva ao ninho</h3>
+          <div className="game-contract-card">
+            <p className="game-muted">
+              Issued by <strong>Quartel General</strong>
+            </p>
+            {openOffensiveContract ? (
+              <>
+                <p>
+                  Target nest{' '}
+                  <code className="game-hex-code">
+                    {openOffensiveContract.targetHexId}
+                  </code>
+                </p>
+                <p className="game-muted">
+                  Volunteers{' '}
+                  {openOffensiveContract.enlistedCharacterIds.length}/
+                  {openOffensiveContract.charSlots} · start needs{' '}
+                  {OFFENSIVE_CONTRACT_CHAR_SLOTS} characters
+                </p>
+                <p className="game-muted" role="status">
+                  Sortie resolution is not available yet. The contract stays
+                  posted on the mural until the offensive theater ships.
+                </p>
+              </>
+            ) : (
+              <p className="game-muted">
+                No offensive posted. Unlock the hidden nest hex via frontier
+                expansion to enable this contract.
+              </p>
+            )}
           </div>
           <p>
             Local time <strong>{formatTime(new Date(now))}</strong> · event
@@ -1864,6 +1906,26 @@ export default function GameApp() {
                 ))}
               </tbody>
             </table>
+          )}
+          <h3>Crônica da cidade</h3>
+          <p className="game-muted">
+            O Velho guarda logs relevantes da run — descobertas, oficiais do
+            Quartel, e o que a rua ainda vai acrescentar.
+          </p>
+          {chronicle.length === 0 ? (
+            <p className="game-muted">Nenhum registro ainda.</p>
+          ) : (
+            <ul className="game-lore-list" aria-label="City chronicle">
+              {[...chronicle].reverse().map((entry) => (
+                <li key={entry.id}>
+                  <span className="game-muted">
+                    {new Date(entry.at).toLocaleString()}
+                  </span>
+                  {' — '}
+                  {entry.text}
+                </li>
+              ))}
+            </ul>
           )}
             </>
           )}

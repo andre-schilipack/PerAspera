@@ -1,4 +1,4 @@
-export type ContractType = 'expansion';
+export type ContractType = 'expansion' | 'offensive';
 
 export type ContractStatus = 'open' | 'completed';
 

@@ -6,8 +6,10 @@ import {
   INITIAL_CIVILIAN_POPULATION,
   PREFEITURA_TREASURY_INITIAL,
 } from '../domain/constants.ts';
+import { makeChronicleId } from '../domain/ids.ts';
 import type { PassiveItemBuffer } from '../domain/types/economy.ts';
 import type { CityCoreState } from '../domain/types/city.ts';
+import type { ChronicleEntry } from '../domain/types/chronicle.ts';
 
 interface CityActions {
   setCityCore: (cityCore: CityCoreState) => void;
@@ -18,6 +20,7 @@ interface CityActions {
   setTreasury: (n: number) => void;
   setPantry: (pantry: PassiveItemBuffer) => void;
   setBrownoutThisWageDay: (brownoutThisWageDay: boolean) => void;
+  appendChronicle: (text: string, atMs?: number) => void;
   /** Full reset for new game. */
   reset: () => void;
 }
@@ -35,6 +38,8 @@ type CityStore = {
   pantry: PassiveItemBuffer;
   /** Set when a tick in the current wage day could not cover a power draw. */
   brownoutThisWageDay: boolean;
+  /** Velho Rabiscão append-only intel log for this run. */
+  chronicle: ChronicleEntry[];
 } & CityActions;
 
 function initialCityState(): Pick<
@@ -46,6 +51,7 @@ function initialCityState(): Pick<
   | 'treasury'
   | 'pantry'
   | 'brownoutThisWageDay'
+  | 'chronicle'
 > {
   const t = Date.now();
   return {
@@ -56,6 +62,7 @@ function initialCityState(): Pick<
     treasury: PREFEITURA_TREASURY_INITIAL,
     pantry: {},
     brownoutThisWageDay: false,
+    chronicle: [],
   };
 }
 
@@ -73,6 +80,16 @@ export const useCityStore = create<CityStore>()(
       setTreasury: (treasury) => set({ treasury }),
       setPantry: (pantry) => set({ pantry }),
       setBrownoutThisWageDay: (brownoutThisWageDay) => set({ brownoutThisWageDay }),
+      appendChronicle: (text, atMs) =>
+        set((s) => {
+          const at = atMs ?? Date.now();
+          const entry: ChronicleEntry = {
+            id: makeChronicleId(s.chronicle.length + 1),
+            at,
+            text,
+          };
+          return { chronicle: [...s.chronicle, entry] };
+        }),
       reset: () => set(initialCityState()),
     }),
     {
@@ -86,7 +103,16 @@ export const useCityStore = create<CityStore>()(
         treasury: state.treasury,
         pantry: state.pantry,
         brownoutThisWageDay: state.brownoutThisWageDay,
+        chronicle: state.chronicle,
       }),
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<CityStore>;
+        return {
+          ...current,
+          ...p,
+          chronicle: Array.isArray(p.chronicle) ? p.chronicle : [],
+        };
+      },
     },
   ),
 );

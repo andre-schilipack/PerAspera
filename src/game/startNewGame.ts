@@ -2,6 +2,7 @@ import { GAME_VERSION, HOME_HEX_ID } from '../domain/constants.ts';
 import { createCharacter } from '../domain/factories/createCharacter.ts';
 import { createInitialWorld } from '../domain/factories/createInitialWorld.ts';
 import { makeCharacterId } from '../domain/ids.ts';
+import { pickNestHexId } from '../domain/nestIntel.ts';
 import { useCharactersStore } from '../stores/useCharactersStore.ts';
 import { useContractsStore } from '../stores/useContractsStore.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
@@ -52,7 +53,11 @@ export function startNewGame(characterName: string): void {
   useCharactersStore.getState().upsertCharacter(character);
   useCharactersStore.getState().setCurrentCharacterId(charId);
 
-  useWorldStore.getState().setHexMap(withLots.hexMap);
+  useWorldStore.getState().setHexMap({
+    ...withLots.hexMap,
+    nestHexId: pickNestHexId(),
+    enemyNestDiscovered: false,
+  });
 
   useDefenseStore.getState().reset();
   useCityStore.getState().reset();

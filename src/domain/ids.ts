@@ -1,6 +1,7 @@
 import {
   ID_PREFIX_BUSINESS,
   ID_PREFIX_CHARACTER,
+  ID_PREFIX_CHRONICLE,
   ID_PREFIX_COMBAT_LOG,
   ID_PREFIX_CONTRACT,
   ID_PREFIX_SLOT,
@@ -20,6 +21,10 @@ export function makeBusinessId(counter: number): string {
 
 export function makeContractId(counter: number): string {
   return `${ID_PREFIX_CONTRACT}_${counter}`;
+}
+
+export function makeChronicleId(counter: number): string {
+  return `${ID_PREFIX_CHRONICLE}_${counter}`;
 }
 
 /** Display / factory helper; persisted log lines use numeric `CombatLogEntry.id`. */

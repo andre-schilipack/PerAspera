@@ -5,6 +5,7 @@ import {
   hexPolygonPointsPointyTop,
   viewBoxString,
 } from '../domain/hexLayout.ts';
+import { tileHasRobotNest } from '../domain/nestIntel.ts';
 import type { HexTile } from '../domain/types/index.ts';
 
 export interface HexMapViewProps {
@@ -58,6 +59,7 @@ export function HexMapView({
             h.isUnlocked &&
             staminaCurrent >= patrolStaCost;
           const locked = !h.isUnlocked;
+          const isNest = tileHasRobotNest(h);
 
           return (
             <g key={h.id} className="hex-map-cell">
@@ -65,6 +67,7 @@ export function HexMapView({
                 {h.id}
                 {h.id === centerHexId ? ' (Centro)' : ''}
                 {h.id === homeHexId ? ' (Home)' : ''}
+                {isNest ? ' — ninho robótico' : ''}
                 {locked ? ' — locked' : ''}
               </title>
               <polygon
@@ -73,6 +76,7 @@ export function HexMapView({
                 data-current={isCurrent}
                 data-neighbor={canPatrol}
                 data-locked={locked}
+                data-nest={isNest}
                 tabIndex={canPatrol ? 0 : -1}
                 role={canPatrol ? 'button' : undefined}
                 aria-label={
@@ -80,7 +84,7 @@ export function HexMapView({
                     ? `Patrol to hex ${h.id}, ${patrolStaCost} STA`
                     : isCurrent
                       ? `Current hex ${h.id}`
-                      : `Hex ${h.id}${locked ? ', locked' : ''}`
+                      : `Hex ${h.id}${isNest ? ', robot nest' : ''}${locked ? ', locked' : ''}`
                 }
                 onClick={() => {
                   if (canPatrol) onPatrolTo(h.id);

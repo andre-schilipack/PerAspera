@@ -37,6 +37,7 @@ import {
 } from '../domain/defenseTactics.ts';
 import { migrateLegacyBusinessSlots } from '../domain/migrateBusinesses.ts';
 import { runEconomicCatchUp } from './economicCatchUp.ts';
+import { normalizeWorldNestIntel } from './nestDiscovery.ts';
 import type { DailyDefenseState, GameMetaState } from '../domain/types/index.ts';
 
 function pickMetaSnapshot(state: ReturnType<typeof useMetaStore.getState>): GameMetaState {
@@ -420,5 +421,6 @@ export async function bootstrapGame(): Promise<void> {
   ensureCharacterAutoEnlist();
   ensureCharacterHealth();
   migrateLoadedBusinesses();
+  normalizeWorldNestIntel();
   runEconomicCatchUp(now);
 }

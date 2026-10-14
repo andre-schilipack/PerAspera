@@ -51,6 +51,7 @@ export type {
   HexTile,
   HexTileCityHallFeature,
   HexTileFeature,
+  HexTileRobotNestFeature,
   HexTileWallFeature,
   PlaceSlot,
   PlaceSlotType,
@@ -64,6 +65,7 @@ export type {
 } from './meta.ts';
 export type { ScoreEntry } from './score.ts';
 export type { CityCoreState } from './city.ts';
+export type { ChronicleEntry } from './chronicle.ts';
 export type {
   CombatStrikeTargetKind,
   MassCombatModeFlags,

@@ -58,3 +58,12 @@ export function listAxialInDisk(radius: number): AxialCoord[] {
   }
   return out;
 }
+
+/** Exact axial ring at `distance` steps from the origin (distance 0 → origin only). */
+export function listAxialAtDistance(distance: number): AxialCoord[] {
+  const d = Math.max(0, Math.floor(distance));
+  if (d === 0) return [{ q: 0, r: 0 }];
+  return listAxialInDisk(d).filter(
+    (c) => axialDistance(c, { q: 0, r: 0 }) === d,
+  );
+}
