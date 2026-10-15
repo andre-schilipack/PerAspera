@@ -17,6 +17,7 @@ import type { CombatLogEntry } from '../domain/types/combat.ts';
 import type { DailyDefenseState } from '../domain/types/defense.ts';
 import type { Item } from '../domain/types/items.ts';
 import type { HexMap } from '../domain/types/map.ts';
+import type { BattleReel } from '../domain/types/battleArchive.ts';
 import type { GameOverReason, NextIdCounters } from '../domain/types/meta.ts';
 
 import { declareGameOver } from './gameOver.ts';
@@ -63,6 +64,8 @@ export interface NightlyDefenseAdvanceCommit {
   breachRaid?: { civilianPopulation: number; hexMap: HexMap } | 'skipped';
   /** Terminal state (e.g. Prefeitura siege defeat in P3). Applied last. */
   declareGameOver?: { reason: GameOverReason; at: number };
+  /** One reel per `simulateBattle` in this advance (wall, and siege when it runs). */
+  battleReels?: BattleReel[];
 }
 
 export function buildNightlyDefenseAdvanceCommit(
@@ -71,6 +74,11 @@ export function buildNightlyDefenseAdvanceCommit(
   now: number = Date.now(),
 ): NightlyDefenseAdvanceCommit {
   const { dailyDefense: dd, nextCombatLogEntryId: startId } = snapshot;
+  const battleReels: BattleReel[] = [];
+  const pack = (
+    commit: NightlyDefenseAdvanceCommit,
+  ): NightlyDefenseAdvanceCommit =>
+    battleReels.length > 0 ? { ...commit, battleReels } : commit;
 
   if (
     dd.outcome === 'prefeitura_siege' &&
@@ -86,7 +94,7 @@ export function buildNightlyDefenseAdvanceCommit(
         text: 'Prefeitura siege aborted — city map missing.',
         type: 'system',
       };
-      return {
+      return pack({
         nextCombatLogEntryId: nextId,
         dailyDefense: {
           ...dd,
@@ -96,7 +104,7 @@ export function buildNightlyDefenseAdvanceCommit(
           isCompleted: true,
         },
         declareGameOver: { reason: 'prefeitura_fallen', at: now },
-      };
+      });
     }
 
     const siegeResult = resolveDefenseFieldBattle({
@@ -106,6 +114,7 @@ export function buildNightlyDefenseAdvanceCommit(
       rng,
       nowMs: now,
     });
+    if (siegeResult.battleReel) battleReels.push(siegeResult.battleReel);
     let nextId = startId;
     const siegeLines: CombatLogEntry[] = siegeResult.newLogLines.map((l) => {
       nextId += 1;
@@ -124,7 +133,7 @@ export function buildNightlyDefenseAdvanceCommit(
     };
 
     if (!siegeResult.fightEnded) {
-      return base;
+      return pack(base);
     }
 
     const defenderHpSync: DefenderHpSyncPayload = {
@@ -145,7 +154,7 @@ export function buildNightlyDefenseAdvanceCommit(
         participantIds,
         rng,
       );
-      return {
+      return pack({
         ...base,
         dailyDefense: { ...nextDaily, victoryLootPool: [] },
         defenderHpSync,
@@ -156,23 +165,23 @@ export function buildNightlyDefenseAdvanceCommit(
           credsDelta: DEFENSE_VICTORY_CREDS,
         })),
         victoryLootGrants,
-      };
+      });
     }
 
     if (siegeResult.nextDaily.outcome === 'loss') {
-      return {
+      return pack({
         ...base,
         dailyDefense: { ...nextDaily, victoryLootPool: [] },
         defenderHpSync,
         declareGameOver: { reason: 'prefeitura_fallen', at: now },
-      };
+      });
     }
 
-    return {
+    return pack({
       ...base,
       dailyDefense: { ...nextDaily, victoryLootPool: [] },
       defenderHpSync,
-    };
+    });
   }
 
   const result = snapshot.hexMap
@@ -183,6 +192,7 @@ export function buildNightlyDefenseAdvanceCommit(
         fightEnded: false,
         newLogLines: [] as Omit<CombatLogEntry, 'id'>[],
       };
+  if (result.battleReel) battleReels.push(result.battleReel);
 
   let nextId = startId;
   const newLines: CombatLogEntry[] = result.newLogLines.map((l) => {
@@ -199,7 +209,7 @@ export function buildNightlyDefenseAdvanceCommit(
   };
 
   if (!result.fightEnded) {
-    return base;
+    return pack(base);
   }
 
   const defenderHpSync: DefenderHpSyncPayload = {
@@ -218,7 +228,7 @@ export function buildNightlyDefenseAdvanceCommit(
       participantIds,
       rng,
     );
-    return {
+    return pack({
       ...base,
       dailyDefense: { ...nextDaily, victoryLootPool: [] },
       defenderHpSync,
@@ -229,7 +239,7 @@ export function buildNightlyDefenseAdvanceCommit(
         credsDelta: DEFENSE_VICTORY_CREDS,
       })),
       victoryLootGrants,
-    };
+    });
   }
 
   // Wall encounter ended in breach → snapshot handoff → optional raid + Prefeitura siege (encounter 2).
@@ -256,6 +266,7 @@ export function buildNightlyDefenseAdvanceCommit(
         rng,
         nowMs: now,
       });
+      if (siege.battleReel) battleReels.push(siege.battleReel);
       let siegeId = opened.nextCombatLogEntryId;
       const siegeLines: CombatLogEntry[] = siege.newLogLines.map((l) => {
         siegeId += 1;
@@ -275,7 +286,7 @@ export function buildNightlyDefenseAdvanceCommit(
       };
       if (siegeDaily.outcome === 'victory') {
         const participantIds = siegeDaily.defenderLine.map((d) => d.characterId);
-        return {
+        return pack({
           nextCombatLogEntryId: siegeId,
           dailyDefense: { ...siegeDaily, victoryLootPool: [] },
           defenderHpSync: siegeHp,
@@ -292,33 +303,33 @@ export function buildNightlyDefenseAdvanceCommit(
             participantIds,
             rng,
           ),
-        };
+        });
       }
       if (siegeDaily.outcome === 'loss') {
-        return {
+        return pack({
           nextCombatLogEntryId: siegeId,
           dailyDefense: { ...siegeDaily, victoryLootPool: [] },
           defenderHpSync: siegeHp,
           breachRaid: opened.breachRaid,
           updatedHexMap: siege.hexMap ?? siege.wallResult.hexMap,
           declareGameOver: { reason: 'prefeitura_fallen', at: now },
-        };
+        });
       }
     }
 
-    return {
+    return pack({
       nextCombatLogEntryId: opened.nextCombatLogEntryId,
       dailyDefense: opened.dailyDefense,
       defenderHpSync,
       breachRaid: opened.breachRaid,
-    };
+    });
   }
 
-  return {
+  return pack({
     ...base,
     dailyDefense: { ...nextDaily, victoryLootPool: [] },
     defenderHpSync,
-  };
+  });
 }
 
 export interface NightlyDefenseAdvanceCommitApi {

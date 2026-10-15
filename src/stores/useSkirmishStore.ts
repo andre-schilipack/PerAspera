@@ -8,10 +8,14 @@ import { itemGrantTemplate } from '../domain/businessPayout.ts';
 import { algoProgramFromLoadout } from '../domain/combat/ai/algoProgram.ts';
 import {
   runStreetSkirmish,
+  STREET_DRONE_LABEL,
+  STREET_DRONE_UNIT_ID,
   type RunStreetSkirmishParams,
 } from '../domain/streetSkirmish.ts';
 import type { Item } from '../domain/types/index.ts';
+import type { BattleReel } from '../domain/types/battleArchive.ts';
 import type { StreetSkirmishSession } from '../domain/types/skirmish.ts';
+import { recordBattleReel } from '../game/battleArchive.ts';
 import { useCharactersStore } from './useCharactersStore.ts';
 import { useMetaStore } from './useMetaStore.ts';
 
@@ -82,6 +86,20 @@ export const useSkirmishStore = create<SkirmishStore>()((set, get) => ({
       applyWinRewards(session);
       session.rewardsApplied = true;
     }
+
+    const reel: BattleReel = {
+      kind: 'street',
+      at: Date.now(),
+      title: `Rua · ${session.hexId}`,
+      outcome: session.outcome,
+      participantCharacterIds: [session.characterId],
+      unitNames: {
+        [session.characterId]: session.characterName,
+        [STREET_DRONE_UNIT_ID]: STREET_DRONE_LABEL,
+      },
+      battleResult: session.battleResult,
+    };
+    recordBattleReel(reel);
 
     set({ session });
   },

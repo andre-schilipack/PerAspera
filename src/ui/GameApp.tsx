@@ -118,6 +118,9 @@ import { useCityStore } from '../stores/useCityStore.ts';
 import { useDefenseStore } from '../stores/useDefenseStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useSkirmishStore } from '../stores/useSkirmishStore.ts';
+import { replayCombatLog } from '../domain/battleReplayLog.ts';
+import { useBattleArchiveStore } from '../stores/useBattleArchiveStore.ts';
+import { useExpansionStore } from '../stores/useExpansionStore.ts';
 import { useOffensiveStore } from '../stores/useOffensiveStore.ts';
 import { algoProgramFromLoadout } from '../domain/combat/ai/algoProgram.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
@@ -214,6 +217,8 @@ export default function GameApp() {
   const [expansionEnlistFeedback, setExpansionEnlistFeedback] = useState<
     string | null
   >(null);
+  const [battlesOpen, setBattlesOpen] = useState(false);
+  const [replayId, setReplayId] = useState<number | null>(null);
   const [offensiveFeedback, setOffensiveFeedback] = useState<string | null>(
     null,
   );
@@ -270,6 +275,9 @@ export default function GameApp() {
   const offensiveSession = useOffensiveStore((s) => s.session);
   const startOffensiveSortieUi = useOffensiveStore((s) => s.startSortie);
   const dismissOffensiveSession = useOffensiveStore((s) => s.dismiss);
+  const expansionSession = useExpansionStore((s) => s.session);
+  const dismissExpansionSession = useExpansionStore((s) => s.dismiss);
+  const battleEntries = useBattleArchiveStore((s) => s.entries);
   const marketOrders = useMarketStore((s) => s.orders);
   const civilianPopulation = useCityStore(
     (s) => s.civilianPopulation ?? INITIAL_CIVILIAN_POPULATION,
@@ -510,6 +518,40 @@ export default function GameApp() {
     offensiveRevealKey,
   );
 
+  const expansionLog = useMemo(
+    () => (expansionSession ? replayCombatLog(expansionSession.reel) : []),
+    [expansionSession],
+  );
+  const expansionRevealKey = expansionSession
+    ? `ex-${expansionSession.contractId}-${expansionSession.reel.battleResult.battleId}`
+    : 'ex-idle';
+  const expansionReveal = useCombatLogReveal(
+    expansionLog,
+    expansionRevealKey,
+    COMBAT_UI_LOG_LINE_MS,
+  );
+  const replayEntry =
+    replayId == null
+      ? null
+      : (battleEntries.find((entry) => entry.id === replayId) ?? null);
+  const replayLog = useMemo(
+    () => (replayEntry ? replayCombatLog(replayEntry) : []),
+    [replayEntry],
+  );
+  const replayRevealKey = replayEntry
+    ? `replay-${String(replayEntry.id)}`
+    : 'replay-idle';
+  const replayReveal = useCombatLogReveal(
+    replayLog,
+    replayRevealKey,
+    COMBAT_UI_LOG_LINE_MS,
+  );
+
+  useEffect(() => {
+    if (!expansionSession) return;
+    playCombatStartSound();
+  }, [expansionSession]);
+
   useEffect(() => {
     if (!character || resolvedScreen !== 'defense') {
       queueMicrotask(() => setExpansionEnsureHint(null));
@@ -523,7 +565,7 @@ export default function GameApp() {
     queueMicrotask(() =>
       setExpansionEnsureHint(
         reason === 'no_locked_hex'
-          ? 'No locked frontier hex is available for a new expansion contract.'
+          ? 'Não há hex fechado na fronteira para um novo contrato.'
           : null,
       ),
     );
@@ -1171,6 +1213,13 @@ export default function GameApp() {
                     /{ch.stamina.max}
                   </span>
                   <span className="game-muted">Home {ch.homeHexId}</span>
+                  {battleEntries.some(
+                    (entry) =>
+                      entry.participantCharacterIds.includes(id) &&
+                      !entry.seenByCharacterIds.includes(id),
+                  ) ? (
+                    <span className="game-muted">Batalha não vista</span>
+                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -1297,7 +1346,70 @@ export default function GameApp() {
             {label}
           </button>
         ))}
+        <button
+          type="button"
+          data-active={battlesOpen}
+          onClick={() => setBattlesOpen((open) => !open)}
+        >
+          Batalhas
+          {battleEntries.some(
+            (entry) =>
+              entry.participantCharacterIds.includes(character.id) &&
+              !entry.seenByCharacterIds.includes(character.id),
+          )
+            ? ' · nova'
+            : ''}
+        </button>
       </nav>
+
+      {battleEntries.some(
+        (entry) =>
+          entry.participantCharacterIds.includes(character.id) &&
+          !entry.seenByCharacterIds.includes(character.id),
+      ) ? (
+        <p className="game-contract-feedback" role="status">
+          Este personagem participou de uma batalha que ainda não viu.
+        </p>
+      ) : null}
+
+      {battlesOpen ? (
+        <section className="game-panel" aria-label="Batalhas">
+          <h2>Batalhas</h2>
+          {battleEntries.length === 0 ? (
+            <p className="game-muted">Nenhuma batalha arquivada.</p>
+          ) : (
+            <ul className="game-char-card-list">
+              {[...battleEntries].reverse().map((entry) => {
+                const unseen =
+                  entry.participantCharacterIds.includes(character.id) &&
+                  !entry.seenByCharacterIds.includes(character.id);
+                return (
+                  <li key={entry.id} className="game-char-card">
+                    <div className="game-char-card-body">
+                      <strong>{entry.title}</strong>
+                      <span className="game-muted">
+                        {entry.outcome}
+                        {unseen ? ' · não vista' : ''}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        useBattleArchiveStore
+                          .getState()
+                          .markSeen(entry.id, character.id);
+                        setReplayId(entry.id);
+                      }}
+                    >
+                      Ver
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      ) : null}
 
       {resolvedScreen === 'map' && (
         <section className="game-panel">
@@ -1611,10 +1723,11 @@ export default function GameApp() {
             You are at the <strong>Quartel General</strong> — enlist for the
             nightly defense below.
           </p>
-          <h3>Frontier expansion</h3>
+          <h3>Expansão de fronteira</h3>
           <div className="game-contract-card">
             <p className="game-muted">
-              Issued by <strong>Quartel General</strong>
+              O Quartel manda um esquadrão limpar o hex. Dois voluntários,
+              mais o Guarda Capitão e dois guardas.
             </p>
             {expansionEnsureHint ? (
               <p className="game-muted" role="status">
@@ -1623,16 +1736,16 @@ export default function GameApp() {
             ) : openExpansionContract ? (
               <>
                 <p>
-                  Target hex{' '}
+                  Hex alvo{' '}
                   <code className="game-hex-code">
                     {openExpansionContract.targetHexId}
                   </code>
                 </p>
                 <p className="game-muted">
-                  Volunteers{' '}
+                  Voluntários{' '}
                   {openExpansionContract.enlistedCharacterIds.length}/
-                  {openExpansionContract.charSlots} · cost{' '}
-                  {openExpansionContract.staminaCost} STA per enlistment
+                  {openExpansionContract.charSlots} · custo{' '}
+                  {openExpansionContract.staminaCost} STA por alistamento
                 </p>
                 <button
                   type="button"
@@ -1647,12 +1760,18 @@ export default function GameApp() {
                       setExpansionEnlistFeedback(r.error);
                       return;
                     }
+                    if (!r.completed) {
+                      setExpansionEnlistFeedback(
+                        'Alistado. Falta mais um voluntário para a limpeza.',
+                      );
+                      return;
+                    }
                     setExpansionEnlistFeedback(
-                      r.completed
+                      r.outcome === 'victory'
                         ? r.nestDiscovered
-                          ? 'Contract complete — nest discovered. Quartel posted an offensive on the mural.'
-                          : 'Contract complete — target hex unlocked and frontier neighbors charted.'
-                        : 'Enlisted. One more distinct volunteer is needed to finish.',
+                          ? 'Hex limpo — ninho descoberto. O Quartel abriu uma ofensiva.'
+                          : 'Hex limpo. A fronteira abriu.'
+                        : 'A limpeza falhou. O esquadrão voltou ao Centro. O contrato segue aberto.',
                     );
                   }}
                   disabled={
@@ -1665,16 +1784,16 @@ export default function GameApp() {
                       openExpansionContract.staminaCost
                   }
                 >
-                  Enlist ({openExpansionContract.staminaCost} STA)
+                  Alistar ({openExpansionContract.staminaCost} STA)
                 </button>
                 {openExpansionContract.enlistedCharacterIds.includes(
                   character.id,
                 ) ? (
-                  <p className="game-muted">You are already on this contract.</p>
+                  <p className="game-muted">Você já está neste contrato.</p>
                 ) : null}
               </>
             ) : (
-              <p className="game-muted">No open expansion contract.</p>
+              <p className="game-muted">Nenhum contrato de expansão aberto.</p>
             )}
             {expansionEnlistFeedback ? (
               <p className="game-contract-feedback" role="status">
@@ -2461,6 +2580,84 @@ export default function GameApp() {
             fullLog={offensiveSession.combatLog}
             visibleEntries={offensiveReveal.visibleEntries}
             resetKey={offensiveRevealKey}
+            listClassName="game-combat-log--theater"
+            autoScroll
+          />
+        </CombatModal>
+      ) : null}
+
+      {expansionSession ? (
+        <CombatModal
+          open
+          title="Limpeza de fronteira"
+          subtitle={
+            <>
+              Hex {expansionSession.targetHexId} ·{' '}
+              <strong>{expansionSession.outcome}</strong> · 1 tick = 0.1s
+            </>
+          }
+          footer={
+            <>
+              {expansionReveal.pendingApprox > 0 ? (
+                <button
+                  type="button"
+                  className="game-combat-modal__secondary"
+                  onClick={() => expansionReveal.flushPending()}
+                >
+                  Mostrar tudo
+                </button>
+              ) : (
+                <button type="button" onClick={() => dismissExpansionSession()}>
+                  Fechar
+                </button>
+              )}
+            </>
+          }
+        >
+          <h3>Batalha</h3>
+          <CombatLogTurnTabPanel
+            fullLog={expansionLog}
+            visibleEntries={expansionReveal.visibleEntries}
+            resetKey={expansionRevealKey}
+            listClassName="game-combat-log--theater"
+            autoScroll
+          />
+        </CombatModal>
+      ) : null}
+
+      {replayEntry ? (
+        <CombatModal
+          open
+          title={replayEntry.title}
+          subtitle={
+            <>
+              {replayEntry.kind} · <strong>{replayEntry.outcome}</strong> ·
+              replay
+            </>
+          }
+          footer={
+            <>
+              {replayReveal.pendingApprox > 0 ? (
+                <button
+                  type="button"
+                  className="game-combat-modal__secondary"
+                  onClick={() => replayReveal.flushPending()}
+                >
+                  Mostrar tudo
+                </button>
+              ) : (
+                <button type="button" onClick={() => setReplayId(null)}>
+                  Fechar
+                </button>
+              )}
+            </>
+          }
+        >
+          <h3>Replay</h3>
+          <CombatLogTurnTabPanel
+            fullLog={replayLog}
+            visibleEntries={replayReveal.visibleEntries}
+            resetKey={replayRevealKey}
             listClassName="game-combat-log--theater"
             autoScroll
           />

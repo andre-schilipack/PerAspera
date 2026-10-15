@@ -5,6 +5,7 @@ import { DEFENSE_START_HOUR } from '../domain/constants.ts';
 import { formatLocalDateString } from '../domain/defenseSchedule.ts';
 import { rollDailyDefenseStateForNewDay } from '../domain/factories/createDefenseSeed.ts';
 import { readCityThreatLevel } from '../game/cityThreat.ts';
+import { recordBattleReels } from '../game/battleArchive.ts';
 import { defenseEndScreenFromCommit } from '../game/defenseEndScreenFromCommit.ts';
 import {
   applyNightlyDefenseAdvanceCommit,
@@ -101,6 +102,7 @@ export const useDefenseStore = create<DefenseStore>()(
           setHexMap: useWorldStore.getState().setHexMap,
           addItemToInventory: useCharactersStore.getState().addItemToInventory,
         });
+        recordBattleReels(commit.battleReels);
         const end = defenseEndScreenFromCommit(commit, (id) => {
           const ch = useCharactersStore.getState().characters[id];
           return ch?.name ?? id;

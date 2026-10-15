@@ -34,6 +34,7 @@ import {
 import { DEFAULT_CORE_ATTRIBUTES } from './types/attributes.ts';
 import type { CoreAttributes } from './types/attributes.ts';
 import type { CombatLogActor, CombatLogEntry, DefenseTacticalBucket, EnemyInstance } from './types/combat.ts';
+import type { BattleReel } from './types/battleArchive.ts';
 import type { DailyDefenseState, DefenderLineEntry, NightlyDefenseOutcome } from './types/defense.ts';
 import type { HexMap } from './types/map.ts';
 import type { MassCombatWallSnapshot } from './types/massCombat.ts';
@@ -48,6 +49,8 @@ export interface ResolveDefenseFieldBattleResult {
   fightEnded: boolean;
   newLogLines: Omit<CombatLogEntry, 'id'>[];
   hexMap?: HexMap;
+  /** Set when this call ran `simulateBattle`. Wall and siege are separate reels. */
+  battleReel?: BattleReel;
 }
 
 function roleFromBucket(bucket: DefenseTacticalBucket | undefined): UnitRole {
@@ -437,6 +440,16 @@ export function resolveDefenseFieldBattle(params: {
     });
   }
 
+  const battleReel: BattleReel = {
+    kind: 'nightly',
+    at: nowMs,
+    title: `Noite ${daily.date} · ${theater === 'siege' ? 'cerco' : 'muralha'}`,
+    outcome,
+    participantCharacterIds: daily.defenderLine.map((d) => d.characterId),
+    unitNames: Object.fromEntries(names),
+    battleResult: result,
+  };
+
   return {
     nextDaily: {
       ...daily,
@@ -452,6 +465,7 @@ export function resolveDefenseFieldBattle(params: {
     fightEnded: true,
     newLogLines: lines,
     hexMap: nextMap,
+    battleReel,
   };
 }
 

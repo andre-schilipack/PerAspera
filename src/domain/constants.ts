@@ -193,6 +193,25 @@ export const WORK_STA_COST = 5;
 export const EXPANSION_CONTRACT_CHAR_SLOTS = 2;
 export const EXPANSION_CONTRACT_STA_COST = 20;
 
+/** Clearing sortie: drone count is this base plus axial distance from Centro. */
+export const EXPANSION_CLEAR_BASE_DRONES = 4;
+/** Mobile squad leader on an expansion clear (not the wall garrison). */
+export const EXPANSION_CAPTAIN_UNIT_ID = 'npc_expansion_captain' as const;
+export const EXPANSION_CAPTAIN_LABEL = 'Guarda Capitão';
+export const EXPANSION_CAPTAIN_MAX_HP = 72;
+export const EXPANSION_GUARD_UNIT_IDS = [
+  'npc_expansion_guard_a',
+  'npc_expansion_guard_b',
+] as const;
+export const EXPANSION_GUARD_LABEL = 'Guarda';
+export const EXPANSION_FIELD_MAX_TICKS = 240;
+export const EXPANSION_TEAM_CITY = 'city' as const;
+export const EXPANSION_TEAM_DRONES = 'drones' as const;
+export const EXPANSION_RETREAT_HP_FRACTION = 0.25;
+export const EXPANSION_RETREAT_CHANCE = 0.35;
+/** Persisted battle archive keeps the newest entries and drops the rest. */
+export const BATTLE_ARCHIVE_CAP = 40;
+
 /** Axial ring distance from Centro for the Act 1 robot nest. */
 export const NEST_RING_DISTANCE = 3;
 

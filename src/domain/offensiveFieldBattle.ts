@@ -31,6 +31,7 @@ import type { CoreAttributes } from './types/attributes.ts';
 import type { CombatLogActor, CombatLogEntry, DefenseTacticalBucket } from './types/combat.ts';
 import type { HexMap } from './types/map.ts';
 import type { AlgoProgram } from './combat/ai/policy.ts';
+import type { BattleResult } from './combat/core/types.ts';
 import type { OffensiveBattleOutcome } from './types/offensive.ts';
 
 export type { OffensiveBattleOutcome };
@@ -75,6 +76,9 @@ export interface ResolveOffensiveNestBattleResult {
   threatReduced: number;
   attackers: OffensiveAttackerResult[];
   combatLog: Omit<CombatLogEntry, 'id'>[];
+  /** Present when `simulateBattle` ran. The archive stores this reel. */
+  battleResult?: BattleResult;
+  unitNames?: Record<string, string>;
 }
 
 function roleFromBucket(bucket: DefenseTacticalBucket | undefined): UnitRole {
@@ -409,5 +413,7 @@ export function resolveOffensiveNestBattle(
     threatReduced,
     attackers: attackerResults,
     combatLog: lines,
+    battleResult: result,
+    unitNames: Object.fromEntries(names),
   };
 }

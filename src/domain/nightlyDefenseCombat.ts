@@ -5,6 +5,7 @@ import { algoProgramFromLoadout } from './combat/ai/algoProgram.ts';
 import type { CombatLoadout } from './types/character.ts';
 import type { MassCombatWallSnapshot } from './types/massCombat.ts';
 import { defenderBucketForLineIndex } from './defenseTactics.ts';
+import type { BattleReel } from './types/battleArchive.ts';
 import type { HexMap } from './types/map.ts';
 import { resolveDefenseFieldBattle } from './defenseFieldBattle.ts';
 
@@ -15,6 +16,7 @@ export interface AdvanceNightlyDefenseResult {
   wallResult: NightlyCombatWallResult;
   fightEnded: boolean;
   newLogLines: Omit<CombatLogEntry, 'id'>[];
+  battleReel?: BattleReel;
 }
 
 /**
@@ -37,6 +39,7 @@ export function advanceNightlyDefenseRound(
     wallResult: resolved.wallResult,
     fightEnded: resolved.fightEnded,
     newLogLines: resolved.newLogLines,
+    battleReel: resolved.battleReel,
   };
 }
 

@@ -19,6 +19,8 @@ import { useContractsStore } from '../stores/useContractsStore.ts';
 import { useMetaStore } from '../stores/useMetaStore.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 import { ensureOffensiveContract, findOpenOffensiveContract } from './nestDiscovery.ts';
+import type { BattleReel } from '../domain/types/battleArchive.ts';
+import { recordBattleReel } from './battleArchive.ts';
 import { readCityThreatLevel } from './cityThreat.ts';
 
 export type EnlistOffensiveResult =
@@ -180,6 +182,19 @@ export function startOffensiveSortie(
       ? combatLog[combatLog.length - 1]!.id
       : firstLogId;
   useMetaStore.getState().patchNextIds({ combatLogEntry: lastId });
+
+  if (resolved.battleResult) {
+    const reel: BattleReel = {
+      kind: 'offensive',
+      at: nowMs,
+      title: `Ofensiva · ${nestHexId}`,
+      outcome: resolved.outcome,
+      participantCharacterIds: [...contract.enlistedCharacterIds],
+      unitNames: resolved.unitNames ?? {},
+      battleResult: resolved.battleResult,
+    };
+    recordBattleReel(reel);
+  }
 
   const session: OffensiveSortieSession = {
     contractId,

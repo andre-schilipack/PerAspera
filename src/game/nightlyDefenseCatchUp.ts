@@ -10,6 +10,7 @@ import {
 import { buildDefenderLineFromLocks } from '../domain/nightlyDefenseCombat.ts';
 import { applyAutoEnlistLocksForDefense } from './applyAutoEnlistLocksForDefense.ts';
 import { applyCharacterRegenUpTo } from './applyCharacterRegenUpTo.ts';
+import { recordBattleReels } from './battleArchive.ts';
 import {
   applyNightlyDefenseAdvanceCommit,
   buildNightlyDefenseAdvanceCommit,
@@ -58,6 +59,7 @@ function fastForwardCombatToEnd(rng: () => number, simNow: number): void {
       setHexMap: useWorldStore.getState().setHexMap,
       addItemToInventory: useCharactersStore.getState().addItemToInventory,
     });
+    recordBattleReels(commit.battleReels);
     const dd = useDefenseStore.getState().dailyDefense;
     if (dd.isCompleted || useMetaStore.getState().gameOver) {
       return;
