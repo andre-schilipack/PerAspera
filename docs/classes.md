@@ -24,7 +24,9 @@ Durable loop constraints live in `docs/act1-player-loop.md` and `.cursor/rules/p
 
 **Comerciante.** The advantage sits in the macro game. Financial efficacy channels money into combat efficacy, so the character shows up well equipped. Prefers ranged. Some go to the front anyway. Commercial skills, plus some combat skills.
 
-**Cientista.** The mage of this cyber world. Early combat skills are unimpressive: high cooldown or high mana. Late game, mages are legendary. Economically, this is the character focused on creating tech and skills. Spends a long time studying and developing. That study is the main way this class gains experience.
+**Cientista.** The tech specialist, not a mage. Act 1 combat is gadgets, hacks, chemistry, and **consumables packed for the fight** — no mana, because magic does not exist yet. Early combat skills are unimpressive: high cooldown, or they spend a cell / vial. Economically, this is the character focused on creating tech and skills. Spends a long time studying and developing. That study is the main way this class gains experience.
+
+Magic and **mana** enter later: Cientistas experiment on a fragment of the magical meteor, and an Act 2+ profession can specialize in channeling that energy. Until then, mana stays off the sheet. Detail: `docs/combat-attributes.md`.
 
 ## Suggested rules
 
@@ -36,8 +38,8 @@ These sit around the decisions above. Numbers are not locked.
 - Combat actives go in the loadout. The current cap is 6 slots (`MAX_COMBAT_SKILL_SLOTS`). Passives are always on. City skills do not use a combat slot.
 - Placement (`combatRole`: frontline, ranged, support) stays a choice. The class shows up through skills and gear.
 - Guerreiro melee skills require a melee weapon in hand. Guerreiro ranged skills require a rifle, crossbow, or similar. The autobattle policy uses what the equipped weapon allows.
-- On Cientista combat skills, each point raises power and lowers mana or cooldown. Rank 1 is embarrassing. A high rank decides the night. Attack and movement stay on the sheet, so early on this character mostly strikes and, now and then, casts Centelha.
-- Power, mana, cooldown, and economic percentages are a later tuning pass.
+- On Cientista combat skills, each point raises power and lowers cooldown and/or consumable cost. Rank 1 is embarrassing. A high rank decides the night. Attack and movement stay on the sheet, so early on this character mostly strikes and, now and then, fires a gadget.
+- Power, cooldown, consumable cost, and economic percentages are a later tuning pass. Mana is Act 2+.
 
 ## Suggested skills
 
@@ -88,15 +90,18 @@ Left out of the base list: an active that burns credits for a strong shot. In an
 
 ### Cientista
 
+Act 1 kit is technology. No spells. No mana.
+
 | Skill | Kind | Role |
 | --- | --- | --- |
-| Centelha | active, electric, single | The first spell. High mana, high cooldown. |
-| Nuvem | active, chemical, small area | Cooldown higher still. |
+| Centelha | active, electric, single | First gadget. High cooldown; may spend a packed cell. |
+| Nuvem | active, chemical, small area | Cooldown higher still. A vial, not a spell. |
 | Falha explorada | active, hack, single | Scales with intelligence. |
-| Sobrecarga | active, electric, all hostiles | Very high mana and cooldown. At rank 1 it barely fits in a fight. At a high rank it is the legendary moment. |
-| Condutor | passive | Raises max mana. Without it, Sobrecarga does not hold. |
+| Sobrecarga | active, electric, all hostiles | Very high cooldown and/or a scarce consumable. At rank 1 it barely fits in a fight. At a high rank it is the legendary moment. |
 | Pesquisa | active, city | Time spent studying. The main experience source, and the chance to find a blueprint part or a whole blueprint. |
 | Protótipo | passive, city | Incorporating a blueprint starts the resulting tech or skill stronger. |
+
+Left for Act 2+ (mana / meteor fragment / channeling job): Condutor and any skill whose fantasy is a mana pool.
 
 ## Engine today
 
@@ -106,7 +111,7 @@ The combat motor resolves damage, heal, self-buff, mana, and cooldown. Passives,
 
 - Level required to seek a profession, and where the character seeks it.
 - Skill points granted per character level, max skill rank, and prerequisites.
-- Attribute bias per profession.
-- Tuning numbers for power, mana, cooldown, and economic percentages.
+- Attribute bias per profession. Destination attribute jobs: `docs/combat-attributes.md`.
+- Tuning numbers for power, cooldown, consumable cost, and economic percentages. Mana tuning waits for Act 2.
 - Second job.
 - Which of these skills ship in the first implementation slice.
