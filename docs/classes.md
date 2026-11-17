@@ -68,7 +68,7 @@ Takes the hit, closes the wound alone, and kills. Melee is the strong path. A ri
 | Avanço | active, melee | Closes distance and strikes. |
 | Tiro de serviço | active, ranged | The shot for a rifle or crossbow. Weaker than Golpe pesado. |
 | Execução | active | Extra damage on a target already low. |
-| Postura | active, buff | Raises block chance for a few turns. |
+| Postura | active, buff | Raises **base block chance** for a few turns. Higher ranks also add block chance that scales with Vitality. |
 | Cicatrização | passive | Regenerates HP in combat much faster than the other classes. The heal is the body closing. |
 | Pele de trincheira | passive | Higher max HP. |
 

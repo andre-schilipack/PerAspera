@@ -48,9 +48,9 @@ A move may name more than one attribute. The move owns the coefficients. Rank an
 
 | Attribute | Body | Taste in SimulCombat |
 | --- | --- | --- |
-| **Força** | Damage of moves/weapons that scale with it. Heavy-weapon requirements. **blockPower** when the character chooses to block. | Weights melee strikes, advance, execute, hammers. Weights *choosing block* when a shield/weapon can block. |
+| **Força** | Damage of moves/weapons that scale with it. Heavy-weapon requirements. **blockPower** = a base value + Strength scale, used when a block connects. | Weights melee strikes, advance, execute, hammers. Weights *choosing block* when a shield/weapon can block. |
 | **Vitalidade** | Max HP. Natural defense. Combat **fôlego** pool. Tiny baseline regen (Fôlego curto / Cicatrização are what the player reads). | Weights stance, holding, self-body skills. |
-| **Agilidade** | Time between actions. **Dodge points** (used only if the character chooses to dodge). | Weights reposition, evasion buffs, *choosing dodge*. |
+| **Agilidade** | Time between actions. **Dodge points** (only on the dodge path). **Block chance** (only on the block path) — the agile blocker lands the block more often. | Weights reposition, evasion buffs, *choosing dodge*. Also helps a blocker who already chose to block. |
 | **Destreza** | **PrecisionPoints** (see to-hit). Damage of weapons that declare Dexterity — especially ranged. | Weights shots, bows, anything that asks for aim. |
 | **Inteligência** | No passive damage aura. | How hard **situation** weighs: heal, execute, rest fôlego, Recuar, don’t dump AoE on one body, dodge vs block. Also weights the tech skill or gadget that names it. Retreat as a *choice* lives here. |
 | **Carisma** | No passive weapon damage. Heal and buffs: the move declares the coefficient. | Weights heal, mark, ally buffs. City layer (fame, buy price) is **open** and stays out of HP math. |
@@ -130,12 +130,12 @@ The character *choosing* to leave is Intelligence in the picker (Recuar, disenga
 6. If the quality is a miss: no location, no HP, no part chip. Log it.
 7. Else roll **hit location**.
 8. **AttackerDamageCalc** (weapon + move coefficients + rank + quality multiplier).
-9. **DefenderDamageCalc** (Vitality natural defense + armor of that part; if blocking and the block connects, Strength **blockPower** cuts a lot of damage). A **blocked critical** is legal: quality is still crit, damage is still high, block then acts on that number.
+9. **DefenderDamageCalc** (order locked): quality → attacker power → location armor + Vitality natural defense → if a block connected, **blockPower** (base + Strength) cuts a large piece of what remains. A **blocked critical** is legal: quality is still crit, damage is still high, block then acts on that number.
 10. Remainder goes to HP. The location also chips that part’s health. The log states facts only (see Combat log).
 
 ## To-hit and quality
 
-Attributes grow toward 99. Precision is a **point pool**, then a **table**. There is **no extra roll** after the net number: the number *is* the quality.
+Attributes grow toward 99. Precision is a **point pool**. Dodge (if chosen) subtracts. The result is **NetPrecision**. Quality is **bands on that number**, after a **weighted noise roll** — Dexterity moves the center; two identical swings can still graze vs hit.
 
 Sketch (coefficients are examples, not locked):
 
@@ -143,23 +143,22 @@ Sketch (coefficients are examples, not locked):
 PrecisionPoints =
     DEX * 1
   + MovePrecision
-  + WeaponPrecision      // e.g. bow = -50
+  + WeaponPrecision      // negative for EVERY ranged weapon (bow, crossbow, firearm)
   + basePrecision        // e.g. 50
+
+NetPrecision = PrecisionPoints - DodgePoints   // DodgePoints = 0 if the defender blocked instead
+
+RolledPrecision = NetPrecision + Noise
+Noise = weighted random centered on 0 (more mass near 0 than in the tails)
+
+Quality = table(RolledPrecision)   // miss / graze / hit / crit
 ```
 
 Injured parts can further modify PrecisionPoints (see Parts). Buffs such as Concentração belong in MovePrecision or a later explicit term — numbers open.
 
-If the defender **dodges**:
+If the defender **dodges**, `DodgePoints` come from Agility (formula open). High dodge shifts the center down; the noise still decides raspão vs erro on the edge. That is the Agility sentence: “aquele drone é rápido.”
 
-```
-NetPrecision = PrecisionPoints - DodgePoints
-```
-
-`DodgePoints` come from Agility (formula open). High dodge can push a would-be crit down to hit, graze, or miss. That is the Agility sentence: “aquele drone é rápido.”
-
-If the defender **blocks**, dodge does **not** subtract. `NetPrecision = PrecisionPoints`. Quality is more likely to stay hit/crit; the character is betting on **blockPower** instead of not being there.
-
-`NetPrecision` maps on a **table** to:
+If the defender **blocks**, dodge does **not** subtract. `NetPrecision = PrecisionPoints`. Quality is more likely to stay hit/crit; the character is betting on **block chance** (Agility + gear + Postura) and **blockPower** (base + Strength).
 
 | Quality | Intent |
 | --- | --- |
@@ -168,7 +167,9 @@ If the defender **blocks**, dodge does **not** subtract. `NetPrecision = Precisi
 | Hit | Normal multiplier. |
 | Critical | High multiplier. |
 
-Exact band cuts stay open. The 50 / 80 / 95 figures from early talk were the *idea* of a table, not a raw d100 that everyone misses half the time. Dexterity and weapon penalties **shift the net number**; the table reads that number. A Dexterity-1 citizen with a rifle sits in miss/graze. A made shooter sits in hit, with crits that exist.
+Exact band cuts, die size (d50 / d80 / …), and the noise table stay **open**. Do not hammer them yet.
+
+**First calibration lock (only this):** Dexterity 1, a **middling roll (~50% of the die)**, nobody dodging. Quality is a **miss that passed close** — errou o hit, mas passou perto. Not a graze (that still deals HP). Not a clean whiff into empty space. The log is still a miss (no HP number). The die size that makes “50%” mean this is the next tuning pass.
 
 Miss from a low net (attacker imprecise, or defender dodged the shot off the table) is the same math. The log may name a miss, a graze, or a dodge as facts. It does not narrate whose fault it was.
 
@@ -177,7 +178,9 @@ Miss from a low net (attacker imprecise, or defender dodged the shot off the tab
 The character picks **one** per incoming hit:
 
 - **Dodge** — Agility characters. Spends dodge points against PrecisionPoints. If it works, quality drops (possibly to miss). No blockPower.
-- **Block** — the character *gives up dodge* and tries to block. Chance comes from **shield / weapon block chance + buffBlockChance** (Postura and similar). **blockPower** scales with **Strength** and cuts damage a lot when the block connects.
+- **Block** — the character *gives up dodge* and tries to block. **Block chance** = weapon/shield base + **Agility** + buffs. An agile blocker lands the block more often. **blockPower** = a base value + Strength scale, and cuts a lot of damage when the block connects.
+
+**Postura** (Guerreiro): adds **base block chance** for a few turns. Higher skill ranks also add block chance that **scales with Vitality** — the trench fighter’s skill, not a second Agility.
 
 Failed block: full quality damage, and dodge did not apply. The log records that the block did not connect. The coach supplies the curse.
 
@@ -185,7 +188,7 @@ Blocked crit: quality is crit (AttackerDamageCalc still high), then blockPower a
 
 Picker taste: Agility weights choosing dodge. Strength + a blocking weapon/shield weights choosing block. Intelligence weights picking the right one for the incoming move (heavy hammer → block, precise shot → dodge) without guaranteeing it.
 
-Agility is **not** a body block-chance stat. Block chance lives on gear and buffs. Agility’s defensive body stat is dodge points, and only on the dodge path.
+Agility is useful on **both** paths, never on both at once: dodge points if they dodge, block chance if they block. Strength does not raise block chance; it raises how much a connected block eats.
 
 ## Damage split
 
@@ -201,37 +204,57 @@ The move is the recipe. The weapon is an ingredient, not a second strike on top.
 - Golpe pesado: a lot of weapon + Strength.
 - Disparo de prateleira: weapon quality + Dexterity.
 - Bow: weapon + Dexterity + some Strength (the bow declares Strength).
-- Crossbow / firearm: weapon + Dexterity, Strength coefficient 0. Precision penalty on the weapon.
+- Crossbow / firearm: weapon + Dexterity, Strength coefficient 0.
+- **Every ranged weapon** (bow, crossbow, firearm) has a **WeaponPrecision penalty**. Not bow-only. Magnitude open.
 - Warhammer: Strength requirement, high Strength coefficient, attack-speed penalty, expensive fôlego.
 - Cientista gadget (e.g. a spark cell, a chemical cloud, a hack): little or no weapon; Intelligence; cooldown and/or a packed consumable. Not fôlego. Not mana.
 
 **DefenderDamageCalc**:
 
-- To-hit half: `PrecisionPoints - DodgePoints` when dodging (see above).
-- HP half: Vitality natural defense + **armor of the hit location**. If a block connected, Strength blockPower.
+- To-hit half: `PrecisionPoints - DodgePoints` when dodging, then + weighted noise, then bands (see above).
+- HP half, **order locked**: attacker power (after quality) → armor of the hit location + Vitality natural defense → if a block connected, blockPower (base + Strength).
 
-Order of HP reductions (subtract vs factor vs cap) stays open.
+Whether each step subtracts or factors stays open; the order does not.
 
 ## Parts, gear, injury
 
-Hit locations and gear slots are the **same six**. Arms and hands are both hittable, both have their own piece, and injured they debuff **differently**.
+Reference feel: [Stoneshard Injuries & Pain](https://stoneshard.com/wiki/Injuries_%26_Pain) — bodypart HP, random location, threshold conditions that change combat stats. We steal that shape. We do **not** steal Pain as a sanity/morale bar, nor swimming/energy/coma, in Act 1.
 
-| Location | Gear | Injury intent (coefficients open) |
+Hit locations and gear slots are the **same six**. Arms and hands are both hittable, both have their own piece, and injured they debuff **differently**. Which part takes the chip is a **roll** (Stoneshard does this too). Weights open; chest should be the mode.
+
+A landed hit spends damage into **calendar HP** and also into the rolled part’s HP. Miss: no location, no part chip.
+
+### Thresholds (Stoneshard shape)
+
+Part HP is a percentage. Crossing a threshold applies a **named injury** that modifies the stats we already have. One injury per part (the worst current tier).
+
+| Part HP | Injury | Intent |
 | --- | --- | --- |
-| Cabeça | Helmet | Precision (and anything that needs a clear head). |
-| Peito | Chest | The meat: HP and armor. Default place to get hit. |
-| Braços | Arm guards | **Strength calcs and precision** (declared: arms at 20% health pull STR and precision down). Melee output and blockPower suffer. |
-| Mãos | Gloves | Different from arms: grip / trigger. Precision and weapon handling harder; less of a Strength story than arms. |
-| Pernas | Greaves | Dodge points. |
+| > 50% | none | No extra condition. |
+| ≤ 50% | leve | Readable penalty on that part’s stats. |
+| ≤ 25% | média | The penalty the coach feels. |
+| ≤ 0% | grave | Maximum penalty on those stats. Act 1 does **not** drop the weapon, break the slot, or coma. |
+
+Exact 50 / 25 / 0 cuts are the Stoneshard defaults and the starting intent; they can still be tuned.
+
+| Location | Gear | Stats the injury pulls (coefficients open) |
+| --- | --- | --- |
+| Cabeça | Helmet | Precision. At média/grave, Intelligence taste in the picker (dumber choices), not a damage aura. |
+| Peito | Chest | The meat: HP and armor. Injury can lower how far potions/heals raise **max HP** until the chest is treated (Stoneshard Health Threshold, light). |
+| Braços | Arm guards | Strength output and some precision. Melee and **blockPower** suffer. |
+| Mãos | Gloves | Grip / trigger: precision and weapon handling (Dexterity in practice). Not the Strength story. |
+| Pernas | Greaves | Dodge points and block chance (the legs that plant or slip). |
 | Pés | Boots | Speed (time between actions). |
 
-Each part has its own **health %**. Example (numbers not locked): arms at 20% health; a part-specific injury item heals 60 percentage points → arms at 80%; that 80% then feeds Strength and precision. Whether heal is additive points vs percent-of-missing stays open; the example is additive.
+Example (numbers not locked): arms at 20% = média, pulling Strength and precision; a part-specific item heals 60 percentage points → 80%, injury clears. Heal intent is **additive points**.
 
-**Persistence (locked):** part health **survives the battle**. An in-fight item can heal a part. The hospital (out of fight) can heal a part. Calendar HP and part health are both things the coach treats after the night.
+**Persistence (locked):** part health **survives the battle**. An in-fight item (splint, salve) can raise part HP. The hospital (out of fight) treats parts. Calendar HP and part health are both things the coach treats after the night. Splints are a war-logistics sink.
 
-Miss does not roll a location and does not chip a part. How much a graze / hit / crit chips part health stays open. 0% on a part is the worst penalty; whether the slot “breaks” (cannot hold the weapon, cannot block) stays open.
+**Pain (Act 1):** no Pain bar, no morale, no sanity, no Pain Shock. Unstabilized injuries *are* the pain: they already tax the stats. If a later pass wants a short “dor” tax (fôlego or precision while a média/grave is untreated), reopen this paragraph — do not import Stoneshard’s psyche layer.
 
-Part-specific medical items are a war-logistics sink (cures, splints). Hospital already exists for HP; it also treats parts.
+**Not in Act 1 (Stoneshard severe specials):** dropping the weapon on grave hands; immobilize-on-turn on grave legs; no-cast / coma on grave head; bleed-every-turn on grave torso. Maximum stat penalty is enough for the autobattler. Those specials are spectacular and a second ruleset.
+
+How much a graze / hit / crit chips part HP stays open. Bleeding as a status stays open (not required to ship the thresholds).
 
 ## What no attribute does
 
@@ -240,7 +263,7 @@ Part-specific medical items are a war-logistics sink (cures, splints). Hospital 
 - Spend or restore **daily STA**.
 - Grant mana, shorten cooldown, or pay a spell cost. Act 1 has no mana and no spells.
 - Resist statuses (live statuses are unread; when they do something, skill or gear).
-- Be Dexterity and Agility at once (precision is not attack speed).
+- Be Dexterity and Agility at once (precision is not attack speed). Agility may raise dodge *or* block chance on a given hit, never both, because the character picks one path.
 - Be Strength on a firearm (the weapon’s coefficient is 0).
 - Apply the star pair as a hidden multiplier.
 - Put Charisma into weapon damage, Intelligence into max HP, or Dexterity into Cast Time in Act 1.
@@ -248,13 +271,17 @@ Part-specific medical items are a war-logistics sink (cures, splints). Hospital 
 
 ## Open on purpose
 
-Formulas, band cuts, quality multipliers, DodgePoints-from-Agility, blockPower-from-Strength, weapon precision penalties, fôlego per move and pool per Vitality, situation vs attribute vs nearest weights, how hard Intelligence bends targeting, points per level, start spread, profession attribute bias.
+Die size (d50 / d80 / …) and the rest of the quality table. Only one point is locked: DEX 1 + middling (~50%) roll = miss that passed close.
+
+Formulas, band cuts, Noise table (weights around 0), quality multipliers, DodgePoints-from-Agility, block-chance-from-Agility, blockPower base + Strength, ranged WeaponPrecision penalties (all ranged, magnitudes open), fôlego per move and pool per Vitality, situation vs attribute vs nearest weights, how hard Intelligence bends targeting, points per level, start spread, profession attribute bias.
+
+Hit-location roll weights. Part-HP chip per quality. Bleeding. Light “dor” tax if we ever want one.
 
 Exact heal/buff coefficients (the move declares them; Cura `10 + 1*INT + 1.5*CHA` is an example).
 
 Charisma on the city layer: fame conversion, buy price. Specified later. Out of SimulCombat until then.
 
-Wound chip per quality. 0% part behavior. Hospital: one action vs HP and parts, or separate verbs.
+Hospital: one action vs HP and parts, or separate verbs. 0% Act 1 = max stat penalty, not Stoneshard specials.
 
 Act 2 mana / channeling profession: reopen this contract when that job exists. Do not assign mana to an Act 1 attribute.
 
