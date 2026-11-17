@@ -5,7 +5,8 @@ import {
   STREET_SKIRMISH_WIN_SCORE,
 } from '../domain/constants.ts';
 import { itemGrantTemplate } from '../domain/businessPayout.ts';
-import { algoProgramFromLoadout } from '../domain/combat/ai/algoProgram.ts';
+// deactivated for now. Maybe activate in future.
+// import { algoProgramFromLoadout } from '../domain/combat/ai/algoProgram.ts';
 import {
   runStreetSkirmish,
   STREET_DRONE_LABEL,
@@ -72,8 +73,10 @@ export const useSkirmishStore = create<SkirmishStore>()((set, get) => ({
       coreAttributes: params.coreAttributes ?? ch?.coreAttributes,
       skillIds: params.skillIds ?? ch?.combatLoadout?.skillIds,
       combatRole: params.combatRole ?? ch?.combatLoadout?.combatRole,
-      algoProgram:
-        params.algoProgram ?? algoProgramFromLoadout(ch?.combatLoadout),
+      // deactivated for now. Maybe activate in future.
+      // algoProgram:
+      //   params.algoProgram ?? algoProgramFromLoadout(ch?.combatLoadout),
+      algoProgram: undefined,
     });
 
     const lastId =

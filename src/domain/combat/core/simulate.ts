@@ -3,7 +3,8 @@ import { resolveStrikeDamage } from '../../autobattle/damageResolution.ts';
 import type { MeleeResolveResult } from '../../combatResolution.ts';
 import { resolveMoveTemplateStrike } from '../../autobattle/autoplayStrike.ts';
 import { COMBAT_TICK_SECONDS } from '../io/combatClock.ts';
-import { decideAlgo } from '../ai/algoPolicy.ts';
+// deactivated for now. Maybe activate in future.
+// import { decideAlgo } from '../ai/algoPolicy.ts';
 import { decideAutoplay, isSkillActionable } from '../ai/autoplayPolicy.ts';
 import type { PolicyDecision } from '../ai/policy.ts';
 import { getMoveTemplate } from '../../../content/catalogs/moves.ts';
@@ -270,7 +271,8 @@ function initUnitState(spec: UnitSpec): UnitState {
     nextActAt: 0,
     immobile: spec.immobile === true,
     vital: spec.vital === true,
-    algoProgram: spec.algoProgram,
+    // deactivated for now. Maybe activate in future.
+    // algoProgram: spec.algoProgram,
   };
 }
 
@@ -524,15 +526,17 @@ export function simulateBattle(input: BattleInput): BattleResult {
     lastTick = state.tick;
 
     let decision: PolicyDecision;
-    if (actor.algoProgram) {
-      decision = decideAlgo({
-        actor,
-        program: actor.algoProgram,
-        state,
-        livingByTeam,
-        getSkillTemplate,
-      });
-    } else {
+    // deactivated for now. Maybe activate in future.
+    // if (actor.algoProgram) {
+    //   decision = decideAlgo({
+    //     actor,
+    //     program: actor.algoProgram,
+    //     state,
+    //     livingByTeam,
+    //     getSkillTemplate,
+    //   });
+    // } else {
+    {
       const nearestId = nearestEnemyId(state, actor, livingByTeam);
       if (!nearestId) {
         // No enemies (should be handled by teams check), but be safe.
@@ -549,6 +553,7 @@ export function simulateBattle(input: BattleInput): BattleResult {
         retreatChance: retreatCfg.retreatChance,
       });
     }
+    // }
 
     if (decision.kind === 'retreat') {
       actor.retreated = true;
@@ -562,9 +567,11 @@ export function simulateBattle(input: BattleInput): BattleResult {
       writer.push({
         type: 'unit_retreated',
         unitId: actor.unitId,
-        reason: actor.algoProgram
-          ? 'algo'
-          : `hp<=${String(retreatCfg.retreatHpFraction)}`,
+        reason:
+          // deactivated for now. Maybe activate in future.
+          false && actor.algoProgram
+            ? 'algo'
+            : `hp<=${String(retreatCfg.retreatHpFraction)}`,
       });
 
       // Do not reschedule a retreated unit.
@@ -602,22 +609,24 @@ export function simulateBattle(input: BattleInput): BattleResult {
       pickedSkill?.effect.kind === 'damage' ? pickedSkill.targets : 'single';
     const hasEnemyInSkillRange =
       enemiesInSkillRange(state, actor, skillRange, livingByTeam).length > 0;
-    const canCastSkill = actor.algoProgram
-      ? algoCanCast({
-          actor,
-          target,
-          pickedSkill,
-          skillRange,
-          isRanged,
-          isAdjacent,
-          inRange,
-          hasEnemyInSkillRange,
-          damageScope,
-        })
-      : !!pickedSkill &&
-        (pickedSkill.effect.kind !== 'damage' || damageScope === 'single'
-          ? canMelee || (isRanged && inRange)
-          : hasEnemyInSkillRange);
+    const canCastSkill =
+      // deactivated for now. Maybe activate in future.
+      false && actor.algoProgram
+        ? algoCanCast({
+            actor,
+            target,
+            pickedSkill,
+            skillRange,
+            isRanged,
+            isAdjacent,
+            inRange,
+            hasEnemyInSkillRange,
+            damageScope,
+          })
+        : !!pickedSkill &&
+          (pickedSkill.effect.kind !== 'damage' || damageScope === 'single'
+            ? canMelee || (isRanged && inRange)
+            : hasEnemyInSkillRange);
 
     if (pickedSkill && canCastSkill) {
       // Spend mana + apply cooldown.
@@ -700,11 +709,13 @@ export function simulateBattle(input: BattleInput): BattleResult {
           }
         }
       } else if (pickedSkill.effect.kind === 'heal') {
-        const allyId = actor.algoProgram
-          ? target.teamId === actor.teamId
-            ? target.unitId
-            : null
-          : mostWoundedAllyId(state, actor, livingByTeam);
+        const allyId =
+          // deactivated for now. Maybe activate in future.
+          false && actor.algoProgram
+            ? target.teamId === actor.teamId
+              ? target.unitId
+              : null
+            : mostWoundedAllyId(state, actor, livingByTeam);
         if (allyId) {
           const ally = state.unitsById[allyId]!;
           const amount = Math.max(
@@ -780,7 +791,12 @@ export function simulateBattle(input: BattleInput): BattleResult {
           action: 'wait',
         });
       }
-    } else if (actor.algoProgram && target.teamId === actor.teamId) {
+    } else if (
+      // deactivated for now. Maybe activate in future.
+      false &&
+      actor.algoProgram &&
+      target.teamId === actor.teamId
+    ) {
       writer.push({
         type: 'unit_acted',
         unitId: actor.unitId,

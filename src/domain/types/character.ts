@@ -35,9 +35,13 @@ export interface CombatLoadout {
   /**
    * Which policy this character uses when fielded.
    * Omitted on older saves; normalize treats that as autoplay.
+   * deactivated for now. Maybe activate in future. (AlgoCombat)
    */
   policyMode?: CombatPolicyMode;
-  /** Ordered AlgoCombat rules. Used only when `policyMode` is `algo`. */
+  /**
+   * Ordered AlgoCombat rules. Used only when `policyMode` is `algo`.
+   * deactivated for now. Maybe activate in future.
+   */
   algoRules?: AlgoRule[];
 }
 

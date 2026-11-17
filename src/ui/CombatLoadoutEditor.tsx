@@ -23,9 +23,13 @@ export interface CombatLoadoutEditorProps {
   onChangeSkillIds: (next: string[]) => void;
   combatRole: 'frontline' | 'ranged' | 'support';
   onChangeCombatRole: (next: 'frontline' | 'ranged' | 'support') => void;
+  /** deactivated for now. Maybe activate in future. */
   policyMode: CombatPolicyMode;
+  /** deactivated for now. Maybe activate in future. */
   algoRules: readonly AlgoRule[];
+  /** deactivated for now. Maybe activate in future. */
   onChangePolicyMode: (next: CombatPolicyMode) => void;
+  /** deactivated for now. Maybe activate in future. */
   onChangeAlgoRules: (next: AlgoRule[]) => void;
 }
 
@@ -197,14 +201,17 @@ export function CombatLoadoutEditor(props: CombatLoadoutEditorProps) {
           )}
         </div>
       </div>
-      <AlgoRuleEditor
-        equipped={equipped}
-        policyMode={props.policyMode}
-        rules={props.algoRules}
-        onChangePolicyMode={props.onChangePolicyMode}
-        onChangeRules={props.onChangeAlgoRules}
-        skillTitle={(id) => skillMeta(id).title}
-      />
+      {/* deactivated for now. Maybe activate in future. */}
+      {false && (
+        <AlgoRuleEditor
+          equipped={equipped}
+          policyMode={props.policyMode}
+          rules={props.algoRules}
+          onChangePolicyMode={props.onChangePolicyMode}
+          onChangeRules={props.onChangeAlgoRules}
+          skillTitle={(id) => skillMeta(id).title}
+        />
+      )}
     </div>
   );
 }

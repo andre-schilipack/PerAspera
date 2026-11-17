@@ -109,7 +109,8 @@ export function resolveExpansionClearBattle(
         mana: 0,
         skillIds: skills,
         speed: speedFromAgility(attrs.agility),
-        algoProgram: f.algoProgram,
+        // deactivated for now. Maybe activate in future.
+        // algoProgram: f.algoProgram,
       };
     });
 

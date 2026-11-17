@@ -122,7 +122,8 @@ import { replayCombatLog } from '../domain/battleReplayLog.ts';
 import { useBattleArchiveStore } from '../stores/useBattleArchiveStore.ts';
 import { useExpansionStore } from '../stores/useExpansionStore.ts';
 import { useOffensiveStore } from '../stores/useOffensiveStore.ts';
-import { algoProgramFromLoadout } from '../domain/combat/ai/algoProgram.ts';
+// deactivated for now. Maybe activate in future.
+// import { algoProgramFromLoadout } from '../domain/combat/ai/algoProgram.ts';
 import { useWorldStore } from '../stores/useWorldStore.ts';
 
 import { CombatLogTurnTabPanel } from './CombatLogTurnTabPanel.tsx';
@@ -615,7 +616,8 @@ export default function GameApp() {
         coreAttributes: character.coreAttributes,
         skillIds: character.combatLoadout.skillIds,
         combatRole: character.combatLoadout.combatRole,
-        algoProgram: algoProgramFromLoadout(character.combatLoadout),
+        // deactivated for now. Maybe activate in future.
+        // algoProgram: algoProgramFromLoadout(character.combatLoadout),
       });
     }
   }
@@ -1470,6 +1472,7 @@ export default function GameApp() {
                 },
               })
             }
+            /* deactivated for now. Maybe activate in future. */
             onChangePolicyMode={(policyMode) =>
               updateCharacter(character.id, {
                 combatLoadout: {
@@ -1478,6 +1481,7 @@ export default function GameApp() {
                 },
               })
             }
+            /* deactivated for now. Maybe activate in future. */
             onChangeAlgoRules={(algoRules) =>
               updateCharacter(character.id, {
                 combatLoadout: {

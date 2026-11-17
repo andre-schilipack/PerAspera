@@ -215,7 +215,8 @@ export function runStreetSkirmish(
         mana: 0,
         skillIds,
         speed: speedFromAgility(attrs.agility),
-        algoProgram: params.algoProgram,
+        // deactivated for now. Maybe activate in future.
+        // algoProgram: params.algoProgram,
       },
       {
         unitId: STREET_DRONE_UNIT_ID,

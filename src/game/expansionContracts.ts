@@ -1,4 +1,5 @@
-import { algoProgramFromLoadout } from '../domain/combat/ai/algoProgram.ts';
+// deactivated for now. Maybe activate in future.
+// import { algoProgramFromLoadout } from '../domain/combat/ai/algoProgram.ts';
 import {
   CENTER_HEX_ID,
   EXPANSION_CONTRACT_CHAR_SLOTS,
@@ -227,7 +228,8 @@ function launchExpansionClear(
       coreAttributes: ch.coreAttributes,
       skillIds,
       combatRole: ch.combatLoadout?.combatRole,
-      algoProgram: algoProgramFromLoadout(ch.combatLoadout),
+      // deactivated for now. Maybe activate in future.
+      // algoProgram: algoProgramFromLoadout(ch.combatLoadout),
       tacticalBucket: defenderBucketForLineIndex(lineIndex),
     });
   });

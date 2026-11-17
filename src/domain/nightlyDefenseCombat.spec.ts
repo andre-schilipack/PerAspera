@@ -34,7 +34,7 @@ describe('buildDefenderLineFromLocks', () => {
     expect(line[0]!.algoProgram).toBeUndefined();
   });
 
-  it('copies an AlgoCombat program only when the loadout mode is algo', () => {
+  it('does not copy an AlgoCombat program while the feature is deactivated', () => {
     const line = buildDefenderLineFromLocks(['a'], () => ({
       name: 'Scripted',
       health: { current: 20, max: 20 },
@@ -50,10 +50,7 @@ describe('buildDefenderLineFromLocks', () => {
         ],
       },
     }));
-    expect(line[0]!.algoProgram?.rules).toHaveLength(1);
-    expect(line[0]!.algoProgram?.rules[0]?.do).toEqual({
-      kind: 'skill',
-      skillId: 'cure',
-    });
+    // deactivated for now. Maybe activate in future.
+    expect(line[0]!.algoProgram).toBeUndefined();
   });
 });

@@ -6,6 +6,7 @@ import type { MoveTemplate } from '../../types/combat.ts';
 import { simulateBattle } from '../core/simulate.ts';
 import type { BattleState, UnitState } from '../core/types.ts';
 
+import { algoProgramFromLoadout } from './algoProgram.ts';
 import { decideAlgo } from './algoPolicy.ts';
 import type { AlgoProgram } from './policy.ts';
 
@@ -36,6 +37,23 @@ function stateOf(units: UnitState[]): BattleState {
   for (const u of units) unitsById[u.unitId] = u;
   return { tick: 0, unitsById };
 }
+
+describe('algoProgramFromLoadout', () => {
+  it('does not attach a program while AlgoCombat is deactivated', () => {
+    expect(
+      algoProgramFromLoadout({
+        policyMode: 'algo',
+        algoRules: [
+          {
+            enabled: true,
+            when: { kind: 'foe_nearest' },
+            do: { kind: 'skill', skillId: 'basic_attack' },
+          },
+        ],
+      }),
+    ).toBeUndefined();
+  });
+});
 
 describe('decideAlgo', () => {
   it('fires the first matching rule and skips a disabled one', () => {
@@ -122,7 +140,8 @@ describe('decideAlgo', () => {
   });
 });
 
-describe('simulateBattle AlgoCombat', () => {
+// deactivated for now. Maybe activate in future.
+describe.skip('simulateBattle AlgoCombat', () => {
   it('retreats from a program even when the autoplay retreat roll is off', () => {
     const res = simulateBattle({
       battleId: 'algo-retreat',

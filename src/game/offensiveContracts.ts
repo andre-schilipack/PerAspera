@@ -3,7 +3,8 @@ import {
   OFFENSIVE_CONTRACT_CHAR_SLOTS,
   OFFENSIVE_CONTRACT_STA_COST,
 } from '../domain/constants.ts';
-import { algoProgramFromLoadout } from '../domain/combat/ai/algoProgram.ts';
+// deactivated for now. Maybe activate in future.
+// import { algoProgramFromLoadout } from '../domain/combat/ai/algoProgram.ts';
 import { defenderBucketForLineIndex } from '../domain/defenseTactics.ts';
 import {
   resolveOffensiveNestBattle,
@@ -116,7 +117,8 @@ export function startOffensiveSortie(
       coreAttributes: ch.coreAttributes,
       skillIds,
       combatRole: ch.combatLoadout?.combatRole,
-      algoProgram: algoProgramFromLoadout(ch.combatLoadout),
+      // deactivated for now. Maybe activate in future.
+      // algoProgram: algoProgramFromLoadout(ch.combatLoadout),
       tacticalBucket: defenderBucketForLineIndex(lineIndex),
     });
     lineIndex += 1;

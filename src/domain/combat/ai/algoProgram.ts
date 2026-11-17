@@ -52,10 +52,15 @@ export function sanitizeAlgoRules(raw: unknown): AlgoRule[] {
   return out;
 }
 
-/** Present only when the loadout opted into AlgoCombat. Empty rules still count. */
+/**
+ * Present only when the loadout opted into AlgoCombat. Empty rules still count.
+ * deactivated for now. Maybe activate in future.
+ */
 export function algoProgramFromLoadout(
   loadout: Pick<CombatLoadout, 'policyMode' | 'algoRules'> | undefined,
 ): AlgoProgram | undefined {
-  if (!loadout || loadout.policyMode !== 'algo') return undefined;
-  return { rules: loadout.algoRules ?? [] };
+  void loadout;
+  return undefined;
+  // if (!loadout || loadout.policyMode !== 'algo') return undefined;
+  // return { rules: loadout.algoRules ?? [] };
 }

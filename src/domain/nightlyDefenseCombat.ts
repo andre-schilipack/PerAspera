@@ -1,7 +1,8 @@
 import type { CombatLogEntry } from './types/combat.ts';
 import type { CoreAttributes } from './types/attributes.ts';
 import type { DailyDefenseState, DefenderLineEntry } from './types/defense.ts';
-import { algoProgramFromLoadout } from './combat/ai/algoProgram.ts';
+// deactivated for now. Maybe activate in future.
+// import { algoProgramFromLoadout } from './combat/ai/algoProgram.ts';
 import type { CombatLoadout } from './types/character.ts';
 import type { MassCombatWallSnapshot } from './types/massCombat.ts';
 import { defenderBucketForLineIndex } from './defenseTactics.ts';
@@ -72,7 +73,8 @@ export function buildDefenderLineFromLocks(
       coreAttributes:
         ch.coreAttributes !== undefined ? { ...ch.coreAttributes } : undefined,
       skillIds,
-      algoProgram: algoProgramFromLoadout(ch.combatLoadout),
+      // deactivated for now. Maybe activate in future.
+      // algoProgram: algoProgramFromLoadout(ch.combatLoadout),
       combatState: { cooldowns: {}, statuses: {} },
     });
   }
